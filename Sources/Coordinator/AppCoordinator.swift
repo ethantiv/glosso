@@ -9,64 +9,95 @@ final class AppCoordinator {
     private let popup: any TranslationPopupPresenting
     private let ax: any AccessibilityAuthorizing
 
-    private var streamTask: Task<Void, Never>?
+    private let pollStepMs: Int
+    private let pollMaxAttempts: Int
+
+    private var captureTask: Task<Void, Never>?
 
     init(
         llm: any LLMClient,
         monitor: any HotkeyMonitor,
         reader: any PasteboardReading,
         popup: any TranslationPopupPresenting,
-        ax: any AccessibilityAuthorizing
+        ax: any AccessibilityAuthorizing,
+        pollStepMs: Int = 12,
+        pollMaxAttempts: Int = 20
     ) {
         self.llm = llm
         self.monitor = monitor
         self.reader = reader
         self.popup = popup
         self.ax = ax
+        self.pollStepMs = pollStepMs
+        self.pollMaxAttempts = pollMaxAttempts
     }
 
-    func start() {
+    /// Starts pre-warm and the hotkey monitor. Returns whether the monitor
+    /// actually started (it throws when Accessibility is not granted).
+    @discardableResult
+    func start() -> Bool {
         Task { try? await llm.prewarm() }
+
         monitor.onDoubleCopy = { [weak self] in self?.handleDoubleCopy() }
-        try? monitor.start()
-        popup.onDismiss = { [weak self] in self?.streamTask?.cancel() }
+        popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
+
+        do {
+            try monitor.start()
+            return true
+        } catch {
+            return false
+        }
     }
 
     func handleDoubleCopy() {
+        let mouse = NSEvent.mouseLocation
         let baseline = reader.currentChangeCount
-        let text: String
-        do {
-            text = try reader.readSelection(baselineChangeCount: baseline - 1)
-        } catch {
-            popup.present(direction: .unknown, at: NSEvent.mouseLocation)
-            popup.showError((error as? CaptureError) == .nothingSelected
-                ? CaptureError.nothingSelected.localizedFallback
-                : "Brak tekstu do tłumaczenia.")
-            return
+        captureTask?.cancel()
+        captureTask = Task { @MainActor [weak self] in
+            await self?.captureAndTranslate(baseline: baseline, at: mouse)
         }
-        translate(text)
     }
 
-    func translate(_ text: String) {
-        streamTask?.cancel()
-        popup.present(direction: .unknown, at: NSEvent.mouseLocation)
-        streamTask = Task { @MainActor in
+    /// Polls the pasteboard until the second Cmd+C's copy lands (changeCount
+    /// rises above the baseline), then streams the translation. The second
+    /// Cmd+C only *triggers* the copy, so the new text is not present yet at
+    /// the instant the double-press is detected.
+    func captureAndTranslate(baseline: Int, at point: CGPoint) async {
+        for _ in 0..<pollMaxAttempts {
+            if Task.isCancelled { return }
             do {
-                for try await event in llm.translate(text) {
-                    switch event {
-                    case .token(let token): popup.append(token: token)
-                    case .finished: popup.finish()
-                    }
-                }
-            } catch let error as TranslationError {
-                popup.showError(error.userMessage)
+                let text = try reader.readSelection(baselineChangeCount: baseline)
+                await stream(text, at: point)
+                return
+            } catch CaptureError.emptyOrNonText {
+                present(error: "Zaznaczenie nie zawiera tekstu do tłumaczenia.", at: point)
+                return
             } catch {
-                popup.showError("Błąd tłumaczenia.")
+                // .nothingSelected: clipboard has not updated yet — keep polling.
             }
+            try? await Task.sleep(for: .milliseconds(pollStepMs))
+        }
+        present(error: "Nic nie zaznaczono do tłumaczenia.", at: point)
+    }
+
+    private func stream(_ text: String, at point: CGPoint) async {
+        popup.present(direction: .unknown, at: point)
+        do {
+            for try await event in llm.translate(text) {
+                switch event {
+                case .token(let token): popup.append(token: token)
+                case .finished: popup.finish()
+                }
+            }
+        } catch let error as TranslationError {
+            popup.showError(error.userMessage)
+        } catch {
+            popup.showError("Błąd tłumaczenia.")
         }
     }
-}
 
-private extension CaptureError {
-    var localizedFallback: String { "Nic nie zaznaczono." }
+    private func present(error message: String, at point: CGPoint) {
+        popup.present(direction: .unknown, at: point)
+        popup.showError(message)
+    }
 }

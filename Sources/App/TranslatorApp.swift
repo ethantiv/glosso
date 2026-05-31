@@ -7,8 +7,16 @@ struct TranslatorApp: App {
 
     var body: some Scene {
         MenuBarExtra("Translator", systemImage: "character.bubble") {
-            Button("Przetłumacz przykład (demo)") {
-                appDelegate.coordinator?.translate("Cześć, świecie")
+            if appDelegate.appState.accessibilityGranted {
+                Text("Nasłuch aktywny — podwójne ⌘C tłumaczy zaznaczenie")
+            } else {
+                Text("Brak uprawnienia Dostępność (Accessibility)")
+                Button("Otwórz Ustawienia → Prywatność → Dostępność") {
+                    appDelegate.openAccessibilitySettings()
+                }
+                Button("Sprawdź ponownie") {
+                    appDelegate.recheckAccessibility()
+                }
             }
             Divider()
             Button("Zakończ") { NSApplication.shared.terminate(nil) }
@@ -18,20 +26,39 @@ struct TranslatorApp: App {
 
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
-    var coordinator: AppCoordinator?
+    let appState = AppState()
+    private let ax = AXChecker()
+    private var coordinator: AppCoordinator?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
             return
         }
+
+        appState.accessibilityGranted = ax.isTrusted
+        if !ax.isTrusted {
+            ax.requestAccess(prompt: true)
+        }
+
         let coordinator = AppCoordinator(
-            llm: StubLLMClient(),
-            monitor: StubHotkeyMonitor(),
-            reader: StubPasteboardReader(),
-            popup: StubPopupPresenter(),
-            ax: StubAccessibilityAuthorizer()
+            llm: OllamaClient(),
+            monitor: GlobalHotkeyMonitor(),
+            reader: SystemPasteboardReader(),
+            popup: TranslationPopupController(),
+            ax: ax
         )
-        coordinator.start()
+        appState.listening = coordinator.start()
         self.coordinator = coordinator
+    }
+
+    func openAccessibilitySettings() {
+        ax.openSystemSettings()
+    }
+
+    func recheckAccessibility() {
+        appState.accessibilityGranted = ax.isTrusted
+        if ax.isTrusted, appState.listening == false {
+            appState.listening = coordinator?.start() ?? false
+        }
     }
 }
