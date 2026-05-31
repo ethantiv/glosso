@@ -46,6 +46,50 @@ import Testing
         }
     }
 
+    @Test func errorFrameSurfacesAsOllamaError() async {
+        MockURLProtocol.handler = { request in
+            let body = (#"{"error":"model 'gemma4:26b-mlx' not found"}"# + "\n").data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.ollamaError("model 'gemma4:26b-mlx' not found")) {
+            for try await _ in client.translate("Cześć") {}
+        }
+    }
+
+    @Test func streamEndingWithoutDoneMapsToMalformedStream() async {
+        MockURLProtocol.handler = { request in
+            let lines = [
+                #"{"model":"m","response":"Hel","done":false}"#,
+                #"{"model":"m","response":"lo","done":false}"#,
+            ]
+            let body = (lines.joined(separator: "\n") + "\n").data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.malformedStream) {
+            for try await _ in client.translate("Cześć") {}
+        }
+    }
+
+    @Test func unexpectedURLErrorMapsToOllamaUnreachable() async {
+        MockURLProtocol.handler = { _ in
+            throw URLError(.networkConnectionLost)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.ollamaUnreachable) {
+            for try await _ in client.translate("Cześć") {}
+        }
+    }
+
     @Test func nonOKStatusMapsToHTTPStatus() async {
         MockURLProtocol.handler = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!

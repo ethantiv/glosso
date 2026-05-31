@@ -53,6 +53,7 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     private(set) var presented = false
+    private(set) var dismissCount = 0
     private(set) var tokens: [String] = []
     private(set) var errorMessage: String?
     private(set) var finished = false
@@ -61,7 +62,12 @@ final class FakePopup: TranslationPopupPresenting {
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }
     func finish() { finished = true }
-    func dismiss() {}
+    func dismiss() {
+        guard presented else { return }
+        presented = false
+        dismissCount += 1
+        onDismiss?()
+    }
 }
 
 @MainActor

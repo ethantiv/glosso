@@ -29,29 +29,40 @@ final class OllamaClient: LLMClient {
                         return
                     }
 
+                    var sawDone = false
                     for try await line in bytes.lines {
                         if Task.isCancelled {
                             continuation.finish(throwing: TranslationError.cancelled)
                             return
                         }
                         guard let chunk = NDJSONStreamParser.parse(line: line) else { continue }
+                        if let serverError = chunk.error {
+                            continuation.finish(throwing: TranslationError.ollamaError(serverError))
+                            return
+                        }
                         if let response = chunk.response, !response.isEmpty {
                             continuation.yield(.token(response))
                         }
                         if chunk.done {
                             continuation.yield(.finished(doneReason: chunk.doneReason))
+                            sawDone = true
                             break
                         }
                     }
-                    continuation.finish()
+                    // A body that ends without a done:true chunk (proxy truncation,
+                    // daemon crash, premature EOF) would otherwise leave the popup
+                    // spinning forever — surface it instead.
+                    if sawDone {
+                        continuation.finish()
+                    } else {
+                        continuation.finish(throwing: TranslationError.malformedStream)
+                    }
                 } catch let error as URLError {
                     switch error.code {
-                    case .cannotConnectToHost, .timedOut, .cannotFindHost:
-                        continuation.finish(throwing: TranslationError.ollamaUnreachable)
                     case .cancelled:
                         continuation.finish(throwing: TranslationError.cancelled)
                     default:
-                        continuation.finish(throwing: error)
+                        continuation.finish(throwing: TranslationError.ollamaUnreachable)
                     }
                 } catch is CancellationError {
                     continuation.finish(throwing: TranslationError.cancelled)

@@ -7,8 +7,13 @@ struct TranslatorApp: App {
 
     var body: some Scene {
         MenuBarExtra("Translator", systemImage: "character.bubble") {
-            if appDelegate.appState.accessibilityGranted {
+            if appDelegate.appState.listening {
                 Text("Nasłuch aktywny — podwójne ⌘C tłumaczy zaznaczenie")
+            } else if appDelegate.appState.accessibilityGranted {
+                Text("Dostępność OK, ale nasłuch nie wystartował.")
+                Button("Sprawdź ponownie") {
+                    appDelegate.recheckAccessibility()
+                }
             } else {
                 Text("Brak uprawnienia Dostępność (Accessibility)")
                 Button("Otwórz Ustawienia → Prywatność → Dostępność") {

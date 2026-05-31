@@ -53,6 +53,9 @@ final class AppCoordinator {
         let mouse = NSEvent.mouseLocation
         let baseline = reader.currentChangeCount
         captureTask?.cancel()
+        // Tear the previous popup down now so its monitors can't fire onDismiss
+        // and cancel the new captureTask before it gets to present its own popup.
+        popup.dismiss()
         captureTask = Task { @MainActor [weak self] in
             await self?.captureAndTranslate(baseline: baseline, at: mouse)
         }
@@ -67,6 +70,7 @@ final class AppCoordinator {
             if Task.isCancelled { return }
             do {
                 let text = try reader.readSelection(baselineChangeCount: baseline)
+                if Task.isCancelled { return }
                 await stream(text, at: point)
                 return
             } catch CaptureError.emptyOrNonText {
@@ -77,6 +81,7 @@ final class AppCoordinator {
             }
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
+        if Task.isCancelled { return }
         present(error: "Nic nie zaznaczono do tłumaczenia.", at: point)
     }
 

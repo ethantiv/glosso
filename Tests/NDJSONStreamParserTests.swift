@@ -16,6 +16,13 @@ import Testing
         #expect(chunk.doneReason == "stop")
     }
 
+    @Test func parsesErrorLine() throws {
+        let chunk = try #require(NDJSONStreamParser.parse(line: #"{"error":"model 'gemma4:26b-mlx' not found"}"#))
+        #expect(chunk.error == "model 'gemma4:26b-mlx' not found")
+        #expect(chunk.done == false)
+        #expect(chunk.response == nil)
+    }
+
     @Test func emptyLineReturnsNil() {
         #expect(NDJSONStreamParser.parse(line: "") == nil)
         #expect(NDJSONStreamParser.parse(line: "   ") == nil)

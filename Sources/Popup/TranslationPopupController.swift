@@ -16,6 +16,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private static let escKeyCode: UInt16 = 53
 
     func present(direction: TranslationDirection, at screenPoint: CGPoint) {
+        tearDown()
+
         model.direction = direction
         model.text = ""
         model.phase = .streaming
@@ -29,7 +31,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         host.sizingOptions = [.preferredContentSize]
         panel.contentViewController = host
 
-        let frame = screen(containing: screenPoint).frame
+        // visibleFrame excludes the menu bar / notch and the Dock, so the popup
+        // never renders behind them (where the outside-click monitor would also
+        // dismiss it the moment the user clicks the bar to reach it).
+        let frame = screen(containing: screenPoint).visibleFrame
         let topLeft = PanelPositioning.topLeft(
             forMouse: screenPoint,
             panelSize: size,
@@ -70,6 +75,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     func dismiss() {
         guard panel != nil else { return }
+        tearDown()
+        onDismiss?()
+    }
+
+    // Releases the panel and its observers without firing onDismiss, so present()
+    // can reuse it to stay idempotent without cancelling the in-flight capture task.
+    private func tearDown() {
         removeMonitors()
         if let resizeObserver {
             NotificationCenter.default.removeObserver(resizeObserver)
@@ -78,26 +90,29 @@ final class TranslationPopupController: TranslationPopupPresenting {
         panel?.orderOut(nil)
         panel?.close()
         panel = nil
-        onDismiss?()
     }
 
     private func installMonitors() {
-        escMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            guard let self else { return event }
-            if event.keyCode == Self.escKeyCode {
-                self.dismiss()
-                return nil
+        // The panel is non-activating and the app is LSUIElement, so a local
+        // monitor never sees Esc (it is routed to the foreground app). A global
+        // monitor observes it the same way the outside-click one does.
+        escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            MainActor.assumeIsolated {
+                guard event.keyCode == Self.escKeyCode else { return }
+                self?.dismiss()
             }
-            return event
         }
 
         // The panel never becomes key, so clicks landing in other apps are only
-        // observable through the global monitor; treat any such click as dismiss.
+        // observable through the global monitor; dismiss only when the click is
+        // outside the panel, otherwise it races click-to-copy on the same event.
         outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
             matching: [.leftMouseDown, .rightMouseDown]
         ) { [weak self] _ in
             MainActor.assumeIsolated {
-                self?.dismiss()
+                guard let self, let panel = self.panel,
+                      !panel.frame.contains(NSEvent.mouseLocation) else { return }
+                self.dismiss()
             }
         }
     }

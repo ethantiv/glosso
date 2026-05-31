@@ -12,6 +12,9 @@ final class FloatingPanel: NSPanel {
         level = .floating
         collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
         isFloatingPanel = true
+        // NSPanel defaults to releasing itself on close; combined with our own
+        // strong reference being dropped in dismiss() that over-releases under ARC.
+        isReleasedWhenClosed = false
         hidesOnDeactivate = false
         backgroundColor = .clear
         isOpaque = false

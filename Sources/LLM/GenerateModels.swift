@@ -35,10 +35,20 @@ struct GenerateChunk: Decodable, Sendable {
     var response: String?
     var done: Bool
     var doneReason: String?
+    var error: String?
 
     enum CodingKeys: String, CodingKey {
         case response
         case done
         case doneReason = "done_reason"
+        case error
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        response = try container.decodeIfPresent(String.self, forKey: .response)
+        done = try container.decodeIfPresent(Bool.self, forKey: .done) ?? false
+        doneReason = try container.decodeIfPresent(String.self, forKey: .doneReason)
+        error = try container.decodeIfPresent(String.self, forKey: .error)
     }
 }

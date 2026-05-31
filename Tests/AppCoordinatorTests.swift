@@ -48,6 +48,21 @@ import Testing
         #expect(popup.errorMessage == "Nic nie zaznaczono do tłumaczenia.")
     }
 
+    @Test func newDoubleCopyDismissesThePreviousPopup() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        #expect(popup.presented)
+
+        coordinator.handleDoubleCopy()
+
+        #expect(popup.dismissCount == 1)
+    }
+
     @Test func nonTextSelectionReportsImmediately() async {
         let llm = FakeLLMClient()
         let popup = FakePopup()

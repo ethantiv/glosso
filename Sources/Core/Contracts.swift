@@ -23,6 +23,7 @@ enum TranslationEvent: Sendable, Equatable {
 enum TranslationError: Error, Sendable, Equatable {
     case ollamaUnreachable
     case httpStatus(Int)
+    case ollamaError(String)
     case malformedStream
     case emptyInput
     case cancelled
@@ -33,6 +34,8 @@ enum TranslationError: Error, Sendable, Equatable {
             "Nie mogę połączyć się z Ollamą (localhost:11434). Sprawdź, czy działa."
         case .httpStatus(let code):
             "Ollama zwróciła błąd HTTP \(code)."
+        case .ollamaError(let message):
+            "Ollama zgłosiła błąd: \(message)"
         case .malformedStream:
             "Otrzymałem nieprawidłową odpowiedź z modelu."
         case .emptyInput:
