@@ -34,7 +34,8 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
 
     private func handle(_ event: NSEvent) {
         let isC = event.keyCode == 8
-        let mods = event.modifierFlags.intersection(.deviceIndependentFlagsMask)
+        let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
+        let mods = event.modifierFlags.intersection(chordModifiers)
         guard isC, mods == .command, !event.isARepeat else { return }
         if detector.registerCopy(at: clock.now()) {
             onDoubleCopy?()
