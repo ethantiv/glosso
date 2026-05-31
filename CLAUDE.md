@@ -27,6 +27,16 @@ scripts/test.sh     # xcodebuild test → .build/TestResults.xcresult
 **Builds and `xcodebuild` must run outside the sandbox** (`dangerouslyDisableSandbox: true`).
 Inside the sandbox they fail with `Operation not permitted`.
 
+Signing uses a **free personal team** (Team ID `F266Z8F83B` in `project.yml`).
+The scripts pass `-allowProvisioningUpdates` so the first build creates the
+"Apple Development" cert. Accessibility consent (TCC) is pinned to the signing
+identity, so changing `DEVELOPMENT_TEAM`/signing style means re-granting it
+(`tccutil reset Accessibility com.mirek.translatormenubar`, then re-add the app).
+
+Live "Cannot find type X" / "No such module 'Testing'" diagnostics in the
+editor before a build are **SourceKit noise** (single module, not yet indexed),
+not real errors — verify against an actual `scripts/build.sh`/`test.sh` run.
+
 Tests use the **Swift Testing** framework (`import Testing`, `@Test`, `@Suite`,
 `#expect`) — not XCTest. To run one suite or test, add `-only-testing`:
 
@@ -100,3 +110,6 @@ callbacks).
 - `TestsIntegration/OllamaLiveTests.swift` — hits a real Ollama and **silently
   skips (returns early) when `localhost:11434` is unreachable**, so the suite
   stays green without a running daemon.
+- Every test/helper file needs `@testable import TranslatorMenuBar` to see our
+  types, and `import Foundation` when it uses Foundation types (e.g. `TimeInterval`).
+  Helpers under `Tests/Support/` are easy to forget.
