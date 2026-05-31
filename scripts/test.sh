@@ -18,5 +18,6 @@ xcodebuild test \
   -destination "$DEST" \
   -derivedDataPath "$DD" \
   -resultBundlePath "$RESULT" \
-  -allowProvisioningUpdates
+  -allowProvisioningUpdates \
+  -quiet
 echo "✅ Testy zakończone (wyniki: $RESULT)"

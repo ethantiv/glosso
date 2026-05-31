@@ -15,5 +15,6 @@ xcodebuild build \
   -destination "$DEST" \
   -configuration Debug \
   -derivedDataPath "$DD" \
-  -allowProvisioningUpdates
+  -allowProvisioningUpdates \
+  -quiet
 echo "✅ Build OK → $DD/Build/Products/Debug/$SCHEME.app"
