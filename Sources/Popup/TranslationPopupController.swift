@@ -9,6 +9,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private let model = PopupModel()
     private var escMonitor: Any?
     private var outsideClickMonitor: Any?
+    private var resizeObserver: NSObjectProtocol?
+    private var anchorTopLeft: CGPoint = .zero
 
     private static let defaultSize = CGSize(width: 360, height: 140)
     private static let escKeyCode: UInt16 = 53
@@ -29,9 +31,22 @@ final class TranslationPopupController: TranslationPopupPresenting {
             panelSize: size,
             screenFrame: frame
         )
+        anchorTopLeft = topLeft
         panel.setFrameTopLeftPoint(topLeft)
         panel.orderFrontRegardless()
         self.panel = panel
+
+        // The hosting view drives the panel size, which grows as tokens stream
+        // in. AppKit keeps the bottom-left origin fixed on resize, so without
+        // this the panel would grow upward over the cursor; re-pin the top-left.
+        resizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didResizeNotification, object: panel, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel = self.panel else { return }
+                panel.setFrameTopLeftPoint(self.anchorTopLeft)
+            }
+        }
 
         installMonitors()
     }
@@ -52,6 +67,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
     func dismiss() {
         guard panel != nil else { return }
         removeMonitors()
+        if let resizeObserver {
+            NotificationCenter.default.removeObserver(resizeObserver)
+            self.resizeObserver = nil
+        }
         panel?.orderOut(nil)
         panel?.close()
         panel = nil

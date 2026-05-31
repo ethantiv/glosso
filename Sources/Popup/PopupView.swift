@@ -22,7 +22,7 @@ struct PopupView: View {
             content
         }
         .padding(14)
-        .frame(maxWidth: 360, alignment: .leading)
+        .frame(width: 360, alignment: .leading)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(.regularMaterial)
