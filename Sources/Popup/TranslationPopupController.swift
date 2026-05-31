@@ -23,7 +23,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
-        panel.contentViewController = NSHostingController(rootView: PopupView(model: model))
+        let host = NSHostingController(rootView: PopupView(model: model))
+        // Let the SwiftUI content drive the window size so the panel grows to fit
+        // longer translations instead of clipping them.
+        host.sizingOptions = [.preferredContentSize]
+        panel.contentViewController = host
 
         let frame = screen(containing: screenPoint).frame
         let topLeft = PanelPositioning.topLeft(

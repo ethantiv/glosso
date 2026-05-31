@@ -52,11 +52,16 @@ struct PopupView: View {
                     .foregroundStyle(.primary)
             }
         case .streaming, .done:
-            Text(model.text)
-                .font(.body)
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            ScrollView {
+                Text(model.text)
+                    .font(.body)
+                    .foregroundStyle(.primary)
+                    .textSelection(.enabled)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .frame(maxHeight: 400)
+            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }
