@@ -81,7 +81,7 @@ final class AppCoordinator {
     }
 
     private func stream(_ text: String, at point: CGPoint) async {
-        popup.present(direction: .unknown, at: point)
+        popup.present(direction: DirectionDetector.detect(text), at: point)
         do {
             for try await event in llm.translate(text) {
                 switch event {
