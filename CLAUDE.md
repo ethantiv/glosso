@@ -80,6 +80,12 @@ The four functional modules, each behind a protocol:
 - **Popup** (`Sources/Popup/`) — `TranslationPopupController` shows a borderless
   non-activating `FloatingPanel` that never becomes key (won't steal focus).
   Esc (local monitor) and any click outside (global monitor) dismiss it.
+  The panel sizes to its SwiftUI content via
+  `NSHostingController.sizingOptions = .preferredContentSize` (without it the
+  panel keeps its initial frame and truncates long text). AppKit pins the
+  bottom-left origin on resize, so a `didResizeNotification` observer re-pins
+  the saved top-left to make it grow downward, not up over the cursor; the
+  text view caps height at 400pt and scrolls.
 
 ### Two subtleties that aren't obvious from a single file
 
