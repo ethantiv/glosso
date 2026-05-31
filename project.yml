@@ -1,0 +1,50 @@
+name: TranslatorMenuBar
+options:
+  bundleIdPrefix: com.mirek
+  deploymentTarget:
+    macOS: "26.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MARKETING_VERSION: "0.1.0"
+    CURRENT_PROJECT_VERSION: "1"
+    DEVELOPMENT_TEAM: "F266Z8F83B"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "Apple Development"
+    ENABLE_HARDENED_RUNTIME: YES
+targets:
+  TranslatorMenuBar:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources
+    info:
+      path: Generated/Info.plist
+      properties:
+        LSUIElement: true
+        CFBundleDisplayName: Translator
+    entitlements:
+      path: Generated/TranslatorMenuBar.entitlements
+      properties:
+        com.apple.security.app-sandbox: false
+        com.apple.security.network.client: true
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.translatormenubar
+    scheme:
+      testTargets:
+        - TranslatorMenuBarTests
+      gatherCoverageData: true
+  TranslatorMenuBarTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: Tests
+      - path: TestsIntegration
+    dependencies:
+      - target: TranslatorMenuBar
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.translatormenubar.tests
+        GENERATE_INFOPLIST_FILE: YES

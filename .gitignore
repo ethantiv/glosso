@@ -1,0 +1,11 @@
+# XcodeGen / Xcode (generowane — odtwarzane przez `xcodegen generate`)
+*.xcodeproj
+/Generated/
+
+# Build
+.build/
+DerivedData/
+*.xcresult
+
+# macOS
+.DS_Store
