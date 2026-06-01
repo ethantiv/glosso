@@ -47,7 +47,7 @@ zdarzeń keyDown i pomiar odstępu.
 | Trigger | Podwójne Cmd+C, `NSEvent.addGlobalMonitorForEvents(.keyDown)` (pasywny) |
 | Capture | Odczyt `NSPasteboard` (użytkownik sam skopiował) + guard na `changeCount` |
 | Kierunek | PL↔EN z auto-swapem wbudowanym w prompt |
-| Detekcja | Tylko LLM, w jednym wywołaniu (bez `NLLanguageRecognizer`, bez JSON Schema) |
+| Detekcja kierunku | Tłumaczenie: tylko LLM, w jednym wywołaniu (bez JSON Schema). Etykieta strzałki w UI: lokalny `NLLanguageRecognizer` (`DirectionDetector`), musi lustrzanie odbijać swap z promptu |
 | Topologia | Ollama na tym samym Macu, `localhost:11434` |
 | Model | `gemma4:26b-mlx` (zweryfikowany, działa pod Ollamą 0.24.0) |
 | Wyjście | Streaming plain text (`stream:true`) |
