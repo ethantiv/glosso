@@ -24,12 +24,28 @@ struct TranslatorApp: App {
                 }
             }
             Divider()
-            SettingsLink { Text("Ustawienia…") }
+            OpenSettingsButton()
             Button("Zakończ") { NSApplication.shared.terminate(nil) }
         }
 
         Settings {
             SettingsView(store: appDelegate.settings, lister: appDelegate.modelLister)
+        }
+    }
+}
+
+// Replaces `SettingsLink`, which on an `LSUIElement` agent opens the window in
+// the background and on the launch Space. Reading `openSettings` inside a view
+// (not the `App`) guarantees the environment action resolves; activating the app
+// after opening brings the window to the front and — together with the window's
+// `.moveToActiveSpace` collection behavior — onto the currently active Space.
+private struct OpenSettingsButton: View {
+    @Environment(\.openSettings) private var openSettings
+
+    var body: some View {
+        Button("Ustawienia…") {
+            openSettings()
+            NSApp.activate(ignoringOtherApps: true)
         }
     }
 }
