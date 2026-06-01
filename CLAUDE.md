@@ -22,7 +22,16 @@ scripts/gen.sh      # regenerate TranslatorMenuBar.xcodeproj from project.yml
 scripts/build.sh    # xcodegen generate + xcodebuild (Debug, arm64) → .build/dd/...
 scripts/run.sh      # build + open the app (look for the bubble icon in the menu bar)
 scripts/test.sh     # xcodebuild test → .build/TestResults.xcresult
+scripts/package.sh  # Release build + signature-preserving zip → .build/release/TranslatorMenuBar.zip
 ```
+
+`scripts/package.sh` produces a standalone `.zip` for a personal install: unzip,
+drag `TranslatorMenuBar.app` to `/Applications` (it then shows in Launchpad/
+Spotlight and runs without Xcode). It uses `ditto` (not `zip`) so the signature
+survives. Signed with the same free personal team — fine for your own Mac, **not
+notarized**, so distributing it to other machines would trip Gatekeeper. The
+"Launch at login" toggle (`SMAppService.mainApp`) only registers reliably once
+the app lives in `/Applications`.
 
 **Builds and `xcodebuild` must run outside the sandbox** (`dangerouslyDisableSandbox: true`).
 Inside the sandbox they fail with `Operation not permitted`.
@@ -117,9 +126,14 @@ A fifth **Settings** module (`Sources/Settings/`) holds the user-editable config
 and the `secondLanguage` (the non-Polish side of the pair; English default).
 `SettingsView` is a SwiftUI `Settings` scene opened via `SettingsLink` in the
 menu; its model picker is populated live from `OllamaModelLister` (`ModelListing`,
-`GET /api/tags`, derived from the generate endpoint's host). The IDEA.md
-invariants (`think:false`, `temperature:0`, `keep_alive`, `endpoint`) stay locked
-in `OllamaClient`'s base config and are **not** exposed in the UI.
+`GET /api/tags`, derived from the generate endpoint's host). A "Launch at login"
+toggle binds to `SettingsStore.launchAtLogin`, which is **not** UserDefaults-backed:
+it derives from and drives `SMAppService.mainApp` through `LoginItemManaging`
+(`SMAppServiceLoginItem`), so the actual system registration is the source of
+truth (a user revoking it in System Settings is reflected on `refreshLaunchAtLogin`,
+called when the window appears). The IDEA.md invariants (`think:false`,
+`temperature:0`, `keep_alive`, `endpoint`) stay locked in `OllamaClient`'s base
+config and are **not** exposed in the UI.
 
 ### Two subtleties that aren't obvious from a single file
 

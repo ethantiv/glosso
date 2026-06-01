@@ -148,6 +148,11 @@ dwie konfigurowalne osie, trwale zapisywane w `UserDefaults` (`SettingsStore`):
   niemiecki, rosyjski, hiszpański, niderlandzki (`SecondLanguage`). Polski jest
   stałą osią; podwójne ⌘C nadal auto-wykrywa kierunek, ale względem pary
   `polski ↔ wybrany język` (prompt i `DirectionDetector` respektują wybór).
+- **Uruchamiaj przy logowaniu** — przełącznik rejestrujący apkę przez
+  `SMAppService.mainApp` (`LoginItemManaging`). Stan pochodzi z faktycznej
+  rejestracji systemowej, nie z `UserDefaults`, więc cofnięcie w Ustawieniach
+  systemu jest odzwierciedlane (po otwarciu okna). Działa wiarygodnie, gdy apka
+  żyje w `/Applications`.
 
 Niezmienniki empiryczne (`think:false`, `temperature:0`, `keep_alive:"30m"`,
 `endpoint`) **nie są** wystawione w UI — zostają zaszyte w bazowym `LLMConfig`

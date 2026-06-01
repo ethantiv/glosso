@@ -46,10 +46,17 @@ struct SettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
+
+            Section("Ogólne") {
+                Toggle("Uruchamiaj przy logowaniu", isOn: $store.launchAtLogin)
+            }
         }
         .formStyle(.grouped)
         .frame(width: 360)
-        .task { await loadModels() }
+        .task {
+            store.refreshLaunchAtLogin()
+            await loadModels()
+        }
     }
 
     /// Always include the saved model so the current selection stays visible even
