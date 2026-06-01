@@ -3,12 +3,20 @@ name: Claude Code Review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
-    # Optional: Only run on specific file changes
-    # paths:
-    #   - "src/**/*.ts"
-    #   - "src/**/*.tsx"
-    #   - "src/**/*.js"
-    #   - "src/**/*.jsx"
+    # Only review pushes that touch source/tests/build config. Docs-only PRs
+    # (IDEA.md, CLAUDE.md, README) don't pay for a full Opus review.
+    paths:
+      - "Sources/**"
+      - "Tests/**"
+      - "TestsIntegration/**"
+      - "project.yml"
+
+# Collapse a burst of babysit-pr fix pushes into one review: a newer push on
+# the same PR cancels the in-flight run, so overlapping runs can't miss each
+# other's not-yet-posted comments (which blinds de-dup) or both re-post a theme.
+concurrency:
+  group: claude-review-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
 
 jobs:
   claude-review:
@@ -29,7 +37,9 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v5
         with:
-          fetch-depth: 1
+          # Full history so the incremental before..after diff range resolves;
+          # depth:1 would silently degrade scoping back to a whole-PR review.
+          fetch-depth: 0
 
       - name: Run Claude Code Review
         id: claude-review
@@ -42,23 +52,43 @@ jobs:
             /code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
 
             Review policy (overrides the default behavior):
+            0. SCOPE — review the WHOLE PR for context, but only POST a finding
+               whose offending line falls inside the hunks changed by the push
+               that triggered THIS run. Compute that file/line set with:
+                 git diff ${{ github.event.before }} ${{ github.event.after }}
+               On 'opened'/'reopened'/'ready_for_review' (or if that range is
+               empty or unresolvable), fall back to the full PR diff:
+                 gh pr diff ${{ github.event.pull_request.number }}
+               You may READ any file for context, but do NOT post on lines
+               outside the triggering push's hunks — a pre-existing issue on an
+               untouched line is out of scope and re-surfacing it is noise.
             1. Assign each finding a severity: Critical, High, Medium, or Low.
             2. Post a comment ONLY for Critical, High, and Medium findings. Silently drop Low/nit findings.
             3. Begin every posted comment with a bold severity tag, e.g. "**[High]** ...".
             4. Before posting, fetch this PR's existing review comments and review threads with gh
                (repository ${{ github.repository }}, PR #${{ github.event.pull_request.number }}).
-               Detect already-handled findings via the GraphQL reviewThreads.isResolved field, e.g.:
+               Pull the thread bodies AND each thread's latest author via GraphQL, e.g.:
                  gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){
                    repository(owner:$owner,name:$name){ pullRequest(number:$number){
-                     reviewThreads(first:100){ nodes { isResolved comments(first:1){ nodes { path line body } } } } } } }' \
+                     reviewThreads(first:100){ nodes { isResolved comments(first:20){ nodes { author{login} path line body } } } } } } }' \
                    -F owner=${{ github.repository_owner }} -F name=${{ github.event.repository.name }} \
                    -F number=${{ github.event.pull_request.number }}
-               Do NOT post a finding that:
-                 a) duplicates an existing open review comment, or
-                 b) matches a review thread already marked resolved (isResolved == true).
+               Treat a finding as ALREADY HANDLED — do NOT post it — when it matches a prior
+               thread SEMANTICALLY: the SAME underlying defect in the SAME file region
+               (same function / nearby lines / same issue class), EVEN IF the wording, the
+               line numbers, or the surrounding code changed since. A finding is handled if
+               ANY of these is true:
+                 a) it duplicates an existing open review comment (same issue class), or
+                 b) it matches a thread marked resolved (isResolved == true), or
+                 c) the thread's latest comment is from the PR author (a reply/acknowledgement) —
+                    this covers the race where a fix is pushed before the thread is resolved.
+               When unsure whether a new finding is the same defect as a prior thread, prefer
+               NOT posting. Silence beats a reworded re-raise.
             5. If the current diff no longer contains the problematic code, skip the finding.
+            6. Post at most 8 comments in this run. If more than 8 novel, in-scope,
+               non-duplicate findings remain, post only the highest-severity ones
+               (Critical first, then High, then Medium) and drop the rest.
           claude_args: '--allowed-tools "Bash" --model opus'
           allowed_bots: 'claude'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
-
