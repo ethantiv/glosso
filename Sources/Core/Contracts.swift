@@ -167,7 +167,8 @@ protocol AXSelectionReading {
 @MainActor
 protocol TranslationPopupPresenting: AnyObject {
     var onDismiss: (@MainActor () -> Void)? { get set }
-    func present(direction: TranslationDirection, sourceText: String, at screenPoint: CGPoint)
+    func present(at screenPoint: CGPoint)
+    func update(direction: TranslationDirection, sourceText: String)
     func append(token: String)
     func showError(_ message: String)
     func finish(truncated: Bool)

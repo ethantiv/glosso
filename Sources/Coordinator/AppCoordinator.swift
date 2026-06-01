@@ -83,6 +83,13 @@ final class AppCoordinator {
     /// Cmd+C only *triggers* the copy, so the new text is not present yet at
     /// the instant the double-press is detected.
     func captureAndTranslate(baseline: Int, at point: CGPoint, sourcePID: pid_t? = nil) async {
+        // Show the popup (skeleton state) the instant the double-press fires, before
+        // the clipboard poll and the model's first token, so there is immediate
+        // feedback; the source text and direction fill in via update() once captured.
+        // A rapid third press can cancel this task before it runs, so bail before
+        // presenting rather than orphaning a popup the newer task already replaced.
+        if Task.isCancelled { return }
+        popup.present(at: point)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -91,14 +98,14 @@ final class AppCoordinator {
                 await stream(text, at: point)
                 return
             } catch CaptureError.emptyOrNonText {
-                present(error: "Zaznaczenie nie zawiera tekstu do tłumaczenia.", at: point)
+                popup.showError("Zaznaczenie nie zawiera tekstu do tłumaczenia.")
                 return
             } catch CaptureError.nothingSelected {
                 // clipboard has not updated yet — keep polling.
             } catch {
                 // An unexpected reader error (a future permissions/coordination
                 // failure, say) must not be silently polled away — surface it.
-                present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
+                popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
                 return
             }
             try? await Task.sleep(for: .milliseconds(pollStepMs))
@@ -113,7 +120,7 @@ final class AppCoordinator {
         // we'd read and translate a different app's selection. Bail in that case
         // rather than touching the wrong app's focus.
         if let sourcePID, sourcePID != frontmostPID() {
-            present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
+            popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
             return
         }
         if let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
@@ -121,12 +128,12 @@ final class AppCoordinator {
             await stream(axText, at: point)
             return
         }
-        present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
+        popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
     private func stream(_ text: String, at point: CGPoint) async {
         let second = settings.secondLanguage
-        popup.present(direction: DirectionDetector.detect(text, second: second), sourceText: text, at: point)
+        popup.update(direction: DirectionDetector.detect(text, second: second), sourceText: text)
         do {
             for try await event in llm.translate(text, model: settings.modelName, second: second) {
                 if Task.isCancelled { return }
@@ -152,10 +159,5 @@ final class AppCoordinator {
             if Task.isCancelled { return }
             popup.showError("Błąd tłumaczenia.")
         }
-    }
-
-    private func present(error message: String, at point: CGPoint) {
-        popup.present(direction: .unknown, sourceText: "", at: point)
-        popup.showError(message)
     }
 }
