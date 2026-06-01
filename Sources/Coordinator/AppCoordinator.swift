@@ -60,9 +60,9 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         captureTask?.cancel()
-        // The popup's Esc/outside-click dismissers are AX-gated global monitors
-        // too, so an AX revocation silences them — dismiss it here or a popup
-        // mid-translation orphans on screen with a stuck spinner.
+        // The popup's Esc dismisser is an AX-gated global monitor too, so an AX
+        // revocation silences it — dismiss it here or a popup mid-translation
+        // orphans on screen with a stuck spinner.
         popup.dismiss()
     }
 
@@ -126,7 +126,7 @@ final class AppCoordinator {
 
     private func stream(_ text: String, at point: CGPoint) async {
         let second = settings.secondLanguage
-        popup.present(direction: DirectionDetector.detect(text, second: second), at: point)
+        popup.present(direction: DirectionDetector.detect(text, second: second), sourceText: text, at: point)
         do {
             for try await event in llm.translate(text, model: settings.modelName, second: second) {
                 if Task.isCancelled { return }
@@ -155,7 +155,7 @@ final class AppCoordinator {
     }
 
     private func present(error message: String, at point: CGPoint) {
-        popup.present(direction: .unknown, at: point)
+        popup.present(direction: .unknown, sourceText: "", at: point)
         popup.showError(message)
     }
 }

@@ -4,7 +4,7 @@ final class FloatingPanel: NSPanel {
     init(contentRect: CGRect) {
         super.init(
             contentRect: contentRect,
-            styleMask: [.nonactivatingPanel, .borderless],
+            styleMask: [.nonactivatingPanel, .titled, .closable],
             backing: .buffered,
             defer: false
         )
@@ -18,10 +18,7 @@ final class FloatingPanel: NSPanel {
         // strong reference being dropped in dismiss() that over-releases under ARC.
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
-        backgroundColor = .clear
-        isOpaque = false
-        hasShadow = true
-        isMovable = false
+        isMovable = true
     }
 
     override var canBecomeKey: Bool { false }
