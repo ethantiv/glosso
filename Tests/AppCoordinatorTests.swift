@@ -5,16 +5,26 @@ import Testing
 
 @MainActor
 @Suite struct AppCoordinatorTests {
+    private func makeSettings(model: String = "test-model", second: SecondLanguage = .english) -> SettingsStore {
+        let defaults = UserDefaults(suiteName: "AppCoordinatorTests-\(UUID().uuidString)")!
+        let store = SettingsStore(defaults: defaults)
+        store.modelName = model
+        store.secondLanguage = second
+        return store
+    }
+
     private func makeCoordinator(
         llm: FakeLLMClient,
         reader: any PasteboardReading,
-        popup: FakePopup
+        popup: FakePopup,
+        settings: SettingsStore? = nil
     ) -> AppCoordinator {
         AppCoordinator(
             llm: llm,
             monitor: FakeHotkeyMonitor(),
             reader: reader,
             popup: popup,
+            settings: settings ?? makeSettings(),
             pollStepMs: 1,
             pollMaxAttempts: 5
         )
@@ -26,12 +36,18 @@ import Testing
         reader.readyAfterAttempts = 2   // first two polls report nothing yet
         reader.text = "Dzień dobry"
         let popup = FakePopup()
-        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        let settings = makeSettings(model: "test-model", second: .english)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == "Dzień dobry")
+        // The coordinator must thread the persisted model + second language into
+        // the translate call and mirror the same language in the arrow.
+        #expect(llm.recorder.receivedModel == "test-model")
+        #expect(llm.recorder.receivedSecond == .english)
         #expect(popup.presented)
+        #expect(popup.presentedDirection == .fromPolish(.english))
     }
 
     // A poll timeout (changeCount never rose) is ambiguous — slow copy or truly
@@ -125,7 +141,8 @@ import Testing
         monitor.startError = StartFailure()
         let coordinator = AppCoordinator(
             llm: FakeLLMClient(), monitor: monitor,
-            reader: FakePasteboardReader(), popup: FakePopup()
+            reader: FakePasteboardReader(), popup: FakePopup(),
+            settings: makeSettings()
         )
         #expect(coordinator.start() == false)
     }
@@ -140,7 +157,7 @@ import Testing
         let popup = FakePopup()
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader, popup: popup,
-            pollStepMs: 1, pollMaxAttempts: 5
+            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5
         )
 
         coordinator.start()
@@ -180,7 +197,8 @@ import Testing
             llm: FakeLLMClient(),
             monitor: monitor,
             reader: FakePasteboardReader(),
-            popup: FakePopup()
+            popup: FakePopup(),
+            settings: makeSettings()
         )
 
         coordinator.stop()

@@ -7,6 +7,7 @@ final class AppCoordinator {
     private let monitor: any HotkeyMonitor
     private let reader: any PasteboardReading
     private let popup: any TranslationPopupPresenting
+    private let settings: SettingsStore
 
     private let pollStepMs: Int
     private let pollMaxAttempts: Int
@@ -18,6 +19,7 @@ final class AppCoordinator {
         monitor: any HotkeyMonitor,
         reader: any PasteboardReading,
         popup: any TranslationPopupPresenting,
+        settings: SettingsStore,
         pollStepMs: Int = 12,
         pollMaxAttempts: Int = 40
     ) {
@@ -25,6 +27,7 @@ final class AppCoordinator {
         self.monitor = monitor
         self.reader = reader
         self.popup = popup
+        self.settings = settings
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
     }
@@ -33,7 +36,7 @@ final class AppCoordinator {
     /// actually started (it throws when Accessibility is not granted).
     @discardableResult
     func start() -> Bool {
-        Task { try? await llm.prewarm() }
+        Task { try? await llm.prewarm(model: settings.modelName) }
 
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
@@ -101,9 +104,10 @@ final class AppCoordinator {
     }
 
     private func stream(_ text: String, at point: CGPoint) async {
-        popup.present(direction: DirectionDetector.detect(text), at: point)
+        let second = settings.secondLanguage
+        popup.present(direction: DirectionDetector.detect(text, second: second), at: point)
         do {
-            for try await event in llm.translate(text) {
+            for try await event in llm.translate(text, model: settings.modelName, second: second) {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token):

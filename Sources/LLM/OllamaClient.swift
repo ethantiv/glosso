@@ -9,14 +9,19 @@ final class OllamaClient: LLMClient {
         self.config = config
     }
 
-    func translate(_ text: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func translate(_ text: String, model: String, second: SecondLanguage) -> AsyncThrowingStream<TranslationEvent, Error> {
         let session = self.session
-        let config = self.config
+        let baseConfig = self.config
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let prompt = PromptBuilder.build(for: text)
+                    // Only the model is user-selectable; the base config keeps the
+                    // IDEA.md invariants (think:false, temperature:0, keep_alive,
+                    // endpoint) locked. Build it on the local copy inside the task.
+                    var config = baseConfig
+                    config.model = model
+                    let prompt = PromptBuilder.build(for: text, second: second)
                     let request = try Self.makeRequest(config: config, prompt: prompt, stream: true)
                     let (bytes, response) = try await session.bytes(for: request)
 
@@ -88,8 +93,10 @@ final class OllamaClient: LLMClient {
         }
     }
 
-    func prewarm() async throws {
+    func prewarm(model: String) async throws {
         do {
+            var config = self.config
+            config.model = model
             // Empty prompt = load-only: Ollama loads the model and primes
             // keep_alive without running an inference pass, so a real translation
             // never has to queue behind the prewarm's own generation.
