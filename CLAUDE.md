@@ -38,7 +38,7 @@ xcodebuild test -project TranslatorMenuBar.xcodeproj -scheme TranslatorMenuBar \
 
 **`Sources/Core/Contracts.swift` is the frozen seam.** Every module talks to the others only through the protocols and value types defined there (`LLMClient`, `HotkeyMonitor`, `PasteboardReading`, `TranslationPopupPresenting`, `AccessibilityAuthorizing`, `DoubleKeyDetecting`, `TimeSource`, `ModelListing`, plus the `TranslationEvent`/`TranslationError`/`CaptureError`/`SecondLanguage` enums and `LLMConfig`). `LLMClient.translate(_:model:second:)` and `prewarm(model:)` take the user-selected model and second language per call. Concrete types are injected; tests swap in fakes from `Tests/Support/`. When changing a cross-module behavior, change the protocol here first.
 
-`AppCoordinator` (`@MainActor`) wires the modules and owns the flow. `AppDelegate` (`Sources/App/TranslatorApp.swift`) builds the real instances and starts it; it **early-returns under XCTest** (`XCTestConfigurationFilePath`) so the app side effects don't fire during tests.
+`AppCoordinator` (`Sources/Coordinator/`, `@MainActor`) wires the modules and owns the flow. `AppDelegate` (`Sources/App/TranslatorApp.swift`) builds the real instances and starts it; it **early-returns under XCTest** (`XCTestConfigurationFilePath`) so the app side effects don't fire during tests.
 
 The four functional modules, each behind a protocol:
 
@@ -58,6 +58,8 @@ A fifth **Settings** module (`Sources/Settings/`) holds the user-editable config
 ### Config & permissions
 
 `LLMConfig.default` (model `gemma4:26b-mlx`, `think:false`, `temperature:0`, `keepAlive:"30m"`) lives in `Contracts.swift` and seeds the fresh-install defaults. At runtime the `model` and the second language come from `SettingsStore` (UserDefaults) per translation; `think`/`temperature`/`keepAlive`/`endpoint` stay fixed in `OllamaClient`'s base config. The app is **not sandboxed** (`Generated/TranslatorMenuBar.entitlements` sets `app-sandbox: false`, `network.client: true`) because Accessibility is incompatible with MAS sandboxing. Deployment target is macOS 26.0, Swift 6 (strict concurrency — note the `MainActor.assumeIsolated` shims around non-isolated AppKit monitor callbacks).
+
+App icon and the custom menu-bar glyph live in `Sources/Assets.xcassets/` (`AppIcon.appiconset`, `MenuBarIcon.imageset`); the icon name is wired via `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` in `project.yml`.
 
 ## Tests
 
