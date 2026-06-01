@@ -86,6 +86,9 @@ final class AppCoordinator {
         // Show the popup (skeleton state) the instant the double-press fires, before
         // the clipboard poll and the model's first token, so there is immediate
         // feedback; the source text and direction fill in via update() once captured.
+        // A rapid third press can cancel this task before it runs, so bail before
+        // presenting rather than orphaning a popup the newer task already replaced.
+        if Task.isCancelled { return }
         popup.present(at: point)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }

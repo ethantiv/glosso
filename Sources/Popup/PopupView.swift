@@ -140,9 +140,7 @@ struct PopupView: View {
     private var sourcePane: some View {
         VStack(alignment: .leading, spacing: 8) {
             label("Oryginał")
-            if model.sourceText.isEmpty {
-                SkeletonView()
-            } else {
+            if !model.sourceText.isEmpty {
                 ScrollView {
                     Text(model.sourceText)
                         .font(PopupTheme.fontSource)
@@ -153,6 +151,11 @@ struct PopupView: View {
                 }
                 .frame(maxHeight: Self.maxPaneHeight)
                 .scrollBounceBehavior(.basedOnSize)
+            } else if model.phase == .capturing {
+                // Only shimmer while we are still waiting for the selection; an
+                // error before capture leaves sourceText empty, and a skeleton
+                // there would imply the original is still loading forever.
+                SkeletonView()
             }
         }
         .padding(PopupTheme.padPane)
