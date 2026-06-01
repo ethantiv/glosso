@@ -13,4 +13,15 @@ import Testing
     @Test func emptyTextIsUnknown() {
         #expect(DirectionDetector.detect("") == .unknown)
     }
+
+    // Short snippets are the common case (a copied word or phrase). Unconstrained,
+    // NLLanguageRecognizer misreads short Polish as another Slavic language and the
+    // arrow then lies about the PL→EN swap the prompt performs.
+    @Test func shortPolishPhraseGoesToEnglish() {
+        #expect(DirectionDetector.detect("Witaj świecie") == .plToEn)
+    }
+
+    @Test func shortEnglishPhraseGoesToPolish() {
+        #expect(DirectionDetector.detect("Hello world") == .enToPl)
+    }
 }
