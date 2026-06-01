@@ -66,6 +66,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 let minTopY = screenFrame.minY + panel.frame.height
                 if topLeft.y < minTopY { topLeft.y = minTopY }
                 if topLeft.y > screenFrame.maxY { topLeft.y = screenFrame.maxY }
+                // Same for X: a panel that migrated to a narrower screen mid-stream
+                // would otherwise keep the saved X and hang its right edge off-screen.
+                let maxLeftX = screenFrame.maxX - panel.frame.width
+                if topLeft.x > maxLeftX { topLeft.x = maxLeftX }
+                if topLeft.x < screenFrame.minX { topLeft.x = screenFrame.minX }
                 panel.setFrameTopLeftPoint(topLeft)
             }
         }
