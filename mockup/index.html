@@ -1,0 +1,161 @@
+<!DOCTYPE html>
+<html lang="pl" data-theme="light">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Translator — mockup</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <!-- Mockup-only controls (not part of the product) -->
+  <nav class="controls" aria-label="Podgląd mockupu">
+    <span class="controls__label">Stan</span>
+    <div class="controls__group" role="group" id="states">
+      <button class="seg" data-state="capturing">Przechwytywanie</button>
+      <button class="seg" data-state="streaming">Streaming</button>
+      <button class="seg" data-state="done" aria-pressed="true">Gotowe</button>
+      <button class="seg" data-state="error">Błąd</button>
+    </div>
+    <div class="controls__group" role="group" id="opts">
+      <button class="seg" id="truncBtn" aria-pressed="false">Obcięte</button>
+    </div>
+    <div class="controls__group" role="group" id="themes">
+      <button class="seg" data-theme="light" aria-pressed="true">Jasny</button>
+      <button class="seg" data-theme="dark">Ciemny</button>
+    </div>
+  </nav>
+
+  <!-- ===================== Translation panel ===================== -->
+  <section class="scene">
+    <div class="panel" id="panel" data-state="done" data-dir="ltr" data-truncated="false" role="dialog" aria-label="Tłumaczenie">
+      <header class="panel__head">
+        <span class="lang-pair">
+          <span class="lang lang--from">PL</span>
+          <span class="lang-arrow" aria-hidden="true">
+            <svg viewBox="0 0 16 16" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h9M8.5 4.5 12 8l-3.5 3.5"/></svg>
+          </span>
+          <span class="lang lang--to">EN</span>
+        </span>
+
+        <div class="head-actions">
+          <button class="iconbtn iconbtn--copy" id="copyBtn" aria-label="Kopiuj tłumaczenie" title="Kopiuj tłumaczenie">
+            <svg class="ic-copy" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4"><rect x="5.2" y="5.2" width="8" height="8" rx="2"/><path d="M3.4 10.6A1.8 1.8 0 0 1 2.5 9V4a1.8 1.8 0 0 1 1.8-1.8h4.4A1.8 1.8 0 0 1 10.4 3.4"/></svg>
+            <svg class="ic-check" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="m3.5 8.5 3 3 6-6.5"/></svg>
+          </button>
+          <button class="iconbtn" aria-label="Przypnij panel" title="Przypnij">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"><path d="M9.5 2.5 13.5 6.5 11.7 8.3l.4 3.1-2.6-2.6L5.8 12.4 4.5 11.1l3.6-3.7L5.5 4.8l3.1.4z"/></svg>
+          </button>
+          <button class="iconbtn" aria-label="Zamknij" title="Zamknij (Esc)">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="m4.5 4.5 7 7M11.5 4.5l-7 7"/></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="panes">
+        <div class="pane pane--source">
+          <div class="pane__label">Oryginał</div>
+          <div class="pane__text">Dwukrotne naciśnięcie Cmd+C tłumaczy zaznaczony tekst lokalnie, bez wysyłania go do chmury. Wynik pojawia się w małym panelu obok kursora.</div>
+        </div>
+
+        <div class="pane pane--target">
+          <div class="pane__label">
+            Tłumaczenie
+            <span class="live-dot" aria-hidden="true"></span>
+          </div>
+
+          <!-- text (streaming + done) -->
+          <div class="pane__text state state--text" id="targetText">Pressing Cmd+C twice translates the selected text locally, without sending it to the cloud. The result appears in a small panel next to the cursor.<span class="caret" aria-hidden="true"></span></div>
+
+          <!-- skeleton (capturing) -->
+          <div class="state state--skeleton" aria-label="Wczytywanie">
+            <div class="skeleton"><span></span><span></span><span></span><span></span></div>
+          </div>
+
+          <!-- error -->
+          <div class="state state--error">
+            <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5 14.5 13.5h-13z"/><path d="M8 6.7v3"/><circle cx="8" cy="11.6" r="0.4" fill="currentColor"/></svg>
+            <span>Nie można połączyć z Ollamą na <strong>localhost:11434</strong>. Sprawdź, czy działa.</span>
+          </div>
+        </div>
+      </div>
+
+      <footer class="panel__foot">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M8 2.5 14.5 13.5h-13z"/><path d="M8 6.7v3"/><circle cx="8" cy="11.6" r="0.4" fill="currentColor"/></svg>
+        <span>Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.</span>
+      </footer>
+    </div>
+  </section>
+
+  <!-- ===================== Settings window ===================== -->
+  <section class="scene">
+    <div class="settings" role="dialog" aria-label="Ustawienia">
+      <div class="titlebar">
+        <span class="traffic" aria-hidden="true"><i></i><i></i><i></i></span>
+        <h2>Ustawienia</h2>
+      </div>
+
+      <div class="settings__body">
+        <div class="group">
+          <div class="group__title">Model</div>
+          <div class="row">
+            <div>
+              <div class="row__label">Model Ollama</div>
+              <div class="row__sub">Lokalny model używany do tłumaczenia</div>
+            </div>
+            <div class="row__control">
+              <select class="select" aria-label="Model Ollama">
+                <option>gemma4:26b-mlx</option>
+                <option>gemma3:12b</option>
+                <option>qwen3:8b</option>
+              </select>
+            </div>
+          </div>
+          <div class="row">
+            <div class="row__label">Lista modeli</div>
+            <div class="row__control">
+              <span class="row__sub">3 dostępne</span>
+              <button class="linkbtn">Odśwież</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group__title">Język</div>
+          <div class="row">
+            <div>
+              <div class="row__label">Drugi język</div>
+              <div class="row__sub">Polski ↔ wybrany język, kierunek wykrywany automatycznie</div>
+            </div>
+            <div class="row__control">
+              <select class="select" aria-label="Drugi język">
+                <option>Angielski</option>
+                <option>Niemiecki</option>
+                <option>Rosyjski</option>
+                <option>Hiszpański</option>
+                <option>Niderlandzki</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <div class="group">
+          <div class="group__title">Ogólne</div>
+          <div class="row">
+            <div>
+              <div class="row__label">Uruchamiaj przy logowaniu</div>
+              <div class="row__sub">Startuje cicho w menu barze po zalogowaniu</div>
+            </div>
+            <div class="row__control">
+              <button class="toggle" role="switch" aria-checked="true" aria-label="Uruchamiaj przy logowaniu"></button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <p class="caption-note">Mockup webowy (HTML/CSS) — referencja do przeniesienia na SwiftUI. Pasek u góry służy tylko do podglądu stanów i nie jest częścią aplikacji.</p>
+
+  <script src="app.js"></script>
+</body>
+</html>
