@@ -8,15 +8,22 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
         case accessibilityNotGranted
     }
 
-    var onDoubleCopy: (@MainActor () -> Void)?
+    var onDoubleCopy: (@MainActor (Int) -> Void)?
 
     private var monitor: Any?
     private var detector: any DoubleKeyDetecting
     private let clock: any TimeSource
+    private let changeCountProvider: @MainActor () -> Int
+    private var pendingBaseline: Int?
 
-    init(detector: any DoubleKeyDetecting = DoubleCopyDetector(), clock: any TimeSource = SystemClock()) {
+    init(
+        detector: any DoubleKeyDetecting = DoubleCopyDetector(),
+        clock: any TimeSource = SystemClock(),
+        changeCountProvider: @escaping @MainActor () -> Int = { NSPasteboard.general.changeCount }
+    ) {
         self.detector = detector
         self.clock = clock
+        self.changeCountProvider = changeCountProvider
     }
 
     func start() throws {
@@ -43,16 +50,32 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
         let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
         let mods = event.modifierFlags.intersection(chordModifiers)
         guard isC, mods == .command, !event.isARepeat else { return }
-        if detector.registerCopy(at: clock.now()) {
-            onDoubleCopy?()
+        if let baseline = registerPress(changeCount: changeCountProvider(), at: clock.now()) {
+            onDoubleCopy?(baseline)
         }
     }
 
+    // Returns the changeCount baseline to translate against when this press
+    // completes a double, or nil for a (possible) first press. The baseline is
+    // sampled at the FIRST Cmd+C, not when the double is detected: a foreground
+    // app that copies synchronously on the second press has already bumped
+    // changeCount by the time our passive monitor runs, so a baseline read then
+    // would equal the post-copy value and the poll loop would never see it rise.
+    func registerPress(changeCount: Int, at now: TimeInterval) -> Int? {
+        if detector.registerCopy(at: now) {
+            defer { pendingBaseline = nil }
+            return pendingBaseline ?? changeCount
+        }
+        pendingBaseline = changeCount
+        return nil
+    }
+
     func stop() {
-        // Clear any in-progress double-press window so a stop/start cycle
-        // (e.g. the AX-revocation auto-restart) can't pair a pre-flap Cmd+C
-        // with a single post-restart press.
+        // Clear any in-progress double-press window (and its baseline) so a
+        // stop/start cycle (e.g. the AX-revocation auto-restart) can't pair a
+        // pre-flap Cmd+C with a single post-restart press.
         detector.reset()
+        pendingBaseline = nil
         if let monitor {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil

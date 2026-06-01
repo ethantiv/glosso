@@ -99,9 +99,12 @@ The four functional modules, each behind a protocol:
 
 1. **The capture poll loop** (`AppCoordinator.captureAndTranslate`): the second
    Cmd+C only *triggers* the copy, so at the instant the double-press is
-   detected the new clipboard contents aren't there yet. The coordinator records
-   the baseline `changeCount`, then polls `readSelection` until it rises (default
-   12ms × 40 attempts ≈ 480ms, to tolerate slow apps' copies) before streaming.
+   detected the new clipboard contents aren't there yet. The monitor samples the
+   baseline `changeCount` at the *first* Cmd+C (`registerPress`) — so it precedes
+   the second copy even for apps that copy synchronously on keyDown
+   (Chromium/Electron, Java) — and hands it to the coordinator via `onDoubleCopy`,
+   which polls `readSelection` until `changeCount` rises (default 12ms × 40
+   attempts ≈ 480ms, to tolerate slow apps' copies) before streaming.
 
 2. **`DirectionDetector` is UI-only.** It uses `NLLanguageRecognizer` purely to
    pick the arrow label (PL→EN / EN→PL). The *actual* translation direction is

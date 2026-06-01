@@ -46,10 +46,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ax.requestAccess(prompt: true)
         }
 
+        let reader = SystemPasteboardReader()
         let coordinator = AppCoordinator(
             llm: OllamaClient(),
-            monitor: GlobalHotkeyMonitor(),
-            reader: SystemPasteboardReader(),
+            monitor: GlobalHotkeyMonitor(changeCountProvider: { reader.currentChangeCount }),
+            reader: reader,
             popup: TranslationPopupController()
         )
         appState.listening = coordinator.start()

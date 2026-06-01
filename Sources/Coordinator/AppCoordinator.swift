@@ -35,7 +35,7 @@ final class AppCoordinator {
     func start() -> Bool {
         Task { try? await llm.prewarm() }
 
-        monitor.onDoubleCopy = { [weak self] in self?.handleDoubleCopy() }
+        monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
 
         do {
@@ -57,9 +57,8 @@ final class AppCoordinator {
         popup.dismiss()
     }
 
-    func handleDoubleCopy() {
+    func handleDoubleCopy(baseline: Int) {
         let mouse = NSEvent.mouseLocation
-        let baseline = reader.currentChangeCount
         captureTask?.cancel()
         // Tear the previous popup down now so its monitors can't fire onDismiss
         // and cancel the new captureTask before it gets to present its own popup.

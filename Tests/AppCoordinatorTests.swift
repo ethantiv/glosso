@@ -60,7 +60,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         #expect(popup.presented)
 
-        coordinator.handleDoubleCopy()
+        coordinator.handleDoubleCopy(baseline: 0)
 
         #expect(popup.dismissCount == 1)
     }

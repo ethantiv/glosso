@@ -83,7 +83,10 @@ protocol DoubleKeyDetecting: Sendable {
 
 @MainActor
 protocol HotkeyMonitor: AnyObject {
-    var onDoubleCopy: (@MainActor () -> Void)? { get set }
+    /// Fires on a double Cmd+C, carrying the pasteboard `changeCount` sampled at
+    /// the *first* press of the pair — a baseline that always precedes the
+    /// second copy even when the foreground app copies synchronously.
+    var onDoubleCopy: (@MainActor (_ baselineChangeCount: Int) -> Void)? { get set }
     func start() throws
     func stop()
 }

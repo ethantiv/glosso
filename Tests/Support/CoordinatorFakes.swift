@@ -75,7 +75,7 @@ final class FakePopup: TranslationPopupPresenting {
 
 @MainActor
 final class FakeHotkeyMonitor: HotkeyMonitor {
-    var onDoubleCopy: (@MainActor () -> Void)?
+    var onDoubleCopy: (@MainActor (Int) -> Void)?
     private(set) var stopCount = 0
     func start() throws {}
     func stop() { stopCount += 1 }
