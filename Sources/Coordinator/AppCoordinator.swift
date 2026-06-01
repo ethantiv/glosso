@@ -6,11 +6,13 @@ final class AppCoordinator {
     private let llm: any LLMClient
     private let monitor: any HotkeyMonitor
     private let reader: any PasteboardReading
+    private let axReader: any AXSelectionReading
     private let popup: any TranslationPopupPresenting
     private let settings: SettingsStore
 
     private let pollStepMs: Int
     private let pollMaxAttempts: Int
+    private let frontmostPID: @MainActor () -> pid_t?
 
     private var captureTask: Task<Void, Never>?
 
@@ -18,18 +20,22 @@ final class AppCoordinator {
         llm: any LLMClient,
         monitor: any HotkeyMonitor,
         reader: any PasteboardReading,
+        axReader: any AXSelectionReading,
         popup: any TranslationPopupPresenting,
         settings: SettingsStore,
         pollStepMs: Int = 12,
-        pollMaxAttempts: Int = 40
+        pollMaxAttempts: Int = 40,
+        frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
     ) {
         self.llm = llm
         self.monitor = monitor
         self.reader = reader
+        self.axReader = axReader
         self.popup = popup
         self.settings = settings
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
+        self.frontmostPID = frontmostPID
     }
 
     /// Starts pre-warm and the hotkey monitor. Returns whether the monitor
@@ -62,12 +68,13 @@ final class AppCoordinator {
 
     func handleDoubleCopy(baseline: Int) {
         let mouse = NSEvent.mouseLocation
+        let source = frontmostPID()
         captureTask?.cancel()
         // Tear the previous popup down now so its monitors can't fire onDismiss
         // and cancel the new captureTask before it gets to present its own popup.
         popup.dismiss()
         captureTask = Task { @MainActor [weak self] in
-            await self?.captureAndTranslate(baseline: baseline, at: mouse)
+            await self?.captureAndTranslate(baseline: baseline, at: mouse, sourcePID: source)
         }
     }
 
@@ -75,7 +82,7 @@ final class AppCoordinator {
     /// rises above the baseline), then streams the translation. The second
     /// Cmd+C only *triggers* the copy, so the new text is not present yet at
     /// the instant the double-press is detected.
-    func captureAndTranslate(baseline: Int, at point: CGPoint) async {
+    func captureAndTranslate(baseline: Int, at point: CGPoint, sourcePID: pid_t? = nil) async {
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -97,9 +104,23 @@ final class AppCoordinator {
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
         if Task.isCancelled { return }
-        // The changeCount never rose within the budget: either nothing was
-        // copied or a slow app's copy timed out. Don't assert "nothing selected"
-        // — both cases are fixed by retrying.
+        // The changeCount never rose within the budget: the app didn't copy on
+        // Cmd+C (some apps, notably Safari/WebKit, do this inconsistently). Fall
+        // back to reading the focused element's selection directly via the
+        // Accessibility API, which doesn't depend on the pasteboard at all.
+        // But the AX read resolves whatever is focused *now* — ~480ms after the
+        // press — so if the user switched apps (Cmd+Tab) within the poll window
+        // we'd read and translate a different app's selection. Bail in that case
+        // rather than touching the wrong app's focus.
+        if let sourcePID, sourcePID != frontmostPID() {
+            present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
+            return
+        }
+        if let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
+            if Task.isCancelled { return }
+            await stream(axText, at: point)
+            return
+        }
         present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
     }
 

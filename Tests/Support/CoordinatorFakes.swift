@@ -97,6 +97,13 @@ final class FakePasteboardReader: PasteboardReading {
 }
 
 @MainActor
+final class FakeAXSelectionReader: AXSelectionReading {
+    var text: String?
+    private(set) var callCount = 0
+    func selectedText() -> String? { callCount += 1; return text }
+}
+
+@MainActor
 final class FakeEmptyPasteboardReader: PasteboardReading {
     var currentChangeCount: Int = 0
     func readSelection(baselineChangeCount: Int) throws -> String {

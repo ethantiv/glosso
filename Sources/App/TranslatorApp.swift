@@ -60,6 +60,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             llm: OllamaClient(),
             monitor: GlobalHotkeyMonitor(changeCountProvider: { reader.currentChangeCount }),
             reader: reader,
+            axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
             settings: settings
         )

@@ -17,12 +17,14 @@ import Testing
         llm: FakeLLMClient,
         reader: any PasteboardReading,
         popup: FakePopup,
-        settings: SettingsStore? = nil
+        settings: SettingsStore? = nil,
+        axReader: any AXSelectionReading = FakeAXSelectionReader()
     ) -> AppCoordinator {
         AppCoordinator(
             llm: llm,
             monitor: FakeHotkeyMonitor(),
             reader: reader,
+            axReader: axReader,
             popup: popup,
             settings: settings ?? makeSettings(),
             pollStepMs: 1,
@@ -141,7 +143,7 @@ import Testing
         monitor.startError = StartFailure()
         let coordinator = AppCoordinator(
             llm: FakeLLMClient(), monitor: monitor,
-            reader: FakePasteboardReader(), popup: FakePopup(),
+            reader: FakePasteboardReader(), axReader: FakeAXSelectionReader(), popup: FakePopup(),
             settings: makeSettings()
         )
         #expect(coordinator.start() == false)
@@ -156,7 +158,8 @@ import Testing
         reader.readyAfterAttempts = 0
         let popup = FakePopup()
         let coordinator = AppCoordinator(
-            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader, popup: popup,
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: FakeAXSelectionReader(), popup: popup,
             settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5
         )
 
@@ -197,6 +200,7 @@ import Testing
             llm: FakeLLMClient(),
             monitor: monitor,
             reader: FakePasteboardReader(),
+            axReader: FakeAXSelectionReader(),
             popup: FakePopup(),
             settings: makeSettings()
         )
@@ -233,6 +237,139 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Zaznaczenie nie zawiera tekstu do tłumaczenia.")
+    }
+
+    // When the app never copies on Cmd+C (changeCount never rises), the coordinator
+    // must fall back to the focused element's selected text via Accessibility and
+    // translate that, instead of giving up with a fetch-failure error.
+    @Test func fallsBackToAXSelectionWhenClipboardNeverLands() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil   // clipboard never updates
+        let ax = FakeAXSelectionReader()
+        ax.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+        #expect(popup.presented)
+        #expect(popup.errorMessage == nil)
+    }
+
+    // The pasteboard is the primary path: when the copy lands, AX must never be
+    // consulted, so a stale focused-element selection can't override the copy.
+    @Test func clipboardTakesPrecedenceAndAXIsNotConsulted() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Hello"
+        let ax = FakeAXSelectionReader()
+        ax.text = "stale selection"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedText == "Hello")
+        #expect(ax.callCount == 0)
+    }
+
+    // Both paths empty: clipboard never lands and AX exposes no selection — the
+    // user must still get the fetch-failure error, not a silent no-op.
+    @Test func presentsErrorWhenClipboardAndAXBothFail() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil
+        let ax = FakeAXSelectionReader()
+        ax.text = nil
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
+    // A whitespace-only AX selection is not translatable text; it must be treated
+    // as no fallback (error), not streamed as an empty translation.
+    @Test func whitespaceOnlyAXSelectionIsTreatedAsFailure() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil
+        let ax = FakeAXSelectionReader()
+        ax.text = "   \n\t "
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
+    // The AX fallback resolves the focused element ~480ms after the press. If the
+    // user switched apps (Cmd+Tab) within that window, reading the now-focused
+    // element would translate a different app's selection — so a changed frontmost
+    // app must bail with the fetch error and never consult AX at all.
+    @Test func axFallbackBailsWhenFrontmostAppChanged() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil   // clipboard never lands → AX fallback territory
+        let ax = FakeAXSelectionReader()
+        ax.text = "another app's selection"
+        let popup = FakePopup()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: ax, popup: popup, settings: makeSettings(),
+            pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 999 }   // the app focused *now* differs from the source below
+        )
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+
+        #expect(ax.callCount == 0)
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
+    // The mirror of the above: when the frontmost app is unchanged across the poll
+    // window, the AX fallback is the legitimate source and must still translate.
+    @Test func axFallbackProceedsWhenFrontmostAppUnchanged() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil
+        let ax = FakeAXSelectionReader()
+        ax.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: ax, popup: popup, settings: makeSettings(),
+            pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 123 }
+        )
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+        #expect(popup.errorMessage == nil)
+    }
+
+    // emptyOrNonText means something WAS copied but it's blank — the AX fallback
+    // is only for the "nothing copied" timeout, so it must not run here.
+    @Test func emptyOrNonTextSelectionDoesNotConsultAX() async {
+        let llm = FakeLLMClient()
+        let ax = FakeAXSelectionReader()
+        ax.text = "would-be fallback"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(), popup: popup, axReader: ax)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(ax.callCount == 0)
         #expect(popup.errorMessage == "Zaznaczenie nie zawiera tekstu do tłumaczenia.")
     }
 }

@@ -148,6 +148,14 @@ protocol PasteboardReading {
 }
 
 @MainActor
+protocol AXSelectionReading {
+    /// Reads the focused UI element's selected text directly via the
+    /// Accessibility API, independent of the pasteboard. Returns nil when no
+    /// focused element exposes selected text.
+    func selectedText() -> String?
+}
+
+@MainActor
 protocol TranslationPopupPresenting: AnyObject {
     var onDismiss: (@MainActor () -> Void)? { get set }
     func present(direction: TranslationDirection, at screenPoint: CGPoint)
