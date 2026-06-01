@@ -10,7 +10,7 @@ final class PopupModel {
         case error
     }
 
-    var direction: TranslationDirection = .unknown
+    var sourceText: String = ""
     var text: String = ""
     var phase: Phase = .streaming
     var errorMessage: String? = nil

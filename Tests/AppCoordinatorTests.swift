@@ -52,6 +52,21 @@ import Testing
         #expect(popup.presentedDirection == .fromPolish(.english))
     }
 
+    // The popup now shows the source alongside the translation, so the coordinator
+    // must hand the captured text to present() — not just stream the result.
+    @Test func passesCapturedSourceTextToThePopup() async {
+        let llm = FakeLLMClient(events: [.token("Hello"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(popup.presentedSourceText == "Dzień dobry")
+    }
+
     // A poll timeout (changeCount never rose) is ambiguous — slow copy or truly
     // nothing — so it must not claim "nic nie zaznaczono"; that wording belongs
     // only to the emptyOrNonText branch (see nonTextSelectionReportsImmediately).
@@ -150,7 +165,7 @@ import Testing
     }
 
     // start() wires popup.onDismiss to cancel the in-flight capture; without that
-    // wiring, dismissing the popup (Esc / outside-click) would not stop the stream.
+    // wiring, dismissing the popup (Esc / close button) would not stop the stream.
     @Test func startWiresPopupDismissToCancelTheCapture() async {
         let gate = StreamGate()
         let llm = FakeLLMClient(events: [.token("first"), .token("late"), .finished(doneReason: "stop")], gate: gate)
@@ -210,9 +225,9 @@ import Testing
         #expect(monitor.stopCount == 1)
     }
 
-    // An AX revocation calls stop() while a popup may be on screen; its
-    // Esc/outside-click monitors are AX-gated and die with the revocation, so
-    // stop() must dismiss the popup itself or it orphans with a stuck spinner.
+    // An AX revocation calls stop() while a popup may be on screen; its Esc
+    // monitor is AX-gated and dies with the revocation, so stop() must dismiss
+    // the popup itself or it orphans with a stuck spinner.
     @Test func stopDismissesAVisiblePopup() async {
         let llm = FakeLLMClient()
         let reader = FakePasteboardReader()

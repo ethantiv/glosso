@@ -8,18 +8,19 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var panel: FloatingPanel?
     private let model = PopupModel()
     private var escMonitor: Any?
-    private var outsideClickMonitor: Any?
+    private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
+    private var moveObserver: NSObjectProtocol?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
 
-    private static let defaultSize = CGSize(width: 360, height: 140)
+    private static let defaultSize = CGSize(width: 561, height: 160)
     private static let escKeyCode: UInt16 = 53
 
-    func present(direction: TranslationDirection, at screenPoint: CGPoint) {
+    func present(direction: TranslationDirection, sourceText: String, at screenPoint: CGPoint) {
         tearDown()
 
-        model.direction = direction
+        model.sourceText = sourceText
         model.text = ""
         model.phase = .streaming
         model.errorMessage = nil
@@ -27,15 +28,15 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
+        panel.title = direction.label
         let host = NSHostingController(rootView: PopupView(model: model))
         // Let the SwiftUI content drive the window size so the panel grows to fit
-        // longer translations instead of clipping them.
+        // longer text instead of clipping it (capped per pane, then scrolls).
         host.sizingOptions = [.preferredContentSize]
         panel.contentViewController = host
 
-        // visibleFrame excludes the menu bar / notch and the Dock, so the popup
-        // never renders behind them (where the outside-click monitor would also
-        // dismiss it the moment the user clicks the bar to reach it).
+        // visibleFrame excludes the menu bar / notch and the Dock, so the window
+        // never opens partly behind them.
         let frame = screen(containing: screenPoint).visibleFrame
         let topLeft = PanelPositioning.topLeft(
             forMouse: screenPoint,
@@ -48,30 +49,54 @@ final class TranslationPopupController: TranslationPopupPresenting {
         panel.orderFrontRegardless()
         self.panel = panel
 
-        // The hosting view drives the panel size, which grows as tokens stream
-        // in. AppKit keeps the bottom-left origin fixed on resize, so re-pin the
-        // top-left — but raise it when the taller panel would drop its bottom
-        // edge below the visible frame, so long text isn't clipped behind the Dock.
+        // The content sizes itself to the text, so the panel grows as tokens
+        // stream in. AppKit keeps the bottom-left origin fixed on resize, which
+        // would creep the window up over the cursor; re-pin the top-left so it
+        // grows downward instead — raising it only when the taller panel would
+        // drop its bottom edge below the visible frame (behind the Dock).
         resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification, object: panel, queue: .main
-        ) { [weak self] _ in
+        ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
-                guard let self, let panel = self.panel else { return }
-                // Re-resolve the panel's live screen: a mid-stream display change
-                // (monitor unplugged, panel migrated by AppKit) would otherwise
-                // clamp against the frame captured at present() and push the panel
-                // off the now-current screen.
+                guard let self, let panel, self.panel === panel else { return }
                 let screenFrame = panel.screen?.visibleFrame ?? self.anchorScreenFrame
                 var topLeft = self.anchorTopLeft
                 let minTopY = screenFrame.minY + panel.frame.height
                 if topLeft.y < minTopY { topLeft.y = minTopY }
                 if topLeft.y > screenFrame.maxY { topLeft.y = screenFrame.maxY }
-                // Same for X: a panel that migrated to a narrower screen mid-stream
-                // would otherwise keep the saved X and hang its right edge off-screen.
                 let maxLeftX = screenFrame.maxX - panel.frame.width
                 if topLeft.x > maxLeftX { topLeft.x = maxLeftX }
                 if topLeft.x < screenFrame.minX { topLeft.x = screenFrame.minX }
                 panel.setFrameTopLeftPoint(topLeft)
+            }
+        }
+
+        // The window is movable now, so a user drag re-anchors where it should
+        // grow from; otherwise the resize observer would yank it back to the
+        // original spot on the next streamed token.
+        moveObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.didMoveNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel, self.panel === panel else { return }
+                self.anchorTopLeft = CGPoint(x: panel.frame.minX, y: panel.frame.maxY)
+            }
+        }
+
+        // The red close button calls close() on the panel directly, bypassing our
+        // dismiss(). Observe willClose so that path still releases monitors and
+        // notifies the coordinator to cancel the in-flight capture. dismiss() and
+        // tearDown() remove this observer *before* closing, so this handler runs
+        // only for the close-button path — and only while this exact panel is the
+        // current one (a new present() mid-close must not nil out the new panel).
+        closeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willCloseNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel, self.panel === panel else { return }
+                self.releaseResources()
+                self.panel = nil
+                self.onDismiss?()
             }
         }
 
@@ -93,28 +118,42 @@ final class TranslationPopupController: TranslationPopupPresenting {
     }
 
     func dismiss() {
-        guard panel != nil else { return }
-        tearDown()
+        guard let panel else { return }
+        // Remove the willClose observer first so close() below doesn't re-enter
+        // the close-button path; fire onDismiss ourselves instead.
+        releaseResources()
+        panel.orderOut(nil)
+        panel.close()
+        self.panel = nil
         onDismiss?()
     }
 
     // Releases the panel and its observers without firing onDismiss, so present()
     // can reuse it to stay idempotent without cancelling the in-flight capture task.
     private func tearDown() {
+        guard let panel else { return }
+        releaseResources()
+        panel.orderOut(nil)
+        panel.close()
+        self.panel = nil
+    }
+
+    // Removes the event monitors and the willClose observer. Shared by dismiss(),
+    // tearDown() and the close-button path so each tears the same state down once.
+    private func releaseResources() {
         removeMonitors()
-        if let resizeObserver {
-            NotificationCenter.default.removeObserver(resizeObserver)
-            self.resizeObserver = nil
+        for observer in [closeObserver, resizeObserver, moveObserver].compactMap({ $0 }) {
+            NotificationCenter.default.removeObserver(observer)
         }
-        panel?.orderOut(nil)
-        panel?.close()
-        panel = nil
+        closeObserver = nil
+        resizeObserver = nil
+        moveObserver = nil
     }
 
     private func installMonitors() {
         // The panel is non-activating and the app is LSUIElement, so a local
         // monitor never sees Esc (it is routed to the foreground app). A global
-        // monitor observes it the same way the outside-click one does.
+        // monitor observes it instead.
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             MainActor.assumeIsolated {
                 // Bare Esc only: Cmd/Shift/Ctrl/Option+Esc are distinct system
@@ -126,29 +165,12 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 self?.dismiss()
             }
         }
-
-        // The panel never becomes key, so clicks landing in other apps are only
-        // observable through the global monitor; dismiss only when the click is
-        // outside the panel, otherwise it races click-to-copy on the same event.
-        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
-            matching: [.leftMouseDown, .rightMouseDown]
-        ) { [weak self] _ in
-            MainActor.assumeIsolated {
-                guard let self, let panel = self.panel,
-                      !panel.frame.contains(NSEvent.mouseLocation) else { return }
-                self.dismiss()
-            }
-        }
     }
 
     private func removeMonitors() {
         if let escMonitor {
             NSEvent.removeMonitor(escMonitor)
             self.escMonitor = nil
-        }
-        if let outsideClickMonitor {
-            NSEvent.removeMonitor(outsideClickMonitor)
-            self.outsideClickMonitor = nil
         }
     }
 

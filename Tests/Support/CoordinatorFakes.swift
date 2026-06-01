@@ -116,15 +116,17 @@ final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
+    private(set) var presentedSourceText: String?
     private(set) var dismissCount = 0
     private(set) var tokens: [String] = []
     private(set) var errorMessage: String?
     private(set) var finished = false
     private(set) var truncated = false
 
-    func present(direction: TranslationDirection, at screenPoint: CGPoint) {
+    func present(direction: TranslationDirection, sourceText: String, at screenPoint: CGPoint) {
         presented = true
         presentedDirection = direction
+        presentedSourceText = sourceText
     }
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }
