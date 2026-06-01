@@ -33,10 +33,30 @@ jobs:
 
       - name: Run Claude Code Review
         id: claude-review
+        env:
+          GH_TOKEN: ${{ github.token }}
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          prompt: '/code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}'
+          prompt: |
+            /code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}
+
+            Review policy (overrides the default behavior):
+            1. Assign each finding a severity: Critical, High, Medium, or Low.
+            2. Post a comment ONLY for Critical, High, and Medium findings. Silently drop Low/nit findings.
+            3. Begin every posted comment with a bold severity tag, e.g. "**[High]** ...".
+            4. Before posting, fetch this PR's existing review comments and review threads with gh
+               (repository ${{ github.repository }}, PR #${{ github.event.pull_request.number }}).
+               Detect already-handled findings via the GraphQL reviewThreads.isResolved field, e.g.:
+                 gh api graphql -f query='query($owner:String!,$name:String!,$number:Int!){
+                   repository(owner:$owner,name:$name){ pullRequest(number:$number){
+                     reviewThreads(first:100){ nodes { isResolved comments(first:1){ nodes { path line body } } } } } } }' \
+                   -F owner=${{ github.repository_owner }} -F name=${{ github.event.repository.name }} \
+                   -F number=${{ github.event.pull_request.number }}
+               Do NOT post a finding that:
+                 a) duplicates an existing open review comment, or
+                 b) matches a review thread already marked resolved (isResolved == true).
+            5. If the current diff no longer contains the problematic code, skip the finding.
           claude_args: '--allowed-tools "Bash" --model opus'
           allowed_bots: 'claude'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
