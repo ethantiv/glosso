@@ -123,8 +123,10 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var finished = false
     private(set) var truncated = false
 
-    func present(direction: TranslationDirection, sourceText: String, at screenPoint: CGPoint) {
+    func present(at screenPoint: CGPoint) {
         presented = true
+    }
+    func update(direction: TranslationDirection, sourceText: String) {
         presentedDirection = direction
         presentedSourceText = sourceText
     }

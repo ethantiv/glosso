@@ -17,19 +17,21 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private static let defaultSize = CGSize(width: 561, height: 160)
     private static let escKeyCode: UInt16 = 53
 
-    func present(direction: TranslationDirection, sourceText: String, at screenPoint: CGPoint) {
+    func present(at screenPoint: CGPoint) {
         tearDown()
 
-        model.sourceText = sourceText
+        model.sourceText = ""
         model.text = ""
-        model.phase = .streaming
+        model.phase = .capturing
+        model.direction = .unknown
         model.errorMessage = nil
         model.truncated = false
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
-        panel.title = direction.label
-        let host = NSHostingController(rootView: PopupView(model: model))
+        let host = NSHostingController(rootView: PopupView(model: model, close: { [weak self] in
+            self?.dismiss()
+        }))
         // Let the SwiftUI content drive the window size so the panel grows to fit
         // longer text instead of clipping it (capped per pane, then scrolls).
         host.sizingOptions = [.preferredContentSize]
@@ -103,7 +105,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
         installMonitors()
     }
 
+    func update(direction: TranslationDirection, sourceText: String) {
+        model.direction = direction
+        model.sourceText = sourceText
+    }
+
     func append(token: String) {
+        if model.phase == .capturing { model.phase = .streaming }
         model.text += token
     }
 
