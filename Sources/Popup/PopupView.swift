@@ -60,6 +60,10 @@ struct PopupView: View {
                     .fixedSize(horizontal: false, vertical: true)
                     .frame(maxWidth: .infinity, alignment: .leading)
             }
+            // Keep the newest streamed tokens in view: past the 400pt cap the
+            // scroll would otherwise stay pinned at the top and the translation
+            // would appear frozen while it keeps streaming below the fold.
+            .defaultScrollAnchor(.bottom)
             .frame(maxHeight: 400)
             .scrollBounceBehavior(.basedOnSize)
         }
