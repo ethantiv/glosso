@@ -2,7 +2,10 @@ import Foundation
 import Testing
 @testable import TranslatorMenuBar
 
-@Suite struct OllamaClientTests {
+// Serialized: every case mutates the process-global MockURLProtocol.handler,
+// so Swift Testing's default parallelism would let one case's request read
+// another's handler (or nil), flaking the suite.
+@Suite(.serialized) struct OllamaClientTests {
     private func makeClient() -> OllamaClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
