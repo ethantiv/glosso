@@ -29,6 +29,9 @@ Inside the sandbox they fail with `Operation not permitted`.
 `gh` and other network calls (GitHub API, Ollama over TLS) also need
 `dangerouslyDisableSandbox: true` — in the sandbox they fail with a TLS cert
 error (`OSStatus -26276`), not the build's `Operation not permitted`.
+During `/babysit-pr`, resolving a `claude-review` thread
+(`gh api graphql … resolveReviewThread`) is user-authorized — but **only** for
+findings actually fixed in committed code, never for ones left for a human.
 The Bash tool's shell is **zsh** — unquoted `$var` is not word-split; iterate
 lists with `while IFS= read -r` (a `for x in $list` runs once on the whole string).
 
