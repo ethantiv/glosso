@@ -12,6 +12,7 @@ import Testing
             llm: FakeLLMClient(),
             monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(),
+            axReader: FakeAXSelectionReader(),
             popup: FakePopup(),
             settings: delegate.settings
         )

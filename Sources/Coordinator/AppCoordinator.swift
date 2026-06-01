@@ -6,6 +6,7 @@ final class AppCoordinator {
     private let llm: any LLMClient
     private let monitor: any HotkeyMonitor
     private let reader: any PasteboardReading
+    private let axReader: any AXSelectionReading
     private let popup: any TranslationPopupPresenting
     private let settings: SettingsStore
 
@@ -18,6 +19,7 @@ final class AppCoordinator {
         llm: any LLMClient,
         monitor: any HotkeyMonitor,
         reader: any PasteboardReading,
+        axReader: any AXSelectionReading,
         popup: any TranslationPopupPresenting,
         settings: SettingsStore,
         pollStepMs: Int = 12,
@@ -26,6 +28,7 @@ final class AppCoordinator {
         self.llm = llm
         self.monitor = monitor
         self.reader = reader
+        self.axReader = axReader
         self.popup = popup
         self.settings = settings
         self.pollStepMs = pollStepMs
@@ -97,9 +100,15 @@ final class AppCoordinator {
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
         if Task.isCancelled { return }
-        // The changeCount never rose within the budget: either nothing was
-        // copied or a slow app's copy timed out. Don't assert "nothing selected"
-        // — both cases are fixed by retrying.
+        // The changeCount never rose within the budget: the app didn't copy on
+        // Cmd+C (some apps, notably Safari/WebKit, do this inconsistently). Fall
+        // back to reading the focused element's selection directly via the
+        // Accessibility API, which doesn't depend on the pasteboard at all.
+        if let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
+            if Task.isCancelled { return }
+            await stream(axText, at: point)
+            return
+        }
         present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
     }
 

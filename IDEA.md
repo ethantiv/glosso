@@ -123,15 +123,18 @@ Aplikacja w pasku menu, która:
 
 1. Prosi o uprawnienie Accessibility przy pierwszym uruchomieniu.
 2. Nasłuchuje podwójnego Cmd+C (`NSEvent` + pomiar `doubleClickInterval`).
-3. Czyta zaznaczenie z `NSPasteboard` (+ guard na `changeCount`).
+3. Czyta zaznaczenie z `NSPasteboard` (+ guard na `changeCount`); gdy aplikacja
+   nie skopiowała mimo Cmd+C, fallback czyta zaznaczenie wprost przez
+   Accessibility (`AXSelectedText` fokusowanego elementu).
 4. Pre-warmuje model przy starcie, `keep_alive:"30m"`.
 5. Wysyła `POST /api/generate` ze `stream:true`, `think:false`, swap PL↔EN
    zaszyty w promptcie.
 6. Streamuje wynik w `NSPanel .floating` przy kursorze; Esc/klik poza zamyka,
    klik kopiuje.
 
-**Świadomie odłożone:** kaskada capture przez Accessibility/AppleScript, obsługa
-Safari, `CGEventTap`, konfigurowalny adres Ollamy (osobny host w LAN).
+**Świadomie odłożone:** dalsza kaskada capture (AppleScript, `CGEventTap`,
+głębsza obsługa Safari przez JavaScript/Apple Events), konfigurowalny adres
+Ollamy (osobny host w LAN).
 
 ## Ustawienia (zaimplementowane po MVP)
 

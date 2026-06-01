@@ -29,4 +29,21 @@ struct SelectionGuardTests {
         let result = try SelectionGuard.validate(currentChangeCount: 6, baselineChangeCount: 5, string: "  hej  ")
         #expect(result == "  hej  ")
     }
+
+    @Test func nonEmptyTextRejectsNil() {
+        #expect(throws: CaptureError.emptyOrNonText) {
+            try SelectionGuard.nonEmptyText(nil)
+        }
+    }
+
+    @Test func nonEmptyTextRejectsWhitespaceOnly() {
+        #expect(throws: CaptureError.emptyOrNonText) {
+            try SelectionGuard.nonEmptyText("   \n\t  ")
+        }
+    }
+
+    @Test func nonEmptyTextReturnsText() throws {
+        let result = try SelectionGuard.nonEmptyText("Cześć")
+        #expect(result == "Cześć")
+    }
 }
