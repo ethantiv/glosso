@@ -216,6 +216,7 @@ private struct SettingsWindowConfigurator: NSViewRepresentable {
         }
 
         private func configure(_ window: NSWindow) {
+            window.collectionBehavior.insert(.moveToActiveSpace)
             window.styleMask.insert(.fullSizeContentView)
             window.titlebarAppearsTransparent = true
             window.titleVisibility = .hidden
