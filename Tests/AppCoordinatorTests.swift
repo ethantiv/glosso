@@ -65,7 +65,10 @@ import Testing
         #expect(popup.dismissCount == 1)
     }
 
-    @Test func cancelledStreamDoesNotShowErrorOnNewPopup() async {
+    // A .cancelled that did NOT come from our own captureTask (e.g. URLSession
+    // suspended the request mid-stream) must surface as an error — only a cancel
+    // that actually cancelled this Task is owned by the caller and stays silent.
+    @Test func unexpectedCancelSurfacesErrorNotAnOrphan() async {
         let llm = FakeLLMClient(events: [], error: .cancelled)
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = 0
@@ -76,12 +79,12 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(popup.presented)
-        #expect(popup.errorMessage == nil)
+        #expect(popup.errorMessage == TranslationError.cancelled.userMessage)
     }
 
-    // A length-truncated stream must surface as an error, not a clean .done, so
-    // the user is never handed a silently cut-off translation to copy.
-    @Test func lengthTruncatedStreamSurfacesAsError() async {
+    // A length-truncated stream keeps the partial text (still copyable) but flags
+    // it truncated, rather than discarding what the user watched stream in.
+    @Test func lengthTruncatedStreamKeepsTextAndFlagsTruncation() async {
         let llm = FakeLLMClient(events: [.token("Cześć"), .finished(doneReason: "length")])
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = 0
@@ -91,8 +94,10 @@ import Testing
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
-        #expect(popup.errorMessage == "Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.")
-        #expect(popup.finished == false)
+        #expect(popup.tokens == ["Cześć"])
+        #expect(popup.finished == true)
+        #expect(popup.truncated == true)
+        #expect(popup.errorMessage == nil)
     }
 
     @Test func stopHaltsTheMonitor() {

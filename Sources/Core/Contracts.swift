@@ -103,7 +103,7 @@ protocol TranslationPopupPresenting: AnyObject {
     func present(direction: TranslationDirection, at screenPoint: CGPoint)
     func append(token: String)
     func showError(_ message: String)
-    func finish()
+    func finish(truncated: Bool)
     func dismiss()
 }
 

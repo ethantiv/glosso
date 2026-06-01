@@ -23,6 +23,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.text = ""
         model.phase = .streaming
         model.errorMessage = nil
+        model.truncated = false
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -81,7 +82,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.errorMessage = message
     }
 
-    func finish() {
+    func finish(truncated: Bool) {
+        model.truncated = truncated
         model.phase = .done
     }
 

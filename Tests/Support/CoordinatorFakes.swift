@@ -60,11 +60,12 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var tokens: [String] = []
     private(set) var errorMessage: String?
     private(set) var finished = false
+    private(set) var truncated = false
 
     func present(direction: TranslationDirection, at screenPoint: CGPoint) { presented = true }
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }
-    func finish() { finished = true }
+    func finish(truncated: Bool) { finished = true; self.truncated = truncated }
     func dismiss() {
         guard presented else { return }
         presented = false

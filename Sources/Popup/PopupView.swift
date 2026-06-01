@@ -52,20 +52,28 @@ struct PopupView: View {
                     .foregroundStyle(.primary)
             }
         case .streaming, .done:
-            ScrollView {
-                Text(model.text)
-                    .font(.body)
-                    .foregroundStyle(.primary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            VStack(alignment: .leading, spacing: 6) {
+                ScrollView {
+                    Text(model.text)
+                        .font(.body)
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                // Keep the newest streamed tokens in view: past the 400pt cap the
+                // scroll would otherwise stay pinned at the top and the translation
+                // would appear frozen while it keeps streaming below the fold.
+                .defaultScrollAnchor(.bottom)
+                .frame(maxHeight: 400)
+                .scrollBounceBehavior(.basedOnSize)
+
+                if model.truncated {
+                    Label("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.", systemImage: "exclamationmark.triangle.fill")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
             }
-            // Keep the newest streamed tokens in view: past the 400pt cap the
-            // scroll would otherwise stay pinned at the top and the translation
-            // would appear frozen while it keeps streaming below the fold.
-            .defaultScrollAnchor(.bottom)
-            .frame(maxHeight: 400)
-            .scrollBounceBehavior(.basedOnSize)
         }
     }
 }

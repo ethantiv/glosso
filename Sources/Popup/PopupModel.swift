@@ -14,4 +14,5 @@ final class PopupModel {
     var text: String = ""
     var phase: Phase = .streaming
     var errorMessage: String? = nil
+    var truncated: Bool = false
 }

@@ -83,8 +83,13 @@ final class AppCoordinator {
             } catch CaptureError.emptyOrNonText {
                 present(error: "Zaznaczenie nie zawiera tekstu do tłumaczenia.", at: point)
                 return
+            } catch CaptureError.nothingSelected {
+                // clipboard has not updated yet — keep polling.
             } catch {
-                // .nothingSelected: clipboard has not updated yet — keep polling.
+                // An unexpected reader error (a future permissions/coordination
+                // failure, say) must not be silently polled away — surface it.
+                present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
+                return
             }
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
@@ -105,17 +110,18 @@ final class AppCoordinator {
                     popup.append(token: token)
                 case .finished(let reason):
                     // done_reason "length" means the model hit its token ceiling
-                    // and the tail was dropped; presenting it as .done would let
-                    // the user copy a silently truncated translation.
-                    if reason == "length" {
-                        popup.showError("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.")
-                    } else {
-                        popup.finish()
-                    }
+                    // and the tail was dropped. Keep the partial text visible and
+                    // copyable, but mark it truncated so the popup warns instead
+                    // of presenting a silently cut-off translation as complete.
+                    popup.finish(truncated: reason == "length")
                 }
             }
         } catch let error as TranslationError {
-            if error == .cancelled { return }
+            // A cancel from our own captureTask leaves popup teardown to the
+            // caller (handleDoubleCopy/stop/onDismiss). A cancel from elsewhere
+            // — URLSession suspending, reachability transitions — must still
+            // surface, or the popup orphans in .streaming with a stuck spinner.
+            if Task.isCancelled { return }
             popup.showError(error.userMessage)
         } catch {
             if Task.isCancelled { return }
