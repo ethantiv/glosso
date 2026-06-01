@@ -34,7 +34,10 @@ import Testing
         #expect(popup.presented)
     }
 
-    @Test func timeoutReportsNothingSelected() async {
+    // A poll timeout (changeCount never rose) is ambiguous — slow copy or truly
+    // nothing — so it must not claim "nic nie zaznaczono"; that wording belongs
+    // only to the emptyOrNonText branch (see nonTextSelectionReportsImmediately).
+    @Test func timeoutReportsFetchFailureNotEmptySelection() async {
         let llm = FakeLLMClient()
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = nil   // never ready
@@ -44,7 +47,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nic nie zaznaczono do tłumaczenia.")
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
     @Test func newDoubleCopyDismissesThePreviousPopup() async {

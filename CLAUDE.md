@@ -101,7 +101,7 @@ The four functional modules, each behind a protocol:
    Cmd+C only *triggers* the copy, so at the instant the double-press is
    detected the new clipboard contents aren't there yet. The coordinator records
    the baseline `changeCount`, then polls `readSelection` until it rises (default
-   12ms × 20 attempts) before streaming.
+   12ms × 40 attempts ≈ 480ms, to tolerate slow apps' copies) before streaming.
 
 2. **`DirectionDetector` is UI-only.** It uses `NLLanguageRecognizer` purely to
    pick the arrow label (PL→EN / EN→PL). The *actual* translation direction is

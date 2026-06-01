@@ -19,7 +19,7 @@ final class AppCoordinator {
         reader: any PasteboardReading,
         popup: any TranslationPopupPresenting,
         pollStepMs: Int = 12,
-        pollMaxAttempts: Int = 20
+        pollMaxAttempts: Int = 40
     ) {
         self.llm = llm
         self.monitor = monitor
@@ -90,7 +90,10 @@ final class AppCoordinator {
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
         if Task.isCancelled { return }
-        present(error: "Nic nie zaznaczono do tłumaczenia.", at: point)
+        // The changeCount never rose within the budget: either nothing was
+        // copied or a slow app's copy timed out. Don't assert "nothing selected"
+        // — both cases are fixed by retrying.
+        present(error: "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", at: point)
     }
 
     private func stream(_ text: String, at point: CGPoint) async {
