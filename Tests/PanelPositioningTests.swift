@@ -68,9 +68,12 @@ struct PanelPositioningTests {
         #expect(rect.minY >= screen.minY)
     }
 
-    @Test("Cursor near top edge: panel stays below the top bound")
+    // Cursor reported above the active screen's maxY (multi-display setups can
+    // briefly map a cursor past the local frame). y=1075 < maxY=1080 would skip
+    // the clamp entirely and pass trivially; y=1100 actually exercises it.
+    @Test("Cursor above top edge: panel is clamped below the top bound")
     func topEdge() {
-        let mouse = CGPoint(x: 960, y: 1075)
+        let mouse = CGPoint(x: 960, y: 1100)
         let topLeft = PanelPositioning.topLeft(
             forMouse: mouse,
             panelSize: panelSize,

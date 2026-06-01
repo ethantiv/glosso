@@ -50,19 +50,31 @@ import Testing
         #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
-    @Test func newDoubleCopyDismissesThePreviousPopup() async {
-        let llm = FakeLLMClient()
+    // A second double-copy arriving WHILE the first stream is still in flight must
+    // cancel and tear down that stream before reassigning, or the abandoned stream
+    // resumes and writes stale tokens into the popup. Gating the fake keeps the
+    // first capture genuinely suspended mid-stream when the second one fires.
+    @Test func aSecondDoubleCopyTearsDownTheInFlightStream() async {
+        let gate = StreamGate()
+        let llm = FakeLLMClient(events: [.token("first"), .token("late"), .finished(doneReason: "stop")], gate: gate)
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = 0
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
 
-        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
-        #expect(popup.presented)
-
         coordinator.handleDoubleCopy(baseline: 0)
+        var spins = 0
+        while popup.tokens.isEmpty && spins < 10_000 { await Task.yield(); spins += 1 }
+        #expect(popup.tokens == ["first"])   // capture #1 is suspended mid-stream
 
-        #expect(popup.dismissCount == 1)
+        reader.readyAfterAttempts = nil       // #2 just polls; it won't stream and muddy the tokens
+        coordinator.handleDoubleCopy(baseline: 0)
+        #expect(popup.dismissCount == 1)      // #1's popup torn down
+
+        gate.release()                        // resume #1 — it is cancelled, must not append "late"
+        spins = 0
+        while spins < 200 { await Task.yield(); spins += 1 }
+        #expect(popup.tokens == ["first"])
     }
 
     // A .cancelled that did NOT come from our own captureTask (e.g. URLSession
@@ -98,6 +110,68 @@ import Testing
         #expect(popup.finished == true)
         #expect(popup.truncated == true)
         #expect(popup.errorMessage == nil)
+    }
+
+    @Test func startReturnsTrueWhenTheMonitorStarts() {
+        let coordinator = makeCoordinator(llm: FakeLLMClient(), reader: FakePasteboardReader(), popup: FakePopup())
+        #expect(coordinator.start() == true)
+    }
+
+    // start() must surface a failed monitor start as `false` so AppDelegate stops
+    // claiming "Nasłuch aktywny" when Accessibility was not granted.
+    @Test func startReturnsFalseWhenTheMonitorThrows() {
+        struct StartFailure: Error {}
+        let monitor = FakeHotkeyMonitor()
+        monitor.startError = StartFailure()
+        let coordinator = AppCoordinator(
+            llm: FakeLLMClient(), monitor: monitor,
+            reader: FakePasteboardReader(), popup: FakePopup()
+        )
+        #expect(coordinator.start() == false)
+    }
+
+    // start() wires popup.onDismiss to cancel the in-flight capture; without that
+    // wiring, dismissing the popup (Esc / outside-click) would not stop the stream.
+    @Test func startWiresPopupDismissToCancelTheCapture() async {
+        let gate = StreamGate()
+        let llm = FakeLLMClient(events: [.token("first"), .token("late"), .finished(doneReason: "stop")], gate: gate)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        let popup = FakePopup()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader, popup: popup,
+            pollStepMs: 1, pollMaxAttempts: 5
+        )
+
+        coordinator.start()
+        coordinator.handleDoubleCopy(baseline: 0)
+        var spins = 0
+        while popup.tokens.isEmpty && spins < 10_000 { await Task.yield(); spins += 1 }
+        #expect(popup.tokens == ["first"])
+
+        popup.dismiss()                       // onDismiss wiring should cancel the capture
+        #expect(popup.dismissCount == 1)
+        gate.release()
+        spins = 0
+        while spins < 200 { await Task.yield(); spins += 1 }
+        #expect(popup.tokens == ["first"])    // cancelled capture never appended "late"
+    }
+
+    // readSelection only yields text once the change count rises strictly above
+    // the baseline sampled at the first Cmd+C. An equal count (or a `>=`
+    // regression) must time out, not translate a stale clipboard.
+    @Test func captureRequiresChangeCountStrictlyAboveBaseline() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 7          // copy lands at change count 7
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        await coordinator.captureAndTranslate(baseline: 7, at: .zero)   // equal, not above
+
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
     @Test func stopHaltsTheMonitor() {
