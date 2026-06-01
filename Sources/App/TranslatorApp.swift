@@ -24,7 +24,12 @@ struct TranslatorApp: App {
                 }
             }
             Divider()
+            SettingsLink { Text("Ustawienia…") }
             Button("Zakończ") { NSApplication.shared.terminate(nil) }
+        }
+
+        Settings {
+            SettingsView(store: appDelegate.settings, lister: appDelegate.modelLister)
         }
     }
 }
@@ -32,6 +37,8 @@ struct TranslatorApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
+    let settings = SettingsStore()
+    let modelLister = OllamaModelLister()
     // Injectable so tests can drive the granted↔revoked transitions in
     // recheckAccessibility() with a fake; production keeps the real AXChecker.
     var ax: any AccessibilityAuthorizing = AXChecker()
@@ -53,7 +60,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             llm: OllamaClient(),
             monitor: GlobalHotkeyMonitor(changeCountProvider: { reader.currentChangeCount }),
             reader: reader,
-            popup: TranslationPopupController()
+            popup: TranslationPopupController(),
+            settings: settings
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator

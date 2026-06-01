@@ -63,8 +63,10 @@ xcodebuild test -project TranslatorMenuBar.xcodeproj -scheme TranslatorMenuBar \
 **`Sources/Core/Contracts.swift` is the frozen seam.** Every module talks to the
 others only through the protocols and value types defined there (`LLMClient`,
 `HotkeyMonitor`, `PasteboardReading`, `TranslationPopupPresenting`,
-`AccessibilityAuthorizing`, `DoubleKeyDetecting`, `TimeSource`, plus the
-`TranslationEvent`/`TranslationError`/`CaptureError` enums and `LLMConfig`).
+`AccessibilityAuthorizing`, `DoubleKeyDetecting`, `TimeSource`, `ModelListing`,
+plus the `TranslationEvent`/`TranslationError`/`CaptureError`/`SecondLanguage`
+enums and `LLMConfig`). `LLMClient.translate(_:model:second:)` and
+`prewarm(model:)` take the user-selected model and second language per call.
 Concrete types are injected; tests swap in fakes from `Tests/Support/`. When
 changing a cross-module behavior, change the protocol here first.
 
@@ -87,8 +89,9 @@ The four functional modules, each behind a protocol:
 - **LLM** (`Sources/LLM/`) — `OllamaClient` POSTs to `/api/generate` with
   `stream:true`, parses the NDJSON line stream (`NDJSONStreamParser`), and yields
   `.token`/`.finished` through an `AsyncThrowingStream`. `PromptBuilder` carries
-  the **PL↔EN swap logic inside the prompt itself**. `prewarm()` is best-effort
-  (failures are swallowed) and keeps the model resident via `keep_alive`.
+  the **PL↔(selected second language) swap logic inside the prompt itself**.
+  `prewarm(model:)` is best-effort (failures are swallowed) and keeps the model
+  resident via `keep_alive`.
 - **Popup** (`Sources/Popup/`) — `TranslationPopupController` shows a borderless
   non-activating `FloatingPanel` that never becomes key (won't steal focus).
   Esc (local monitor) and any click outside (global monitor) dismiss it.
@@ -98,6 +101,15 @@ The four functional modules, each behind a protocol:
   bottom-left origin on resize, so a `didResizeNotification` observer re-pins
   the saved top-left to make it grow downward, not up over the cursor; the
   text view caps height at 400pt and scrolls.
+
+A fifth **Settings** module (`Sources/Settings/`) holds the user-editable config:
+`SettingsStore` (`@Observable`, UserDefaults-backed) persists the Ollama `model`
+and the `secondLanguage` (the non-Polish side of the pair; English default).
+`SettingsView` is a SwiftUI `Settings` scene opened via `SettingsLink` in the
+menu; its model picker is populated live from `OllamaModelLister` (`ModelListing`,
+`GET /api/tags`, derived from the generate endpoint's host). The IDEA.md
+invariants (`think:false`, `temperature:0`, `keep_alive`, `endpoint`) stay locked
+in `OllamaClient`'s base config and are **not** exposed in the UI.
 
 ### Two subtleties that aren't obvious from a single file
 
@@ -110,15 +122,20 @@ The four functional modules, each behind a protocol:
    which polls `readSelection` until `changeCount` rises (default 12ms × 40
    attempts ≈ 480ms, to tolerate slow apps' copies) before streaming.
 
-2. **`DirectionDetector` is UI-only.** It uses `NLLanguageRecognizer` purely to
-   pick the arrow label (PL→EN / EN→PL). The *actual* translation direction is
-   decided by the model from the prompt's swap instruction. The two must stay
-   mirrored: Polish input → English, everything else → Polish.
+2. **`DirectionDetector` is UI-only.** `detect(_:second:)` uses
+   `NLLanguageRecognizer` (constrained to Polish + the selected second language)
+   purely to pick the arrow label (PL→XX / XX→PL). The *actual* translation
+   direction is decided by the model from the prompt's swap instruction. The two
+   must stay mirrored: Polish input → the selected second language, everything
+   else → Polish.
 
 ### Config & permissions
 
 `LLMConfig.default` (model `gemma4:26b-mlx`, `think:false`, `temperature:0`,
-`keepAlive:"30m"`) lives in `Contracts.swift`. The app is **not sandboxed**
+`keepAlive:"30m"`) lives in `Contracts.swift` and seeds the fresh-install
+defaults. At runtime the `model` and the second language come from `SettingsStore`
+(UserDefaults) per translation; `think`/`temperature`/`keepAlive`/`endpoint` stay
+fixed in `OllamaClient`'s base config. The app is **not sandboxed**
 (`Generated/TranslatorMenuBar.entitlements` sets `app-sandbox: false`,
 `network.client: true`) because Accessibility is incompatible with MAS
 sandboxing. Deployment target is macOS 26.0, Swift 6 (strict concurrency — note

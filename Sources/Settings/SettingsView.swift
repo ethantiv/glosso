@@ -1,0 +1,70 @@
+import SwiftUI
+
+struct SettingsView: View {
+    @Bindable var store: SettingsStore
+    let lister: any ModelListing
+
+    @State private var models: [String] = []
+    @State private var loadState: LoadState = .idle
+
+    private enum LoadState: Equatable {
+        case idle, loading, loaded, failed
+    }
+
+    var body: some View {
+        Form {
+            Section("Model") {
+                Picker("Model", selection: $store.modelName) {
+                    ForEach(modelOptions, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                HStack(spacing: 6) {
+                    switch loadState {
+                    case .loading:
+                        ProgressView().controlSize(.small)
+                        Text("Pobieram listę modeli…").foregroundStyle(.secondary)
+                    case .failed:
+                        Text("Nie udało się pobrać listy z Ollamy.").foregroundStyle(.secondary)
+                    default:
+                        EmptyView()
+                    }
+                    Spacer(minLength: 0)
+                    Button("Odśwież") { Task { await loadModels() } }
+                }
+                .font(.caption)
+            }
+
+            Section("Język") {
+                Picker("Drugi język", selection: $store.secondLanguage) {
+                    ForEach(SecondLanguage.allCases, id: \.self) { lang in
+                        Text(lang.displayName).tag(lang)
+                    }
+                }
+                Text("Tłumaczy polski ↔ wybrany język; kierunek wykrywany automatycznie.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .formStyle(.grouped)
+        .frame(width: 360)
+        .task { await loadModels() }
+    }
+
+    /// Always include the saved model so the current selection stays visible even
+    /// when the live list omits it or the fetch failed.
+    private var modelOptions: [String] {
+        models.contains(store.modelName) ? models : [store.modelName] + models
+    }
+
+    private func loadModels() async {
+        loadState = .loading
+        do {
+            models = try await lister.availableModels()
+            loadState = .loaded
+        } catch {
+            models = []
+            loadState = .failed
+        }
+    }
+}

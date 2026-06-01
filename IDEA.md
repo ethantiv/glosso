@@ -46,10 +46,10 @@ zdarzeń keyDown i pomiar odstępu.
 | Odbiorca | Narzędzie osobiste, jeden Mac |
 | Trigger | Podwójne Cmd+C, `NSEvent.addGlobalMonitorForEvents(.keyDown)` (pasywny) |
 | Capture | Odczyt `NSPasteboard` (użytkownik sam skopiował) + guard na `changeCount` |
-| Kierunek | PL↔EN z auto-swapem wbudowanym w prompt |
-| Detekcja kierunku | Tłumaczenie: tylko LLM, w jednym wywołaniu (bez JSON Schema). Etykieta strzałki w UI: lokalny `NLLanguageRecognizer` (`DirectionDetector`), musi lustrzanie odbijać swap z promptu |
+| Kierunek | PL↔(wybrany drugi język) z auto-swapem wbudowanym w prompt; drugi język konfigurowalny w Ustawieniach (domyślnie EN) |
+| Detekcja kierunku | Tłumaczenie: tylko LLM, w jednym wywołaniu (bez JSON Schema). Etykieta strzałki w UI: lokalny `NLLanguageRecognizer` (`DirectionDetector`, ograniczony do PL + wybrany język), musi lustrzanie odbijać swap z promptu |
 | Topologia | Ollama na tym samym Macu, `localhost:11434` |
-| Model | `gemma4:26b-mlx` (zweryfikowany, działa pod Ollamą 0.24.0) |
+| Model | domyślnie `gemma4:26b-mlx` (zweryfikowany, działa pod Ollamą 0.24.0); wybór w Ustawieniach z listy `/api/tags` |
 | Wyjście | Streaming plain text (`stream:true`) |
 | Nasłuch | `NSEvent global monitor` — jedyne uprawnienie: **Accessibility** |
 | Popup | `NSPanel .nonactivatingPanel .floating`; Esc/klik poza zamyka, klik kopiuje |
@@ -68,9 +68,9 @@ zdarzeń keyDown i pomiar odstępu.
 }
 ```
 
-Prompt (swap w treści):
-> If the following text is in Polish, translate it to English. Otherwise,
-> translate it to Polish. Output ONLY the translation, no explanations, no quotes.
+Prompt (swap w treści; `{drugi język}` = wybrany w Ustawieniach, domyślnie English):
+> If it is Polish, translate it to {drugi język}. Otherwise, translate it to
+> Polish. Output ONLY the translation, no explanations, no quotes.
 
 ## Ustalenia empiryczne (2026-05-31, na docelowym Macu)
 
@@ -105,11 +105,11 @@ stringi `"low"/"medium"/"high"`, ale gemma4 ich nie honoruje — `"low"/"medium"
    ▼
 [3. LLM client]  POST http://localhost:11434/api/generate
    │   stream:true, think:false, temperature:0, keep_alive:"30m"
-   │   swap PL↔EN + „tylko tłumaczenie" w promptcie; parsowanie NDJSON
+   │   swap PL↔(wybrany język) + „tylko tłumaczenie" w promptcie; parsowanie NDJSON
    ▼
 [4. Popup UI]  NSPanel .nonactivatingPanel .floating .borderless
        NSHostingView/SwiftUI, pozycja wg NSEvent.mouseLocation
-       streaming tokenów, etykieta kierunku (PL→EN)
+       streaming tokenów, etykieta kierunku (PL→XX)
        canBecomeKey=false (nie kradnie focusu)
        Esc / klik poza → zamknij; klik w wynik → kopiuj do schowka
 ```
@@ -130,9 +130,27 @@ Aplikacja w pasku menu, która:
 6. Streamuje wynik w `NSPanel .floating` przy kursorze; Esc/klik poza zamyka,
    klik kopiuje.
 
-**Świadomie odłożone:** wybór modelu i języka w UI, hot-swap przez
-`ollama.list()`, kaskada capture przez Accessibility/AppleScript, obsługa Safari,
-`CGEventTap`, konfigurowalny adres Ollamy (osobny host w LAN).
+**Świadomie odłożone:** kaskada capture przez Accessibility/AppleScript, obsługa
+Safari, `CGEventTap`, konfigurowalny adres Ollamy (osobny host w LAN).
+
+## Ustawienia (zaimplementowane po MVP)
+
+Okno `Settings` (SwiftUI, otwierane przez `SettingsLink` w `MenuBarExtra`) daje
+dwie konfigurowalne osie, trwale zapisywane w `UserDefaults` (`SettingsStore`):
+
+- **Model** — wybór z listy modeli faktycznie zainstalowanych w Ollamie
+  (`OllamaModelLister`, `GET /api/tags`). Gdy Ollama nie odpowiada, pokazany jest
+  zapisany model + przycisk odświeżania.
+- **Drugi język** — niepolska strona pary, spośród: angielski (domyślny),
+  niemiecki, rosyjski, hiszpański, niderlandzki (`SecondLanguage`). Polski jest
+  stałą osią; podwójne ⌘C nadal auto-wykrywa kierunek, ale względem pary
+  `polski ↔ wybrany język` (prompt i `DirectionDetector` respektują wybór).
+
+Niezmienniki empiryczne (`think:false`, `temperature:0`, `keep_alive:"30m"`,
+`endpoint`) **nie są** wystawione w UI — zostają zaszyte w bazowym `LLMConfig`
+w `OllamaClient`, więc ustawienia nie mogą ich złamać. Świadomy kompromis: po
+zmianie modelu pierwsze tłumaczenie jest wolniejsze (nowy model ładuje się
+leniwie; pre-warm przy starcie dotyczy zapisanego modelu).
 
 ## Ryzyka i decyzje do potwierdzenia przy implementacji
 

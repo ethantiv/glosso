@@ -1,15 +1,59 @@
 import Foundation
 import CoreGraphics
 
-enum TranslationDirection: String, Sendable, Equatable {
-    case plToEn
-    case enToPl
+/// The non-Polish side of the PL↔X translation pair, user-selectable in
+/// Settings. Polish is the fixed axis; this is the "other" language a copied
+/// selection is translated to (when the selection is Polish) or from.
+enum SecondLanguage: String, CaseIterable, Sendable {
+    case english = "en"
+    case german = "de"
+    case russian = "ru"
+    case spanish = "es"
+    case dutch = "nl"
+
+    /// Polish display name for the Settings picker.
+    var displayName: String {
+        switch self {
+        case .english: "angielski"
+        case .german: "niemiecki"
+        case .russian: "rosyjski"
+        case .spanish: "hiszpański"
+        case .dutch: "niderlandzki"
+        }
+    }
+
+    /// English name the prompt instructs the model to translate Polish into.
+    var englishName: String {
+        switch self {
+        case .english: "English"
+        case .german: "German"
+        case .russian: "Russian"
+        case .spanish: "Spanish"
+        case .dutch: "Dutch"
+        }
+    }
+
+    /// Two-letter code shown in the popup's direction arrow.
+    var code: String {
+        switch self {
+        case .english: "EN"
+        case .german: "DE"
+        case .russian: "RU"
+        case .spanish: "ES"
+        case .dutch: "NL"
+        }
+    }
+}
+
+enum TranslationDirection: Sendable, Equatable {
+    case fromPolish(SecondLanguage)   // PL → second language
+    case toPolish(SecondLanguage)     // second language → PL
     case unknown
 
     var label: String {
         switch self {
-        case .plToEn: "PL → EN"
-        case .enToPl: "EN → PL"
+        case .fromPolish(let second): "PL → \(second.code)"
+        case .toPolish(let second): "\(second.code) → PL"
         case .unknown: "…"
         }
     }
@@ -68,8 +112,14 @@ struct LLMConfig: Sendable {
 }
 
 protocol LLMClient: Sendable {
-    func translate(_ text: String) -> AsyncThrowingStream<TranslationEvent, Error>
-    func prewarm() async throws
+    func translate(_ text: String, model: String, second: SecondLanguage) -> AsyncThrowingStream<TranslationEvent, Error>
+    func prewarm(model: String) async throws
+}
+
+/// Lists the models actually installed in Ollama, so Settings can offer a live
+/// picker instead of a hardcoded name.
+protocol ModelListing: Sendable {
+    func availableModels() async throws -> [String]
 }
 
 protocol TimeSource: Sendable {

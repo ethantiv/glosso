@@ -2,26 +2,36 @@ import Testing
 @testable import TranslatorMenuBar
 
 @Suite struct DirectionDetectorTests {
-    @Test func polishTextGoesToEnglish() {
-        #expect(DirectionDetector.detect("Dzień dobry, jak się masz dzisiaj rano?") == .plToEn)
+    @Test func polishTextGoesToSecondLanguage() {
+        #expect(DirectionDetector.detect("Dzień dobry, jak się masz dzisiaj rano?", second: .english) == .fromPolish(.english))
     }
 
     @Test func englishTextGoesToPolish() {
-        #expect(DirectionDetector.detect("Good morning, how are you doing today?") == .enToPl)
+        #expect(DirectionDetector.detect("Good morning, how are you doing today?", second: .english) == .toPolish(.english))
     }
 
     @Test func emptyTextIsUnknown() {
-        #expect(DirectionDetector.detect("") == .unknown)
+        #expect(DirectionDetector.detect("", second: .english) == .unknown)
     }
 
     // Short snippets are the common case (a copied word or phrase). Unconstrained,
     // NLLanguageRecognizer misreads short Polish as another Slavic language and the
-    // arrow then lies about the PL→EN swap the prompt performs.
-    @Test func shortPolishPhraseGoesToEnglish() {
-        #expect(DirectionDetector.detect("Witaj świecie") == .plToEn)
+    // arrow then lies about the swap the prompt performs.
+    @Test func shortPolishPhraseGoesToSecondLanguage() {
+        #expect(DirectionDetector.detect("Witaj świecie", second: .english) == .fromPolish(.english))
     }
 
     @Test func shortEnglishPhraseGoesToPolish() {
-        #expect(DirectionDetector.detect("Hello world") == .enToPl)
+        #expect(DirectionDetector.detect("Hello world", second: .english) == .toPolish(.english))
+    }
+
+    // With a non-English second language the detector must mirror the prompt for
+    // that pair too: Polish → .fromPolish(second), the other side → .toPolish(second).
+    @Test func polishGoesToGermanWhenSecondIsGerman() {
+        #expect(DirectionDetector.detect("Dzień dobry, jak się masz dzisiaj rano?", second: .german) == .fromPolish(.german))
+    }
+
+    @Test func germanTextGoesToPolishWhenSecondIsGerman() {
+        #expect(DirectionDetector.detect("Guten Morgen, wie geht es dir heute?", second: .german) == .toPolish(.german))
     }
 }

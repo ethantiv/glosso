@@ -22,6 +22,9 @@ final class StreamGate: @unchecked Sendable {
 struct FakeLLMClient: LLMClient {
     final class Recorder: @unchecked Sendable {
         var receivedText: String?
+        var receivedModel: String?
+        var receivedSecond: SecondLanguage?
+        var prewarmModel: String?
     }
     let recorder = Recorder()
     let events: [TranslationEvent]
@@ -41,8 +44,10 @@ struct FakeLLMClient: LLMClient {
         self.gate = gate
     }
 
-    func translate(_ text: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func translate(_ text: String, model: String, second: SecondLanguage) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
+        recorder.receivedModel = model
+        recorder.receivedSecond = second
         let events = self.events
         let error = self.error
         let gate = self.gate
@@ -65,7 +70,7 @@ struct FakeLLMClient: LLMClient {
         }
     }
 
-    func prewarm() async throws {}
+    func prewarm(model: String) async throws { recorder.prewarmModel = model }
 }
 
 @MainActor
@@ -103,13 +108,17 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     private(set) var presented = false
+    private(set) var presentedDirection: TranslationDirection?
     private(set) var dismissCount = 0
     private(set) var tokens: [String] = []
     private(set) var errorMessage: String?
     private(set) var finished = false
     private(set) var truncated = false
 
-    func present(direction: TranslationDirection, at screenPoint: CGPoint) { presented = true }
+    func present(direction: TranslationDirection, at screenPoint: CGPoint) {
+        presented = true
+        presentedDirection = direction
+    }
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }
     func finish(truncated: Bool) { finished = true; self.truncated = truncated }
