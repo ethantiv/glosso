@@ -51,6 +51,10 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         captureTask?.cancel()
+        // The popup's Esc/outside-click dismissers are AX-gated global monitors
+        // too, so an AX revocation silences them — dismiss it here or a popup
+        // mid-translation orphans on screen with a stuck spinner.
+        popup.dismiss()
     }
 
     func handleDoubleCopy() {
