@@ -56,10 +56,15 @@ final class TranslationPopupController: TranslationPopupPresenting {
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let panel = self.panel else { return }
+                // Re-resolve the panel's live screen: a mid-stream display change
+                // (monitor unplugged, panel migrated by AppKit) would otherwise
+                // clamp against the frame captured at present() and push the panel
+                // off the now-current screen.
+                let screenFrame = panel.screen?.visibleFrame ?? self.anchorScreenFrame
                 var topLeft = self.anchorTopLeft
-                let minTopY = self.anchorScreenFrame.minY + panel.frame.height
+                let minTopY = screenFrame.minY + panel.frame.height
                 if topLeft.y < minTopY { topLeft.y = minTopY }
-                if topLeft.y > self.anchorScreenFrame.maxY { topLeft.y = self.anchorScreenFrame.maxY }
+                if topLeft.y > screenFrame.maxY { topLeft.y = screenFrame.maxY }
                 panel.setFrameTopLeftPoint(topLeft)
             }
         }
@@ -105,7 +110,12 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // monitor observes it the same way the outside-click one does.
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             MainActor.assumeIsolated {
-                guard event.keyCode == Self.escKeyCode else { return }
+                // Bare Esc only: Cmd/Shift/Ctrl/Option+Esc are distinct system
+                // shortcuts (Force Quit, etc.) and must not kill the stream.
+                let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
+                guard event.keyCode == Self.escKeyCode,
+                      event.modifierFlags.intersection(chordModifiers).isEmpty
+                else { return }
                 self?.dismiss()
             }
         }
