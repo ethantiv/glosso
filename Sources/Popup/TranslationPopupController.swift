@@ -20,7 +20,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
     func present(direction: TranslationDirection, sourceText: String, at screenPoint: CGPoint) {
         tearDown()
 
-        model.direction = direction
         model.sourceText = sourceText
         model.text = ""
         model.phase = .streaming

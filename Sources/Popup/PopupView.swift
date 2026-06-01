@@ -49,26 +49,23 @@ struct PopupView: View {
                         .controlSize(.mini)
                 }
                 Spacer(minLength: 0)
+                if canCopy {
+                    Button {
+                        let pasteboard = NSPasteboard.general
+                        pasteboard.clearContents()
+                        pasteboard.setString(model.text, forType: .string)
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .buttonStyle(.borderless)
+                    .help("Kopiuj tłumaczenie")
+                }
             }
 
             content
         }
         .padding(14)
         .frame(width: Self.paneWidth, alignment: .leading)
-        .overlay(alignment: .bottomTrailing) {
-            if canCopy {
-                Button {
-                    let pasteboard = NSPasteboard.general
-                    pasteboard.clearContents()
-                    pasteboard.setString(model.text, forType: .string)
-                } label: {
-                    Image(systemName: "doc.on.doc")
-                }
-                .buttonStyle(.borderless)
-                .help("Kopiuj tłumaczenie")
-                .padding(10)
-            }
-        }
     }
 
     @ViewBuilder
