@@ -101,8 +101,17 @@ final class AppCoordinator {
             for try await event in llm.translate(text) {
                 if Task.isCancelled { return }
                 switch event {
-                case .token(let token): popup.append(token: token)
-                case .finished: popup.finish()
+                case .token(let token):
+                    popup.append(token: token)
+                case .finished(let reason):
+                    // done_reason "length" means the model hit its token ceiling
+                    // and the tail was dropped; presenting it as .done would let
+                    // the user copy a silently truncated translation.
+                    if reason == "length" {
+                        popup.showError("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.")
+                    } else {
+                        popup.finish()
+                    }
                 }
             }
         } catch let error as TranslationError {

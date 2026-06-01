@@ -79,6 +79,22 @@ import Testing
         #expect(popup.errorMessage == nil)
     }
 
+    // A length-truncated stream must surface as an error, not a clean .done, so
+    // the user is never handed a silently cut-off translation to copy.
+    @Test func lengthTruncatedStreamSurfacesAsError() async {
+        let llm = FakeLLMClient(events: [.token("Cześć"), .finished(doneReason: "length")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Hello"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(popup.errorMessage == "Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.")
+        #expect(popup.finished == false)
+    }
+
     @Test func stopHaltsTheMonitor() {
         let monitor = FakeHotkeyMonitor()
         let coordinator = AppCoordinator(
