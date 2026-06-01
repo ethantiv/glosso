@@ -49,6 +49,10 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
     }
 
     func stop() {
+        // Clear any in-progress double-press window so a stop/start cycle
+        // (e.g. the AX-revocation auto-restart) can't pair a pre-flap Cmd+C
+        // with a single post-restart press.
+        detector.reset()
         if let monitor {
             NSEvent.removeMonitor(monitor)
             self.monitor = nil

@@ -38,4 +38,14 @@ import Testing
         #expect(detector.registerCopy(at: 0.1) == true)
         #expect(detector.registerCopy(at: 0.15) == false)
     }
+
+    // A stop/start cycle (the AX-revocation auto-restart) must invalidate any
+    // half-formed double-press, or a pre-flap Cmd+C could pair with a single
+    // press after restart and fire a translation on one keystroke.
+    @Test func resetInvalidatesPendingDouble() {
+        var detector = DoubleCopyDetector()
+        _ = detector.registerCopy(at: 0)
+        detector.reset()
+        #expect(detector.registerCopy(at: 0.2) == false)
+    }
 }

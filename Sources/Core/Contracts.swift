@@ -78,6 +78,7 @@ protocol TimeSource: Sendable {
 
 protocol DoubleKeyDetecting: Sendable {
     mutating func registerCopy(at now: TimeInterval) -> Bool
+    mutating func reset()
 }
 
 @MainActor

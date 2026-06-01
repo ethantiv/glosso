@@ -21,4 +21,8 @@ struct DoubleCopyDetector: DoubleKeyDetecting {
         lastCopy = now
         return false
     }
+
+    mutating func reset() {
+        lastCopy = nil
+    }
 }
