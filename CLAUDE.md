@@ -90,8 +90,12 @@ The four functional modules, each behind a protocol:
   `AppCoordinator` falls back to `AXSelectionReader` (`AXSelectionReading`),
   which reads the focused element's `AXSelectedText` directly via the
   Accessibility API — no pasteboard, no new permission (the AX consent the
-  hotkey monitor already needs covers it). Deeper fallbacks (AppleScript,
-  synthesized Cmd+C, Safari-via-JavaScript) stay deferred.
+  hotkey monitor already needs covers it). Because that read resolves whatever is
+  focused *at fallback time* (~480ms after the press), `AppCoordinator` snapshots
+  the frontmost app's PID at the double-press and bails out of the AX fallback if
+  it changed (a Cmd+Tab mid-poll), so it never translates another app's selection.
+  Deeper fallbacks (AppleScript, synthesized Cmd+C, Safari-via-JavaScript) stay
+  deferred.
 - **LLM** (`Sources/LLM/`) — `OllamaClient` POSTs to `/api/generate` with
   `stream:true`, parses the NDJSON line stream (`NDJSONStreamParser`), and yields
   `.token`/`.finished` through an `AsyncThrowingStream`. `PromptBuilder` carries

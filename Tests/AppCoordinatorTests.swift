@@ -311,6 +311,53 @@ import Testing
         #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
+    // The AX fallback resolves the focused element ~480ms after the press. If the
+    // user switched apps (Cmd+Tab) within that window, reading the now-focused
+    // element would translate a different app's selection — so a changed frontmost
+    // app must bail with the fetch error and never consult AX at all.
+    @Test func axFallbackBailsWhenFrontmostAppChanged() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil   // clipboard never lands → AX fallback territory
+        let ax = FakeAXSelectionReader()
+        ax.text = "another app's selection"
+        let popup = FakePopup()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: ax, popup: popup, settings: makeSettings(),
+            pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 999 }   // the app focused *now* differs from the source below
+        )
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+
+        #expect(ax.callCount == 0)
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
+    // The mirror of the above: when the frontmost app is unchanged across the poll
+    // window, the AX fallback is the legitimate source and must still translate.
+    @Test func axFallbackProceedsWhenFrontmostAppUnchanged() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil
+        let ax = FakeAXSelectionReader()
+        ax.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: ax, popup: popup, settings: makeSettings(),
+            pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 123 }
+        )
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+        #expect(popup.errorMessage == nil)
+    }
+
     // emptyOrNonText means something WAS copied but it's blank — the AX fallback
     // is only for the "nothing copied" timeout, so it must not run here.
     @Test func emptyOrNonTextSelectionDoesNotConsultAX() async {
