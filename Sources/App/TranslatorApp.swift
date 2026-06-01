@@ -6,7 +6,7 @@ struct TranslatorApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Translator", systemImage: "character.bubble") {
+        MenuBarExtra("Translator", image: "MenuBarIcon") {
             if appDelegate.appState.listening {
                 Text("Nasłuch aktywny — podwójne ⌘C tłumaczy zaznaczenie")
             } else if appDelegate.appState.accessibilityGranted {
