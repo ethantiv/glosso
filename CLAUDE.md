@@ -30,8 +30,12 @@ Inside the sandbox they fail with `Operation not permitted`.
 `dangerouslyDisableSandbox: true` — in the sandbox they fail with a TLS cert
 error (`OSStatus -26276`), not the build's `Operation not permitted`.
 During `/babysit-pr`, resolving a `claude-review` thread
-(`gh api graphql … resolveReviewThread`) is user-authorized — but **only** for
-findings actually fixed in committed code, never for ones left for a human.
+(`gh api graphql … resolveReviewThread`) is user-authorized in two cases:
+(1) findings actually fixed in committed code, and (2) findings you deliberately
+skipped after posting a rationale reply on the thread (low-value, or whose only
+fix would change a documented design decision). Leave a thread **unresolved
+only** when it is genuinely handed to a human — an un-adjudicable product/design
+call you did not decide yourself.
 The Bash tool's shell is **zsh** — unquoted `$var` is not word-split; iterate
 lists with `while IFS= read -r` (a `for x in $list` runs once on the whole string).
 
