@@ -5,7 +5,12 @@ import ServiceManagement
 /// reliable once the app lives in /Applications.
 @MainActor
 struct SMAppServiceLoginItem: LoginItemManaging {
-    var isEnabled: Bool { SMAppService.mainApp.status == .enabled }
+    var isEnabled: Bool {
+        switch SMAppService.mainApp.status {
+        case .enabled, .requiresApproval: return true
+        default: return false
+        }
+    }
 
     func setEnabled(_ enabled: Bool) throws {
         if enabled {
