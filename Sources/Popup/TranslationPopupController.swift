@@ -29,6 +29,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
+        // Borderless windows have no visible title, but macOS accessibility still
+        // reads NSWindow.title to name the window for VoiceOver; without it the
+        // popup announces as an untitled window. Resolved to the direction in update().
+        panel.title = "Tłumaczenie"
         let host = NSHostingController(rootView: PopupView(model: model, close: { [weak self] in
             self?.dismiss()
         }))
@@ -108,6 +112,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     func update(direction: TranslationDirection, sourceText: String) {
         model.direction = direction
         model.sourceText = sourceText
+        panel?.title = "Tłumaczenie · \(direction.label)"
     }
 
     func append(token: String) {

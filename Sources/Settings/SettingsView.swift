@@ -58,6 +58,7 @@ struct SettingsView: View {
                         }
                     }
                     .labelsHidden()
+                    .accessibilityLabel("Model Ollama")
                     .fixedSize()
                 }
                 rowDivider
@@ -89,6 +90,7 @@ struct SettingsView: View {
                         }
                     }
                     .labelsHidden()
+                    .accessibilityLabel("Drugi język")
                     .fixedSize()
                 }
             }
@@ -97,6 +99,7 @@ struct SettingsView: View {
                 row("Uruchamiaj przy logowaniu", "Startuje cicho w menu barze po zalogowaniu") {
                     Toggle("", isOn: $store.launchAtLogin)
                         .labelsHidden()
+                        .accessibilityLabel("Uruchamiaj przy logowaniu")
                         .toggleStyle(.switch)
                 }
             }

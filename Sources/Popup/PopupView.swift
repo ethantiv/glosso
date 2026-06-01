@@ -107,6 +107,7 @@ struct PopupView: View {
                 }
                 .buttonStyle(IconButtonStyle())
                 .help("Kopiuj tłumaczenie")
+                .accessibilityLabel("Kopiuj tłumaczenie")
                 .animation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast), value: copied)
             }
             Button(action: close) {
@@ -115,6 +116,7 @@ struct PopupView: View {
             }
             .buttonStyle(IconButtonStyle())
             .help("Zamknij")
+            .accessibilityLabel("Zamknij")
         }
     }
 
