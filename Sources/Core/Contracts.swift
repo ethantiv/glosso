@@ -122,6 +122,15 @@ protocol ModelListing: Sendable {
     func availableModels() async throws -> [String]
 }
 
+/// Controls whether the app launches at login. `isEnabled` reflects the *actual*
+/// system registration (the user can revoke it in System Settings), so Settings
+/// derives its toggle from it rather than from a mirrored UserDefaults flag.
+@MainActor
+protocol LoginItemManaging {
+    var isEnabled: Bool { get }
+    func setEnabled(_ enabled: Bool) throws
+}
+
 protocol TimeSource: Sendable {
     func now() -> TimeInterval
 }

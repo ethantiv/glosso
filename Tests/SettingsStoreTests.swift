@@ -37,4 +37,46 @@ import Testing
         let store = SettingsStore(defaults: defaults)
         #expect(store.secondLanguage == .english)
     }
+
+    // The toggle is the whole point of the setting: flipping it on/off must drive
+    // the actual login-item registration, and the store must mirror fresh state.
+    @Test func togglingLaunchAtLoginRegistersAndUnregisters() {
+        let login = FakeLoginItem(isEnabled: false)
+        let store = SettingsStore(defaults: transientDefaults(), loginItem: login)
+        #expect(store.launchAtLogin == false)
+
+        store.launchAtLogin = true
+        #expect(login.setEnabledCalls == [true])
+        #expect(login.isEnabled)
+
+        store.launchAtLogin = false
+        #expect(login.setEnabledCalls == [true, false])
+        #expect(login.isEnabled == false)
+    }
+
+    // If the system rejects registration, the toggle must snap back, so the UI
+    // never claims an enabled state that isn't actually in effect.
+    @Test func launchAtLoginRevertsWhenRegistrationFails() {
+        struct Boom: Error {}
+        let login = FakeLoginItem(isEnabled: false)
+        login.setEnabledError = Boom()
+        let store = SettingsStore(defaults: transientDefaults(), loginItem: login)
+
+        store.launchAtLogin = true
+        #expect(store.launchAtLogin == false)
+        #expect(login.isEnabled == false)
+    }
+
+    // A status change made in System Settings (revocation) must surface on
+    // refresh — and refresh must only reflect it, never re-trigger registration.
+    @Test func refreshReflectsExternalStatusWithoutReRegistering() {
+        let login = FakeLoginItem(isEnabled: true)
+        let store = SettingsStore(defaults: transientDefaults(), loginItem: login)
+        #expect(store.launchAtLogin)
+
+        login.isEnabled = false
+        store.refreshLaunchAtLogin()
+        #expect(store.launchAtLogin == false)
+        #expect(login.setEnabledCalls.isEmpty)
+    }
 }
