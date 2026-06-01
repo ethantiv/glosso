@@ -105,4 +105,21 @@ import Testing
             for try await _ in client.translate("Cześć") {}
         }
     }
+
+    // A 404 carries Ollama's actionable "model not found, try pulling it first"
+    // in the body; surface it instead of a bare HTTP code so the user knows to
+    // `ollama pull` rather than assuming the daemon is broken.
+    @Test func nonOKStatusWithErrorBodySurfacesOllamaError() async {
+        MockURLProtocol.handler = { request in
+            let body = (#"{"error":"model not found, try pulling it first"}"# + "\n").data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.ollamaError("model not found, try pulling it first")) {
+            for try await _ in client.translate("Cześć") {}
+        }
+    }
 }

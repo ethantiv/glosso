@@ -25,6 +25,17 @@ final class OllamaClient: LLMClient {
                         return
                     }
                     guard http.statusCode == 200 else {
+                        // Ollama returns a JSON body like
+                        // {"error":"model ... not found, try pulling it first"} on
+                        // 4xx/5xx — surface it so the user gets the actionable
+                        // message instead of a bare HTTP status code.
+                        for try await line in bytes.lines {
+                            if let message = NDJSONStreamParser.parse(line: line)?.error {
+                                continuation.finish(throwing: TranslationError.ollamaError(message))
+                                return
+                            }
+                            break
+                        }
                         continuation.finish(throwing: TranslationError.httpStatus(http.statusCode))
                         return
                     }
@@ -79,7 +90,10 @@ final class OllamaClient: LLMClient {
 
     func prewarm() async throws {
         do {
-            let request = try Self.makeRequest(config: config, prompt: " ", stream: false)
+            // Empty prompt = load-only: Ollama loads the model and primes
+            // keep_alive without running an inference pass, so a real translation
+            // never has to queue behind the prewarm's own generation.
+            let request = try Self.makeRequest(config: config, prompt: "", stream: false)
             _ = try await session.data(for: request)
         } catch {
             // best-effort: prewarm failures must not surface
