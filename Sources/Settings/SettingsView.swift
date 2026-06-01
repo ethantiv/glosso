@@ -6,6 +6,7 @@ struct SettingsView: View {
 
     @State private var models: [String] = []
     @State private var loadState: LoadState = .idle
+    @State private var loadGeneration = 0
 
     private enum LoadState: Equatable {
         case idle, loading, loaded, failed
@@ -58,11 +59,18 @@ struct SettingsView: View {
     }
 
     private func loadModels() async {
+        // Tag this load so a slow earlier fetch (e.g. .task) can't overwrite the
+        // result of a later one (e.g. an "Odśwież" tap) once it finally resolves.
+        loadGeneration += 1
+        let generation = loadGeneration
         loadState = .loading
         do {
-            models = try await lister.availableModels()
+            let fetched = try await lister.availableModels()
+            guard generation == loadGeneration else { return }
+            models = fetched
             loadState = .loaded
         } catch {
+            guard generation == loadGeneration else { return }
             models = []
             loadState = .failed
         }

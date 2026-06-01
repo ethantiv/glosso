@@ -17,7 +17,10 @@ final class OllamaModelLister: ModelListing {
     }
 
     func availableModels() async throws -> [String] {
-        let (data, response) = try await session.data(from: tagsURL)
+        // Bypass the URL cache so "Odśwież" reflects models pulled/removed since
+        // the last fetch instead of replaying a cached /api/tags body.
+        let request = URLRequest(url: tagsURL, cachePolicy: .reloadIgnoringLocalCacheData)
+        let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw ModelListingError.unreachable
         }
