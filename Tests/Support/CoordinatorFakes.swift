@@ -122,6 +122,18 @@ final class FakePopup: TranslationPopupPresenting {
 }
 
 @MainActor
+final class FakeAccessibilityAuthorizing: AccessibilityAuthorizing {
+    var isTrusted: Bool
+    private(set) var requestedPrompt: Bool?
+    private(set) var openedSettings = false
+
+    init(isTrusted: Bool) { self.isTrusted = isTrusted }
+
+    func requestAccess(prompt: Bool) { requestedPrompt = prompt }
+    func openSystemSettings() { openedSettings = true }
+}
+
+@MainActor
 final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
     private(set) var stopCount = 0

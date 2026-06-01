@@ -32,8 +32,10 @@ struct TranslatorApp: App {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
-    private let ax = AXChecker()
-    private var coordinator: AppCoordinator?
+    // Injectable so tests can drive the granted↔revoked transitions in
+    // recheckAccessibility() with a fake; production keeps the real AXChecker.
+    var ax: any AccessibilityAuthorizing = AXChecker()
+    var coordinator: AppCoordinator?
     private var activationObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
