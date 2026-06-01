@@ -20,6 +20,7 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
     }
 
     func start() throws {
+        stop()
         guard AXIsProcessTrusted() else {
             throw HotkeyError.accessibilityNotGranted
         }
@@ -30,10 +31,15 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
                 self?.handle(event)
             }
         }
+        // A nil return means AppKit failed to install the monitor (e.g. AX revoked
+        // between the check above and here); don't report listening when it isn't.
+        guard monitor != nil else { throw HotkeyError.accessibilityNotGranted }
     }
 
     private func handle(_ event: NSEvent) {
-        let isC = event.keyCode == 8
+        // Match the typed character, not the physical key position (keyCode 8),
+        // so double Cmd+C also fires on Dvorak/AZERTY/Colemak layouts.
+        let isC = event.charactersIgnoringModifiers?.lowercased() == "c"
         let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
         let mods = event.modifierFlags.intersection(chordModifiers)
         guard isC, mods == .command, !event.isARepeat else { return }

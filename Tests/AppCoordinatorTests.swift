@@ -15,7 +15,6 @@ import Testing
             monitor: FakeHotkeyMonitor(),
             reader: reader,
             popup: popup,
-            ax: FakeAccessibility(),
             pollStepMs: 1,
             pollMaxAttempts: 5
         )
@@ -61,6 +60,34 @@ import Testing
         coordinator.handleDoubleCopy()
 
         #expect(popup.dismissCount == 1)
+    }
+
+    @Test func cancelledStreamDoesNotShowErrorOnNewPopup() async {
+        let llm = FakeLLMClient(events: [], error: .cancelled)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(popup.presented)
+        #expect(popup.errorMessage == nil)
+    }
+
+    @Test func stopHaltsTheMonitor() {
+        let monitor = FakeHotkeyMonitor()
+        let coordinator = AppCoordinator(
+            llm: FakeLLMClient(),
+            monitor: monitor,
+            reader: FakePasteboardReader(),
+            popup: FakePopup()
+        )
+
+        coordinator.stop()
+
+        #expect(monitor.stopCount == 1)
     }
 
     @Test func nonTextSelectionReportsImmediately() async {

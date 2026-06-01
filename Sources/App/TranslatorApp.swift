@@ -34,6 +34,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     private let ax = AXChecker()
     private var coordinator: AppCoordinator?
+    private var activationObserver: NSObjectProtocol?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
@@ -49,11 +50,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             llm: OllamaClient(),
             monitor: GlobalHotkeyMonitor(),
             reader: SystemPasteboardReader(),
-            popup: TranslationPopupController(),
-            ax: ax
+            popup: TranslationPopupController()
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator
+
+        // Accessibility can be revoked while we run; re-check whenever an app
+        // activates so the menu stops claiming "Nasłuch aktywny" when it isn't.
+        activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.recheckAccessibility() }
+        }
     }
 
     func openAccessibilitySettings() {
@@ -62,8 +70,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func recheckAccessibility() {
         appState.accessibilityGranted = ax.isTrusted
-        if ax.isTrusted, appState.listening == false {
-            appState.listening = coordinator?.start() ?? false
+        if ax.isTrusted {
+            if appState.listening == false {
+                appState.listening = coordinator?.start() ?? false
+            }
+        } else if appState.listening {
+            coordinator?.stop()
+            appState.listening = false
         }
     }
 }

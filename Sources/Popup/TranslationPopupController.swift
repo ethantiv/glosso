@@ -11,6 +11,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var outsideClickMonitor: Any?
     private var resizeObserver: NSObjectProtocol?
     private var anchorTopLeft: CGPoint = .zero
+    private var anchorScreenFrame: CGRect = .zero
 
     private static let defaultSize = CGSize(width: 360, height: 140)
     private static let escKeyCode: UInt16 = 53
@@ -41,19 +42,25 @@ final class TranslationPopupController: TranslationPopupPresenting {
             screenFrame: frame
         )
         anchorTopLeft = topLeft
+        anchorScreenFrame = frame
         panel.setFrameTopLeftPoint(topLeft)
         panel.orderFrontRegardless()
         self.panel = panel
 
         // The hosting view drives the panel size, which grows as tokens stream
-        // in. AppKit keeps the bottom-left origin fixed on resize, so without
-        // this the panel would grow upward over the cursor; re-pin the top-left.
+        // in. AppKit keeps the bottom-left origin fixed on resize, so re-pin the
+        // top-left — but raise it when the taller panel would drop its bottom
+        // edge below the visible frame, so long text isn't clipped behind the Dock.
         resizeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didResizeNotification, object: panel, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated {
                 guard let self, let panel = self.panel else { return }
-                panel.setFrameTopLeftPoint(self.anchorTopLeft)
+                var topLeft = self.anchorTopLeft
+                let minTopY = self.anchorScreenFrame.minY + panel.frame.height
+                if topLeft.y < minTopY { topLeft.y = minTopY }
+                if topLeft.y > self.anchorScreenFrame.maxY { topLeft.y = self.anchorScreenFrame.maxY }
+                panel.setFrameTopLeftPoint(topLeft)
             }
         }
 

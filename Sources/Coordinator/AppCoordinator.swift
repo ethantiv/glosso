@@ -7,7 +7,6 @@ final class AppCoordinator {
     private let monitor: any HotkeyMonitor
     private let reader: any PasteboardReading
     private let popup: any TranslationPopupPresenting
-    private let ax: any AccessibilityAuthorizing
 
     private let pollStepMs: Int
     private let pollMaxAttempts: Int
@@ -19,7 +18,6 @@ final class AppCoordinator {
         monitor: any HotkeyMonitor,
         reader: any PasteboardReading,
         popup: any TranslationPopupPresenting,
-        ax: any AccessibilityAuthorizing,
         pollStepMs: Int = 12,
         pollMaxAttempts: Int = 20
     ) {
@@ -27,7 +25,6 @@ final class AppCoordinator {
         self.monitor = monitor
         self.reader = reader
         self.popup = popup
-        self.ax = ax
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
     }
@@ -47,6 +44,13 @@ final class AppCoordinator {
         } catch {
             return false
         }
+    }
+
+    /// Stops the hotkey monitor and cancels any in-flight capture. Used when
+    /// Accessibility is revoked at runtime so the app stops claiming it listens.
+    func stop() {
+        monitor.stop()
+        captureTask?.cancel()
     }
 
     func handleDoubleCopy() {
@@ -89,14 +93,17 @@ final class AppCoordinator {
         popup.present(direction: DirectionDetector.detect(text), at: point)
         do {
             for try await event in llm.translate(text) {
+                if Task.isCancelled { return }
                 switch event {
                 case .token(let token): popup.append(token: token)
                 case .finished: popup.finish()
                 }
             }
         } catch let error as TranslationError {
+            if error == .cancelled { return }
             popup.showError(error.userMessage)
         } catch {
+            if Task.isCancelled { return }
             popup.showError("Błąd tłumaczenia.")
         }
     }

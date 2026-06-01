@@ -1,13 +1,11 @@
 import Foundation
 
 struct SystemClock: TimeSource {
-    // Continuous time keeps advancing while the Mac is asleep; systemUptime does
-    // not, which would make a Cmd+C before sleep and one after wake look like a
-    // sub-0.3s "double" and translate the clipboard on a single press.
+    // CLOCK_MONOTONIC_RAW keeps advancing while the Mac is asleep (unlike
+    // CLOCK_UPTIME_RAW), so a Cmd+C before sleep and one after wake stay far
+    // apart instead of looking like a sub-0.3s "double". Returning nanoseconds
+    // directly avoids mach_timebase math (divide-by-zero / overflow).
     func now() -> TimeInterval {
-        var timebase = mach_timebase_info_data_t()
-        mach_timebase_info(&timebase)
-        let nanos = mach_continuous_time() * UInt64(timebase.numer) / UInt64(timebase.denom)
-        return TimeInterval(nanos) / 1_000_000_000
+        TimeInterval(clock_gettime_nsec_np(CLOCK_MONOTONIC_RAW)) / 1_000_000_000
     }
 }

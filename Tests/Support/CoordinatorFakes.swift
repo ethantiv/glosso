@@ -8,17 +8,20 @@ struct FakeLLMClient: LLMClient {
     }
     let recorder = Recorder()
     let events: [TranslationEvent]
+    let error: TranslationError?
 
-    init(events: [TranslationEvent] = [.token("ok"), .finished(doneReason: "stop")]) {
+    init(events: [TranslationEvent] = [.token("ok"), .finished(doneReason: "stop")], error: TranslationError? = nil) {
         self.events = events
+        self.error = error
     }
 
     func translate(_ text: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
         let events = self.events
+        let error = self.error
         return AsyncThrowingStream { continuation in
             for event in events { continuation.yield(event) }
-            continuation.finish()
+            if let error { continuation.finish(throwing: error) } else { continuation.finish() }
         }
     }
 
@@ -73,13 +76,7 @@ final class FakePopup: TranslationPopupPresenting {
 @MainActor
 final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor () -> Void)?
+    private(set) var stopCount = 0
     func start() throws {}
-    func stop() {}
-}
-
-@MainActor
-final class FakeAccessibility: AccessibilityAuthorizing {
-    var isTrusted: Bool = true
-    func requestAccess(prompt: Bool) {}
-    func openSystemSettings() {}
+    func stop() { stopCount += 1 }
 }
