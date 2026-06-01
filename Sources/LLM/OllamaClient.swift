@@ -17,7 +17,7 @@ final class OllamaClient: LLMClient {
             let task = Task {
                 do {
                     // Only the model is user-selectable; the base config keeps the
-                    // IDEA.md invariants (think:false, temperature:0, keep_alive,
+                    // empirical invariants (think:false, temperature:0, keep_alive,
                     // endpoint) locked. Build it on the local copy inside the task.
                     var config = baseConfig
                     config.model = model

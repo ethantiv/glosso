@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
     # Only review pushes that touch source/tests/build config. Docs-only PRs
-    # (IDEA.md, CLAUDE.md, README) don't pay for a full Opus review.
+    # (CLAUDE.md, README) don't pay for a full Opus review.
     paths:
       - "Sources/**"
       - "Tests/**"
