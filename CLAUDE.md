@@ -26,6 +26,11 @@ scripts/test.sh     # xcodebuild test → .build/TestResults.xcresult
 
 **Builds and `xcodebuild` must run outside the sandbox** (`dangerouslyDisableSandbox: true`).
 Inside the sandbox they fail with `Operation not permitted`.
+`gh` and other network calls (GitHub API, Ollama over TLS) also need
+`dangerouslyDisableSandbox: true` — in the sandbox they fail with a TLS cert
+error (`OSStatus -26276`), not the build's `Operation not permitted`.
+The Bash tool's shell is **zsh** — unquoted `$var` is not word-split; iterate
+lists with `while IFS= read -r` (a `for x in $list` runs once on the whole string).
 
 Signing uses a **free personal team** (Team ID `F266Z8F83B` in `project.yml`).
 The scripts pass `-allowProvisioningUpdates` so the first build creates the
