@@ -310,9 +310,11 @@ private func translationPopupEscTapCallback(
         MainActor.assumeIsolated { controller.reenableTap() }
         return Unmanaged.passUnretained(event)
     }
-    guard let nsEvent = NSEvent(cgEvent: event) else {
-        return Unmanaged.passUnretained(event)
-    }
+    // This fires on every keystroke while the popup is shown; only Esc matters, so
+    // gate on the raw keycode field before allocating an NSEvent for the rest.
+    guard UInt16(event.getIntegerValueField(.keyboardEventKeycode)) == EscKeyHandling.escKeyCode,
+          let nsEvent = NSEvent(cgEvent: event)
+    else { return Unmanaged.passUnretained(event) }
     let keyCode = nsEvent.keyCode
     let modifiersRawValue = nsEvent.modifierFlags.rawValue
     let swallow = MainActor.assumeIsolated {
