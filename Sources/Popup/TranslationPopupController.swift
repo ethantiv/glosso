@@ -21,12 +21,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
     func present(at screenPoint: CGPoint, formality: Formality) {
         tearDown()
 
+        resetTranslationPane()
         model.sourceText = ""
-        model.text = ""
-        model.phase = .capturing
         model.direction = .unknown
-        model.errorMessage = nil
-        model.truncated = false
         model.formality = formality
 
         let size = Self.defaultSize
@@ -135,6 +132,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
     }
 
     func restartTranslation() {
+        resetTranslationPane()
+    }
+
+    // Clears just the translation pane back to its loading skeleton, leaving the
+    // source text, direction and selected tone in place. Shared by present() (which
+    // additionally resets those) and restartTranslation() so neither path can drift.
+    private func resetTranslationPane() {
         model.text = ""
         model.errorMessage = nil
         model.truncated = false

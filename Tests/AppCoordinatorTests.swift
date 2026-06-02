@@ -51,6 +51,7 @@ import Testing
         #expect(llm.recorder.receivedSecond == .english)
         #expect(llm.recorder.receivedFormality == .formal)
         #expect(popup.presented)
+        #expect(popup.presentedFormality == .formal)
         #expect(popup.presentedDirection == .fromPolish(.english))
     }
 
