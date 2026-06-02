@@ -45,6 +45,33 @@ enum SecondLanguage: String, CaseIterable, Sendable {
     }
 }
 
+/// Tone the model should use for the translation, user-selectable in Settings.
+/// `automatic` adds no directive (the source text's register is preserved);
+/// `formal`/`informal` inject an explicit tone instruction that works for any
+/// target language — switching pronouns where the language has a T–V split
+/// (German Sie/du, French vous/tu, …) and the overall register everywhere else.
+enum Formality: String, CaseIterable, Sendable {
+    case automatic = "auto"
+    case formal = "formal"
+    case informal = "informal"
+
+    /// Polish display name for the popup's tone pill.
+    var displayName: String {
+        switch self {
+        case .automatic: "Automatyczny"
+        case .formal: "Formalny"
+        case .informal: "Nieformalny"
+        }
+    }
+
+    /// The next mode in the cycle, so the popup's tone pill advances one step
+    /// per click (Automatyczny → Formalny → Nieformalny → Automatyczny).
+    var next: Formality {
+        let all = Self.allCases
+        return all[(all.firstIndex(of: self)! + 1) % all.count]
+    }
+}
+
 enum TranslationDirection: Sendable, Equatable {
     case fromPolish(SecondLanguage)   // PL → second language
     case toPolish(SecondLanguage)     // second language → PL
@@ -112,7 +139,7 @@ struct LLMConfig: Sendable {
 }
 
 protocol LLMClient: Sendable {
-    func translate(_ text: String, model: String, second: SecondLanguage) -> AsyncThrowingStream<TranslationEvent, Error>
+    func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
 }
 
@@ -167,11 +194,18 @@ protocol AXSelectionReading {
 @MainActor
 protocol TranslationPopupPresenting: AnyObject {
     var onDismiss: (@MainActor () -> Void)? { get set }
-    func present(at screenPoint: CGPoint)
+    /// Fires when the user cycles the tone pill, carrying the newly selected
+    /// formality so the coordinator can persist it and re-translate.
+    var onSelectFormality: (@MainActor (Formality) -> Void)? { get set }
+    func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String)
     func append(token: String)
     func showError(_ message: String)
     func finish(truncated: Bool)
+    /// Resets the translation pane to its loading skeleton for a re-translation,
+    /// keeping the window in place along with the source text, direction and the
+    /// selected tone.
+    func restartTranslation()
     func dismiss()
 }
 

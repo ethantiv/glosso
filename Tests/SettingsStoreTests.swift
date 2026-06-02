@@ -14,6 +14,7 @@ import Testing
         let store = SettingsStore(defaults: transientDefaults())
         #expect(store.modelName == LLMConfig.default.model)
         #expect(store.secondLanguage == .english)
+        #expect(store.formality == .automatic)
     }
 
     // A reload (app restart) must see the previously chosen values, proving they
@@ -23,10 +24,12 @@ import Testing
         let first = SettingsStore(defaults: defaults)
         first.modelName = "llama3:8b"
         first.secondLanguage = .german
+        first.formality = .formal
 
         let reloaded = SettingsStore(defaults: defaults)
         #expect(reloaded.modelName == "llama3:8b")
         #expect(reloaded.secondLanguage == .german)
+        #expect(reloaded.formality == .formal)
     }
 
     // A corrupt/unknown persisted language code must fall back to English rather
@@ -36,6 +39,14 @@ import Testing
         defaults.set("xx", forKey: "translation.secondLanguage")
         let store = SettingsStore(defaults: defaults)
         #expect(store.secondLanguage == .english)
+    }
+
+    // Same guard for a corrupt/unknown persisted formality code.
+    @Test func unknownPersistedFormalityFallsBackToAutomatic() {
+        let defaults = transientDefaults()
+        defaults.set("xx", forKey: "translation.formality")
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.formality == .automatic)
     }
 
     // The toggle is the whole point of the setting: flipping it on/off must drive

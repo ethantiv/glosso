@@ -4,6 +4,7 @@ import SwiftUI
 @MainActor
 final class TranslationPopupController: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
+    var onSelectFormality: (@MainActor (Formality) -> Void)?
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
@@ -17,15 +18,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private static let defaultSize = CGSize(width: 561, height: 160)
     private static let escKeyCode: UInt16 = 53
 
-    func present(at screenPoint: CGPoint) {
+    func present(at screenPoint: CGPoint, formality: Formality) {
         tearDown()
 
+        resetTranslationPane()
         model.sourceText = ""
-        model.text = ""
-        model.phase = .capturing
         model.direction = .unknown
-        model.errorMessage = nil
-        model.truncated = false
+        model.formality = formality
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -33,9 +32,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // reads NSWindow.title to name the window for VoiceOver; without it the
         // popup announces as an untitled window. Resolved to the direction in update().
         panel.title = "Tłumaczenie"
-        let host = NSHostingController(rootView: PopupView(model: model, close: { [weak self] in
-            self?.dismiss()
-        }))
+        let host = NSHostingController(rootView: PopupView(
+            model: model,
+            close: { [weak self] in self?.dismiss() },
+            selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) }
+        ))
         // Let the SwiftUI content drive the window size so the panel grows to fit
         // longer text instead of clipping it (capped per pane, then scrolls).
         host.sizingOptions = [.preferredContentSize]
@@ -128,6 +129,20 @@ final class TranslationPopupController: TranslationPopupPresenting {
     func finish(truncated: Bool) {
         model.truncated = truncated
         model.phase = .done
+    }
+
+    func restartTranslation() {
+        resetTranslationPane()
+    }
+
+    // Clears just the translation pane back to its loading skeleton, leaving the
+    // source text, direction and selected tone in place. Shared by present() (which
+    // additionally resets those) and restartTranslation() so neither path can drift.
+    private func resetTranslationPane() {
+        model.text = ""
+        model.errorMessage = nil
+        model.truncated = false
+        model.phase = .capturing
     }
 
     func dismiss() {

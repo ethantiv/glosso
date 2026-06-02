@@ -9,7 +9,7 @@ final class OllamaClient: LLMClient {
         self.config = config
     }
 
-    func translate(_ text: String, model: String, second: SecondLanguage) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
         let session = self.session
         let baseConfig = self.config
 
@@ -21,7 +21,7 @@ final class OllamaClient: LLMClient {
                     // endpoint) locked. Build it on the local copy inside the task.
                     var config = baseConfig
                     config.model = model
-                    let prompt = PromptBuilder.build(for: text, second: second)
+                    let prompt = PromptBuilder.build(for: text, second: second, formality: formality)
                     let request = try Self.makeRequest(config: config, prompt: prompt, stream: true)
                     let (bytes, response) = try await session.bytes(for: request)
 

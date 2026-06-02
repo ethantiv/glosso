@@ -24,6 +24,7 @@ struct FakeLLMClient: LLMClient {
         var receivedText: String?
         var receivedModel: String?
         var receivedSecond: SecondLanguage?
+        var receivedFormality: Formality?
         var prewarmModel: String?
     }
     let recorder = Recorder()
@@ -44,10 +45,11 @@ struct FakeLLMClient: LLMClient {
         self.gate = gate
     }
 
-    func translate(_ text: String, model: String, second: SecondLanguage) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
         recorder.receivedModel = model
         recorder.receivedSecond = second
+        recorder.receivedFormality = formality
         let events = self.events
         let error = self.error
         let gate = self.gate
@@ -114,17 +116,21 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 @MainActor
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
+    var onSelectFormality: (@MainActor (Formality) -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?
+    private(set) var presentedFormality: Formality?
     private(set) var dismissCount = 0
+    private(set) var restartCount = 0
     private(set) var tokens: [String] = []
     private(set) var errorMessage: String?
     private(set) var finished = false
     private(set) var truncated = false
 
-    func present(at screenPoint: CGPoint) {
+    func present(at screenPoint: CGPoint, formality: Formality) {
         presented = true
+        presentedFormality = formality
     }
     func update(direction: TranslationDirection, sourceText: String) {
         presentedDirection = direction
@@ -133,6 +139,13 @@ final class FakePopup: TranslationPopupPresenting {
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }
     func finish(truncated: Bool) { finished = true; self.truncated = truncated }
+    func restartTranslation() {
+        restartCount += 1
+        tokens.removeAll()
+        errorMessage = nil
+        finished = false
+        truncated = false
+    }
     func dismiss() {
         guard presented else { return }
         presented = false

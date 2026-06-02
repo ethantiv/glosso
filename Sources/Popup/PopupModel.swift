@@ -17,4 +17,5 @@ final class PopupModel {
     var direction: TranslationDirection = .unknown
     var errorMessage: String? = nil
     var truncated: Bool = false
+    var formality: Formality = .automatic
 }

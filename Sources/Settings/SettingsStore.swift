@@ -10,6 +10,7 @@ final class SettingsStore {
     private enum Key {
         static let model = "llm.model"
         static let secondLanguage = "translation.secondLanguage"
+        static let formality = "translation.formality"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -21,6 +22,10 @@ final class SettingsStore {
 
     var secondLanguage: SecondLanguage {
         didSet { defaults.set(secondLanguage.rawValue, forKey: Key.secondLanguage) }
+    }
+
+    var formality: Formality {
+        didSet { defaults.set(formality.rawValue, forKey: Key.formality) }
     }
 
     // Source of truth is the system registration, not UserDefaults: the user can
@@ -41,6 +46,8 @@ final class SettingsStore {
         self.modelName = defaults.string(forKey: Key.model) ?? LLMConfig.default.model
         self.secondLanguage = defaults.string(forKey: Key.secondLanguage)
             .flatMap(SecondLanguage.init(rawValue:)) ?? .english
+        self.formality = defaults.string(forKey: Key.formality)
+            .flatMap(Formality.init(rawValue:)) ?? .automatic
         self.launchAtLogin = loginItem.isEnabled
     }
 
