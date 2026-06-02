@@ -18,6 +18,9 @@ struct PopupView: View {
     private static let maxPaneHeight: CGFloat = 400
 
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
+    private var canUndo: Bool {
+        model.canUndo && (model.phase == .done || model.phase == .error)
+    }
     private var showLiveDot: Bool { model.phase == .capturing || model.phase == .streaming }
     private var showAccentEdge: Bool { model.phase == .streaming || model.phase == .done }
 
@@ -95,6 +98,9 @@ struct PopupView: View {
             withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
                 model.formality = nextF
             }
+            // A tone change re-translates from scratch, so the pre-reword result no
+            // longer applies — drop the undo snapshot (issue #25).
+            model.clearUndo()
             selectFormality(nextF)
         } label: {
             HStack(spacing: 4) {
@@ -143,6 +149,15 @@ struct PopupView: View {
                 .help("Kopiuj tłumaczenie")
                 .accessibilityLabel("Kopiuj tłumaczenie")
                 .animation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast), value: copied)
+            }
+            if canUndo {
+                Button(action: { model.undo() }) {
+                    iconLabel("arrow.uturn.backward")
+                        .foregroundStyle(Color.secondary)
+                }
+                .buttonStyle(IconButtonStyle())
+                .help("Przywróć poprzednie tłumaczenie")
+                .accessibilityLabel("Przywróć poprzednie tłumaczenie")
             }
             Button(action: close) {
                 iconLabel("xmark")
@@ -322,6 +337,9 @@ struct PopupView: View {
                     .onTapGesture { model.closeDropdown() }
                 AlternativesDropdown(model: model) { chosen in
                     let original = model.segments.first { $0.id == id }?.text ?? ""
+                    // Snapshot the current result before the reword replaces it, so the
+                    // header Undo button can restore it (issue #25).
+                    model.snapshotForUndo()
                     // The coordinator's restart resets the pane (closing this dropdown
                     // via resetTranslationPane), so the reworded result can't reappear
                     // under a stale dropdown.

@@ -55,4 +55,31 @@ final class PopupModel {
         altsLoading = false
         alternatives = []
     }
+
+    // Single-level undo of the last word-alternative reword (issue #25). Holds the
+    // result as it was right before the reword replaced it; nil = nothing to undo.
+    private var undoSnapshot: (text: String, truncated: Bool)?
+    var canUndo: Bool { undoSnapshot != nil }
+
+    // Captured by PopupView right before a picked alternative triggers a reword.
+    func snapshotForUndo() {
+        undoSnapshot = (text, truncated)
+    }
+
+    // Restores the pre-reword result; clears the snapshot (single level).
+    func undo() {
+        guard let snapshot = undoSnapshot else { return }
+        closeDropdown()
+        text = snapshot.text
+        truncated = snapshot.truncated
+        errorMessage = nil
+        phase = .done
+        undoSnapshot = nil
+    }
+
+    // Dropped on a fresh translation or a tone change — the prior result no longer
+    // applies, so undo must not resurrect it.
+    func clearUndo() {
+        undoSnapshot = nil
+    }
 }
