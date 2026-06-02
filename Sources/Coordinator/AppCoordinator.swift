@@ -52,6 +52,12 @@ final class AppCoordinator {
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
+        popup.onFetchAlternatives = { [weak self] word, translation in
+            await self?.fetchAlternatives(word: word, translation: translation) ?? []
+        }
+        popup.onPickAlternative = { [weak self] original, chosen, translation in
+            self?.handlePickAlternative(original: original, chosen: chosen, translation: translation)
+        }
 
         do {
             try monitor.start()
@@ -148,13 +154,49 @@ final class AppCoordinator {
         }
     }
 
+    /// Asks the model for alternatives of a clicked word in the finished
+    /// translation (issue #17). The clicked word and current translation come from
+    /// the popup; the source is the last captured selection. Any failure (or no
+    /// alternatives) collapses to an empty list — the dropdown shows "no alternatives".
+    func fetchAlternatives(word: String, translation: String) async -> [String] {
+        guard let capture = lastCapture else { return [] }
+        return (try? await llm.alternatives(
+            for: word, in: translation, source: capture.text,
+            second: settings.secondLanguage, model: settings.modelName)) ?? []
+    }
+
+    /// The user picked an alternative: re-translate the clause with that word in
+    /// place and stream the revised result into the same pane — mirroring the
+    /// formality-change re-translation path.
+    func handlePickAlternative(original: String, chosen: String, translation: String) {
+        guard lastCapture != nil else { return }
+        captureTask?.cancel()
+        popup.restartTranslation()
+        captureTask = Task { @MainActor [weak self] in
+            await self?.streamReword(original: original, chosen: chosen, translation: translation)
+        }
+    }
+
     private func stream(_ text: String, at point: CGPoint) async {
         lastCapture = (text, point)
         let second = settings.secondLanguage
-        let formality = settings.formality
         popup.update(direction: DirectionDetector.detect(text, second: second), sourceText: text)
+        await consume(llm.translate(text, model: settings.modelName, second: second, formality: settings.formality))
+    }
+
+    // Keeps the existing direction/source in place (only the result pane was reset
+    // by restartTranslation); streams the reworded translation into it.
+    private func streamReword(original: String, chosen: String, translation: String) async {
+        guard let capture = lastCapture else { return }
+        await consume(llm.reword(
+            original: original, to: chosen, in: translation,
+            source: capture.text, second: settings.secondLanguage,
+            formality: settings.formality, model: settings.modelName))
+    }
+
+    private func consume(_ stream: AsyncThrowingStream<TranslationEvent, Error>) async {
         do {
-            for try await event in llm.translate(text, model: settings.modelName, second: second, formality: formality) {
+            for try await event in stream {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token):
