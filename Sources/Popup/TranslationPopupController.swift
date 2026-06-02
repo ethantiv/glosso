@@ -10,6 +10,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
+    private var eventTap: CFMachPort?
+    private var tapRunLoopSource: CFRunLoopSource?
     private var escMonitor: Any?
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
@@ -18,7 +20,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var anchorScreenFrame: CGRect = .zero
 
     private static let defaultSize = CGSize(width: 561, height: 160)
-    private static let escKeyCode: UInt16 = 53
 
     func present(at screenPoint: CGPoint, formality: Formality) {
         tearDown()
@@ -190,30 +191,94 @@ final class TranslationPopupController: TranslationPopupPresenting {
     }
 
     private func installMonitors() {
-        // The panel is non-activating and the app is LSUIElement, so a local
-        // monitor never sees Esc (it is routed to the foreground app). A global
-        // monitor observes it instead.
+        // The panel is non-activating and the app is LSUIElement, so Esc is routed
+        // to the foreground (source) app. A global NSEvent monitor can only observe
+        // it — it can't stop Esc from also firing in the source app (issue #27). A
+        // CGEventTap can return nil to swallow the event before it gets there. It
+        // needs the Accessibility permission, which the app already holds.
+        let mask = CGEventMask(1) << CGEventType.keyDown.rawValue
+        let tap = CGEvent.tapCreate(
+            tap: .cgSessionEventTap,
+            place: .headInsertEventTap,
+            options: .defaultTap,
+            eventsOfInterest: mask,
+            callback: translationPopupEscTapCallback,
+            userInfo: Unmanaged.passUnretained(self).toOpaque()
+        )
+        guard let tap else {
+            // tapCreate fails only if Accessibility isn't granted; the app can't
+            // show a popup without it (the hotkey monitor needs it too), so this is
+            // purely defensive. Fall back to the old observe-only monitor so Esc
+            // still dismisses the popup — it just won't be swallowed.
+            installFallbackMonitor()
+            return
+        }
+        eventTap = tap
+        let source = CFMachPortCreateRunLoopSource(kCFAllocatorDefault, tap, 0)
+        tapRunLoopSource = source
+        CFRunLoopAddSource(CFRunLoopGetMain(), source, .commonModes)
+        CGEvent.tapEnable(tap: tap, enable: true)
+    }
+
+    // macOS disables a tap that's too slow or hit by heavy input; re-enable it or
+    // Esc would silently stop being swallowed.
+    fileprivate func reenableTap() {
+        if let eventTap { CGEvent.tapEnable(tap: eventTap, enable: true) }
+    }
+
+    // Decides what to do with a bare keyDown and triggers any side effect. Takes
+    // Sendable scalars (not the CGEvent/NSEvent) so the CGEvent stays in the
+    // callback's nonisolated region — passing it across the actor hop would force
+    // it to be Sendable, which it isn't.
+    fileprivate func handleTapKeyDown(keyCode: UInt16, modifiersRawValue: UInt) -> Bool {
+        switch EscKeyHandling.action(
+            keyCode: keyCode,
+            modifiers: NSEvent.ModifierFlags(rawValue: modifiersRawValue),
+            dropdownVisible: model.dropdownVisible
+        ) {
+        case .passThrough:
+            return false
+        case .closeDropdown:
+            // closeDropdown() only mutates model state — it never touches the tap —
+            // so run it synchronously. Deferring it would let a fast second Esc read
+            // a stale dropdownVisible and re-close instead of dismissing the panel.
+            model.closeDropdown()
+            return true
+        case .dismiss:
+            // Defer: dismiss() reaches removeMonitors(), which would invalidate this
+            // tap from inside its own callback. Swallow now, tear down on the next hop.
+            DispatchQueue.main.async { [weak self] in self?.dismiss() }
+            return true
+        }
+    }
+
+    private func installFallbackMonitor() {
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             MainActor.assumeIsolated {
-                // Bare Esc only: Cmd/Shift/Ctrl/Option+Esc are distinct system
-                // shortcuts (Force Quit, etc.) and must not kill the stream.
-                let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
-                guard let self,
-                      event.keyCode == Self.escKeyCode,
-                      event.modifierFlags.intersection(chordModifiers).isEmpty
-                else { return }
-                // Esc closes the alternatives dropdown first if it's open; only a
-                // second Esc dismisses the whole panel.
-                if self.model.dropdownVisible {
-                    self.model.closeDropdown()
-                    return
+                guard let self else { return }
+                switch EscKeyHandling.action(
+                    keyCode: event.keyCode,
+                    modifiers: event.modifierFlags,
+                    dropdownVisible: self.model.dropdownVisible
+                ) {
+                case .passThrough: break
+                case .closeDropdown: self.model.closeDropdown()
+                case .dismiss: self.dismiss()
                 }
-                self.dismiss()
             }
         }
     }
 
     private func removeMonitors() {
+        if let eventTap {
+            CGEvent.tapEnable(tap: eventTap, enable: false)
+            CFMachPortInvalidate(eventTap)
+            self.eventTap = nil
+        }
+        if let tapRunLoopSource {
+            CFRunLoopRemoveSource(CFRunLoopGetMain(), tapRunLoopSource, .commonModes)
+            self.tapRunLoopSource = nil
+        }
         if let escMonitor {
             NSEvent.removeMonitor(escMonitor)
             self.escMonitor = nil
@@ -226,4 +291,34 @@ final class TranslationPopupController: TranslationPopupPresenting {
         }
         return NSScreen.main ?? NSScreen.screens.first ?? NSScreen()
     }
+}
+
+// A CGEventTap callback must be a non-capturing top-level function; the controller
+// is threaded through `userInfo` as an opaque pointer. The tap runs on the main
+// run loop, so the callback fires on the main thread — recover MainActor isolation
+// the same way GlobalHotkeyMonitor does for its NSEvent callback.
+private func translationPopupEscTapCallback(
+    proxy: CGEventTapProxy,
+    type: CGEventType,
+    event: CGEvent,
+    refcon: UnsafeMutableRawPointer?
+) -> Unmanaged<CGEvent>? {
+    guard let refcon else { return Unmanaged.passUnretained(event) }
+    let controller = Unmanaged<TranslationPopupController>.fromOpaque(refcon).takeUnretainedValue()
+
+    if type == .tapDisabledByTimeout || type == .tapDisabledByUserInput {
+        MainActor.assumeIsolated { controller.reenableTap() }
+        return Unmanaged.passUnretained(event)
+    }
+    // This fires on every keystroke while the popup is shown; only Esc matters, so
+    // gate on the raw keycode field before allocating an NSEvent for the rest.
+    guard UInt16(event.getIntegerValueField(.keyboardEventKeycode)) == EscKeyHandling.escKeyCode,
+          let nsEvent = NSEvent(cgEvent: event)
+    else { return Unmanaged.passUnretained(event) }
+    let keyCode = nsEvent.keyCode
+    let modifiersRawValue = nsEvent.modifierFlags.rawValue
+    let swallow = MainActor.assumeIsolated {
+        controller.handleTapKeyDown(keyCode: keyCode, modifiersRawValue: modifiersRawValue)
+    }
+    return swallow ? nil : Unmanaged.passUnretained(event)
 }
