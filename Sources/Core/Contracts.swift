@@ -141,6 +141,16 @@ struct LLMConfig: Sendable {
 protocol LLMClient: Sendable {
     func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
+    /// Context-aware alternatives for a single word of the finished translation,
+    /// for the popup's per-word dropdown (issue #17). Given the source text, the
+    /// current full translation and the clicked word (in the target language),
+    /// returns N distinct renderings of that word that fit the context.
+    func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String]
+    /// Re-translates so the clicked word is rendered as `chosen`, adjusting only
+    /// the surrounding clause for grammatical agreement and leaving the rest
+    /// unchanged. Streams the revised translation exactly like `translate`, so the
+    /// coordinator can feed it into the same popup pane.
+    func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
 }
 
 /// Lists the models actually installed in Ollama, so Settings can offer a live
@@ -197,6 +207,15 @@ protocol TranslationPopupPresenting: AnyObject {
     /// Fires when the user cycles the tone pill, carrying the newly selected
     /// formality so the coordinator can persist it and re-translate.
     var onSelectFormality: (@MainActor (Formality) -> Void)? { get set }
+    /// Fires when the user clicks a word in the finished translation, asking the
+    /// coordinator for context-aware alternatives (issue #17). Carries the clicked
+    /// word and the current full translation; the coordinator fills in the source
+    /// and second language. Returns an empty array on any failure or no alternatives.
+    var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])? { get set }
+    /// Fires when the user picks an alternative for a clicked word, so the
+    /// coordinator can re-translate the clause with that word in place. Carries the
+    /// original word, the chosen alternative and the current full translation.
+    var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)? { get set }
     func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String)
     func append(token: String)

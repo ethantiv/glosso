@@ -5,10 +5,13 @@ struct PopupView: View {
     let model: PopupModel
     let close: () -> Void
     let selectFormality: (Formality) -> Void
+    let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
+    let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = false
     @State private var appeared = false
+    @State private var hoverWordID: Int?
 
     private static let sourceWidth: CGFloat = 268
     private static let translationWidth: CGFloat = 300
@@ -37,6 +40,9 @@ struct PopupView: View {
             RoundedRectangle(cornerRadius: PopupTheme.rWindow)
                 .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
         )
+        .overlayPreferenceValue(WordAnchorKey.self) { anchors in
+            dropdownOverlay(anchors: anchors)
+        }
         .scaleEffect(appeared ? 1 : 0.965)
         .opacity(appeared ? 1 : 0)
         .onAppear {
@@ -235,17 +241,112 @@ struct PopupView: View {
                     .foregroundStyle(.primary)
             }
         case .done:
+            // Words become individually clickable (issue #17); this drops
+            // drag-to-select on the result, but the header Copy button still
+            // copies the whole translation.
             ScrollView {
-                Text(model.text)
-                    .font(PopupTheme.fontLead)
-                    .foregroundStyle(.primary)
-                    .textSelection(.enabled)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                wordFlow
             }
             .frame(maxHeight: Self.maxPaneHeight)
             .scrollBounceBehavior(.basedOnSize)
         }
+    }
+
+    private var wordFlow: some View {
+        FlowLayout(lineSpacing: 5) {
+            ForEach(model.segments) { segment in
+                if segment.isWord {
+                    wordView(segment)
+                } else {
+                    Text(separatorDisplay(segment))
+                        .font(PopupTheme.fontLead)
+                        .foregroundStyle(.primary)
+                        .layoutValue(key: FlowItemKindKey.self, value: separatorKind(segment))
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func wordView(_ segment: TextSegment) -> some View {
+        let selected = model.dropdownVisible && model.selectedWordID == segment.id
+        return Text(segment.text)
+            .font(PopupTheme.fontLead)
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 2)
+            .background(
+                RoundedRectangle(cornerRadius: 4)
+                    .fill(selected ? PopupTheme.accentTintStrong
+                          : (hoverWordID == segment.id ? PopupTheme.chipNeutralBg : .clear))
+            )
+            .contentShape(Rectangle())
+            .layoutValue(key: FlowItemKindKey.self, value: .word)
+            .anchorPreference(key: WordAnchorKey.self, value: .bounds) { [segment.id: $0] }
+            .onHover { hovering in
+                if hovering { hoverWordID = segment.id }
+                else if hoverWordID == segment.id { hoverWordID = nil }
+            }
+            .onTapGesture { onTapWord(segment) }
+    }
+
+    private func separatorDisplay(_ segment: TextSegment) -> String {
+        // Collapse any whitespace run (spaces, tabs, newlines) to a single space
+        // for display; the real text lives in model.text and is what Copy/reword use.
+        segment.text.allSatisfy(\.isWhitespace) ? " " : segment.text
+    }
+
+    private func separatorKind(_ segment: TextSegment) -> FlowItemKind {
+        segment.text.allSatisfy(\.isWhitespace) ? .space : .other
+    }
+
+    private func onTapWord(_ segment: TextSegment) {
+        model.openDropdown(for: segment.id)
+        let token = model.altsRequestToken
+        let word = segment.text
+        let translation = model.text
+        Task { @MainActor in
+            let alternatives = await fetchAlternatives(word, translation)
+            guard model.altsRequestToken == token, model.dropdownVisible else { return }
+            model.alternatives = alternatives
+            model.altsLoading = false
+        }
+    }
+
+    @ViewBuilder
+    private func dropdownOverlay(anchors: [Int: Anchor<CGRect>]) -> some View {
+        GeometryReader { proxy in
+            if model.dropdownVisible, let id = model.selectedWordID, let anchor = anchors[id] {
+                let wordRect = proxy[anchor]
+                Color.clear
+                    .contentShape(Rectangle())
+                    .onTapGesture { model.closeDropdown() }
+                AlternativesDropdown(model: model) { chosen in
+                    let original = model.segments.first { $0.id == id }?.text ?? ""
+                    let translation = model.text
+                    // Close before re-translating: the reworded result re-renders
+                    // the same word ids, so a still-open dropdown would reappear
+                    // over the new translation until Esc.
+                    model.closeDropdown()
+                    pickAlternative(original, chosen, translation)
+                }
+                .fixedSize()
+                .offset(dropdownOffset(wordRect: wordRect, container: proxy.size))
+            }
+        }
+    }
+
+    private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
+        let gap: CGFloat = 4
+        let estimatedHeight: CGFloat = model.altsLoading || model.alternatives.isEmpty
+            ? 40 : CGFloat(model.alternatives.count) * 32 + 8
+        let maxX = max(6, container.width - AlternativesDropdown.width - 6)
+        let x = min(max(6, wordRect.minX), maxX)
+        var y = wordRect.maxY + gap
+        if y + estimatedHeight > container.height {
+            y = wordRect.minY - gap - estimatedHeight
+        }
+        if y < 6 { y = 6 }
+        return CGSize(width: x, height: y)
     }
 
     // MARK: Footer

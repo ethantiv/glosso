@@ -10,18 +10,50 @@ final class OllamaClient: LLMClient {
     }
 
     func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
+        stream(prompt: PromptBuilder.build(for: text, second: second, formality: formality), model: model)
+    }
+
+    func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+        stream(prompt: PromptBuilder.buildReword(original: original, chosen: chosen, translation: translation, source: source, second: second, formality: formality), model: model)
+    }
+
+    func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String] {
+        // Same locked invariants as translate; only the model is user-selectable.
+        var config = self.config
+        config.model = model
+        let prompt = PromptBuilder.buildAlternatives(word: word, translation: translation, source: source, second: second)
+        let request = try Self.makeRequest(config: config, prompt: prompt, stream: false)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            throw TranslationError.cancelled
+        } catch {
+            throw TranslationError.ollamaUnreachable
+        }
+        guard let http = response as? HTTPURLResponse else { throw TranslationError.ollamaUnreachable }
+        let chunk = try? JSONDecoder().decode(GenerateChunk.self, from: data)
+        guard http.statusCode == 200 else {
+            if let message = chunk?.error { throw TranslationError.ollamaError(message) }
+            throw TranslationError.httpStatus(http.statusCode)
+        }
+        if let message = chunk?.error { throw TranslationError.ollamaError(message) }
+        guard let body = chunk?.response else { throw TranslationError.malformedStream }
+        return AlternativesParser.parse(body, original: word)
+    }
+
+    // Shared NDJSON streaming used by translate() and reword(): only the model is
+    // user-selectable per call; the base config keeps the empirical invariants
+    // (think:false, temperature:0, keep_alive, endpoint) locked.
+    private func stream(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         let session = self.session
         let baseConfig = self.config
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    // Only the model is user-selectable; the base config keeps the
-                    // empirical invariants (think:false, temperature:0, keep_alive,
-                    // endpoint) locked. Build it on the local copy inside the task.
                     var config = baseConfig
                     config.model = model
-                    let prompt = PromptBuilder.build(for: text, second: second, formality: formality)
                     let request = try Self.makeRequest(config: config, prompt: prompt, stream: true)
                     let (bytes, response) = try await session.bytes(for: request)
 

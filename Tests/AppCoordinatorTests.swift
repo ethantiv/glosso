@@ -289,6 +289,88 @@ import Testing
         #expect(llm.recorder.receivedText == nil)
     }
 
+    // MARK: Per-word alternatives (issue #17)
+
+    // Clicking a word asks the model for alternatives, threading the captured
+    // source and the persisted second language alongside the clicked word.
+    @Test func fetchAlternativesThreadsSourceAndSecondLanguage() async {
+        let llm = FakeLLMClient(alternatives: ["świetny", "wspaniały"])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "This is great"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .english)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        let result = await popup.onFetchAlternatives?("wspaniały", "To jest wspaniały")
+        #expect(result == ["świetny", "wspaniały"])
+        #expect(llm.recorder.altWord == "wspaniały")
+        #expect(llm.recorder.altTranslation == "To jest wspaniały")
+        #expect(llm.recorder.altSource == "This is great")   // the captured source
+        #expect(llm.recorder.altSecond == .english)
+    }
+
+    // Before any capture there is no source context, so a fetch returns nothing
+    // rather than calling the model with an empty source.
+    @Test func fetchAlternativesBeforeCaptureReturnsEmpty() async {
+        let llm = FakeLLMClient(alternatives: ["x"])
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+
+        coordinator.start()
+        let result = await popup.onFetchAlternatives?("foo", "bar")
+
+        #expect(result == [])
+        #expect(llm.recorder.altWord == nil)
+    }
+
+    // A failed alternatives fetch collapses to an empty list (the dropdown shows
+    // "no alternatives"), never surfacing as an error in the pane.
+    @Test func fetchAlternativesSwallowsErrorsIntoEmptyList() async {
+        let llm = FakeLLMClient(alternatives: [], alternativesError: .ollamaUnreachable)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "great"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        let result = await popup.onFetchAlternatives?("wspaniały", "wspaniały")
+
+        #expect(result == [])
+    }
+
+    // Picking an alternative resets the result pane and re-translates the clause via
+    // reword, threading the chosen word, the captured source and the persisted tone.
+    @Test func pickingAlternativeRewordsTheClause() async {
+        let llm = FakeLLMClient(events: [.token("To jest świetny"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "This is great"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .english, formality: .formal)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        popup.onPickAlternative?("wspaniały", "świetny", "To jest wspaniały")
+        var spins = 0
+        while llm.recorder.rewordChosen == nil && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(popup.restartCount == 1)
+        #expect(llm.recorder.rewordOriginal == "wspaniały")
+        #expect(llm.recorder.rewordChosen == "świetny")
+        #expect(llm.recorder.rewordTranslation == "To jest wspaniały")
+        #expect(llm.recorder.rewordSource == "This is great")   // the captured source
+        #expect(llm.recorder.rewordSecond == .english)
+        #expect(llm.recorder.rewordFormality == .formal)
+    }
+
     @Test func nonTextSelectionReportsImmediately() async {
         let llm = FakeLLMClient()
         let popup = FakePopup()

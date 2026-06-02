@@ -5,6 +5,8 @@ import SwiftUI
 final class TranslationPopupController: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
+    var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
+    var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
@@ -35,7 +37,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
         let host = NSHostingController(rootView: PopupView(
             model: model,
             close: { [weak self] in self?.dismiss() },
-            selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) }
+            selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) },
+            fetchAlternatives: { [weak self] word, translation in
+                await self?.onFetchAlternatives?(word, translation) ?? []
+            },
+            pickAlternative: { [weak self] original, chosen, translation in
+                self?.onPickAlternative?(original, chosen, translation)
+            }
         ))
         // Let the SwiftUI content drive the window size so the panel grows to fit
         // longer text instead of clipping it (capped per pane, then scrolls).
@@ -139,6 +147,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
     // source text, direction and selected tone in place. Shared by present() (which
     // additionally resets those) and restartTranslation() so neither path can drift.
     private func resetTranslationPane() {
+        // A pane restart (re-translation for tone or a picked alternative) must
+        // drop any open word dropdown; otherwise it reappears over the new result.
+        model.closeDropdown()
         model.text = ""
         model.errorMessage = nil
         model.truncated = false
@@ -187,10 +198,17 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 // Bare Esc only: Cmd/Shift/Ctrl/Option+Esc are distinct system
                 // shortcuts (Force Quit, etc.) and must not kill the stream.
                 let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
-                guard event.keyCode == Self.escKeyCode,
+                guard let self,
+                      event.keyCode == Self.escKeyCode,
                       event.modifierFlags.intersection(chordModifiers).isEmpty
                 else { return }
-                self?.dismiss()
+                // Esc closes the alternatives dropdown first if it's open; only a
+                // second Esc dismisses the whole panel.
+                if self.model.dropdownVisible {
+                    self.model.closeDropdown()
+                    return
+                }
+                self.dismiss()
             }
         }
     }

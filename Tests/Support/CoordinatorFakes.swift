@@ -26,6 +26,20 @@ struct FakeLLMClient: LLMClient {
         var receivedSecond: SecondLanguage?
         var receivedFormality: Formality?
         var prewarmModel: String?
+        // alternatives(...)
+        var altWord: String?
+        var altTranslation: String?
+        var altSource: String?
+        var altSecond: SecondLanguage?
+        var altModel: String?
+        // reword(...)
+        var rewordOriginal: String?
+        var rewordChosen: String?
+        var rewordTranslation: String?
+        var rewordSource: String?
+        var rewordSecond: SecondLanguage?
+        var rewordFormality: Formality?
+        var rewordModel: String?
     }
     let recorder = Recorder()
     let events: [TranslationEvent]
@@ -34,15 +48,21 @@ struct FakeLLMClient: LLMClient {
     /// until the test releases it before yielding the rest — so a test can cancel
     /// or supersede the capture while the stream is still mid-flight.
     let gate: StreamGate?
+    let alternativesResult: [String]
+    let alternativesError: TranslationError?
 
     init(
         events: [TranslationEvent] = [.token("ok"), .finished(doneReason: "stop")],
         error: TranslationError? = nil,
-        gate: StreamGate? = nil
+        gate: StreamGate? = nil,
+        alternatives: [String] = ["alt-one", "alt-two"],
+        alternativesError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
         self.gate = gate
+        self.alternativesResult = alternatives
+        self.alternativesError = alternativesError
     }
 
     func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -50,6 +70,31 @@ struct FakeLLMClient: LLMClient {
         recorder.receivedModel = model
         recorder.receivedSecond = second
         recorder.receivedFormality = formality
+        return makeStream()
+    }
+
+    func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+        recorder.rewordOriginal = original
+        recorder.rewordChosen = chosen
+        recorder.rewordTranslation = translation
+        recorder.rewordSource = source
+        recorder.rewordSecond = second
+        recorder.rewordFormality = formality
+        recorder.rewordModel = model
+        return makeStream()
+    }
+
+    func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String] {
+        recorder.altWord = word
+        recorder.altTranslation = translation
+        recorder.altSource = source
+        recorder.altSecond = second
+        recorder.altModel = model
+        if let alternativesError { throw alternativesError }
+        return alternativesResult
+    }
+
+    private func makeStream() -> AsyncThrowingStream<TranslationEvent, Error> {
         let events = self.events
         let error = self.error
         let gate = self.gate
@@ -117,6 +162,8 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
+    var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
+    var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?
