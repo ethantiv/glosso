@@ -16,6 +16,11 @@ final class AppCoordinator {
 
     private var captureTask: Task<Void, Never>?
 
+    // Retained so the popup's tone pill can re-translate the same selection with a
+    // different formality, without the user copying again. nil until a capture lands.
+    private var lastSourceText: String?
+    private var lastPoint: CGPoint?
+
     init(
         llm: any LLMClient,
         monitor: any HotkeyMonitor,
@@ -46,6 +51,7 @@ final class AppCoordinator {
 
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
+        popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
 
         do {
             try monitor.start()
@@ -89,7 +95,8 @@ final class AppCoordinator {
         // A rapid third press can cancel this task before it runs, so bail before
         // presenting rather than orphaning a popup the newer task already replaced.
         if Task.isCancelled { return }
-        popup.present(at: point)
+        lastSourceText = nil
+        popup.present(at: point, formality: settings.formality)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -131,11 +138,24 @@ final class AppCoordinator {
         popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
+    func handleFormalityChange(_ formality: Formality) {
+        settings.formality = formality
+        guard let text = lastSourceText, let point = lastPoint else { return }
+        captureTask?.cancel()
+        popup.restartTranslation()
+        captureTask = Task { @MainActor [weak self] in
+            await self?.stream(text, at: point)
+        }
+    }
+
     private func stream(_ text: String, at point: CGPoint) async {
+        lastSourceText = text
+        lastPoint = point
         let second = settings.secondLanguage
+        let formality = settings.formality
         popup.update(direction: DirectionDetector.detect(text, second: second), sourceText: text)
         do {
-            for try await event in llm.translate(text, model: settings.modelName, second: second) {
+            for try await event in llm.translate(text, model: settings.modelName, second: second, formality: formality) {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token):

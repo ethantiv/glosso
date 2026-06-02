@@ -4,6 +4,7 @@ import SwiftUI
 struct PopupView: View {
     let model: PopupModel
     let close: () -> Void
+    let selectFormality: (Formality) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = false
@@ -52,6 +53,7 @@ struct PopupView: View {
     private var header: some View {
         HStack(spacing: 10) {
             languagePair
+            tonePill
             Spacer(minLength: 0)
             headerButtons
         }
@@ -78,6 +80,32 @@ struct PopupView: View {
         case .unknown:
             pill("…", accent: false)
         }
+    }
+
+    private var tonePill: some View {
+        let active = model.formality != .automatic
+        return Button {
+            let nextF = model.formality.next
+            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
+                model.formality = nextF
+            }
+            selectFormality(nextF)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "person.bubble")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text(model.formality.displayName)
+                    .font(PopupTheme.fontMeta)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.")
+        .accessibilityLabel("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.")
     }
 
     private func pill(_ code: String, accent: Bool) -> some View {

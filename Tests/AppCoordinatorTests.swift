@@ -5,11 +5,12 @@ import Testing
 
 @MainActor
 @Suite struct AppCoordinatorTests {
-    private func makeSettings(model: String = "test-model", second: SecondLanguage = .english) -> SettingsStore {
+    private func makeSettings(model: String = "test-model", second: SecondLanguage = .english, formality: Formality = .automatic) -> SettingsStore {
         let defaults = UserDefaults(suiteName: "AppCoordinatorTests-\(UUID().uuidString)")!
         let store = SettingsStore(defaults: defaults)
         store.modelName = model
         store.secondLanguage = second
+        store.formality = formality
         return store
     }
 
@@ -38,16 +39,17 @@ import Testing
         reader.readyAfterAttempts = 2   // first two polls report nothing yet
         reader.text = "Dzień dobry"
         let popup = FakePopup()
-        let settings = makeSettings(model: "test-model", second: .english)
+        let settings = makeSettings(model: "test-model", second: .english, formality: .formal)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == "Dzień dobry")
-        // The coordinator must thread the persisted model + second language into
-        // the translate call and mirror the same language in the arrow.
+        // The coordinator must thread the persisted model + second language +
+        // formality into the translate call and mirror the same language in the arrow.
         #expect(llm.recorder.receivedModel == "test-model")
         #expect(llm.recorder.receivedSecond == .english)
+        #expect(llm.recorder.receivedFormality == .formal)
         #expect(popup.presented)
         #expect(popup.presentedDirection == .fromPolish(.english))
     }
@@ -242,6 +244,48 @@ import Testing
 
         #expect(popup.dismissCount == 1)
         #expect(popup.presented == false)
+    }
+
+    // Cycling the popup's tone pill after a translation must persist the new tone,
+    // reset the translation pane (restartTranslation), and re-run the SAME source
+    // text through translate with the new formality — no re-copy needed.
+    @Test func cyclingFormalityPersistsAndRetranslatesTheSameText() async {
+        let llm = FakeLLMClient(events: [.token("Hallo"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .german, formality: .automatic)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        #expect(llm.recorder.receivedFormality == .automatic)
+
+        popup.onSelectFormality?(.formal)   // user clicked the tone pill
+        var spins = 0
+        while llm.recorder.receivedFormality != .formal && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(settings.formality == .formal)
+        #expect(popup.restartCount == 1)
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+        #expect(llm.recorder.receivedFormality == .formal)
+    }
+
+    // Changing the tone before any text was captured must only persist the choice
+    // (the pending stream reads it fresh) — not restart or re-translate nothing.
+    @Test func cyclingFormalityBeforeCaptureOnlyPersists() {
+        let llm = FakeLLMClient()
+        let popup = FakePopup()
+        let settings = makeSettings(formality: .automatic)
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup, settings: settings)
+
+        coordinator.start()
+        popup.onSelectFormality?(.informal)
+
+        #expect(settings.formality == .informal)
+        #expect(popup.restartCount == 0)
+        #expect(llm.recorder.receivedText == nil)
     }
 
     @Test func nonTextSelectionReportsImmediately() async {
