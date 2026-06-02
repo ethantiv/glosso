@@ -143,7 +143,7 @@ struct AlternativesDropdown: View {
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
             } else {
-                ForEach(Array(model.alternatives.enumerated()), id: \.element) { _, alternative in
+                ForEach(Array(model.alternatives.enumerated()), id: \.offset) { _, alternative in
                     AlternativeRow(text: alternative) { onPick(alternative) }
                 }
             }
