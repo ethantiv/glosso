@@ -33,11 +33,10 @@ final class OllamaClient: LLMClient {
         }
         guard let http = response as? HTTPURLResponse else { throw TranslationError.ollamaUnreachable }
         let chunk = try? JSONDecoder().decode(GenerateChunk.self, from: data)
-        guard http.statusCode == 200 else {
-            if let message = chunk?.error { throw TranslationError.ollamaError(message) }
-            throw TranslationError.httpStatus(http.statusCode)
-        }
+        // An Ollama error body carries the actionable message regardless of status,
+        // so it takes precedence over the bare HTTP status.
         if let message = chunk?.error { throw TranslationError.ollamaError(message) }
+        guard http.statusCode == 200 else { throw TranslationError.httpStatus(http.statusCode) }
         guard let body = chunk?.response else { throw TranslationError.malformedStream }
         return AlternativesParser.parse(body, original: word)
     }

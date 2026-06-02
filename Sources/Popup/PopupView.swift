@@ -292,11 +292,11 @@ struct PopupView: View {
     private func separatorDisplay(_ segment: TextSegment) -> String {
         // Collapse any whitespace run (spaces, tabs, newlines) to a single space
         // for display; the real text lives in model.text and is what Copy/reword use.
-        segment.text.allSatisfy(\.isWhitespace) ? " " : segment.text
+        segment.isWhitespace ? " " : segment.text
     }
 
     private func separatorKind(_ segment: TextSegment) -> FlowItemKind {
-        segment.text.allSatisfy(\.isWhitespace) ? .space : .other
+        segment.isWhitespace ? .space : .other
     }
 
     private func onTapWord(_ segment: TextSegment) {
@@ -322,12 +322,10 @@ struct PopupView: View {
                     .onTapGesture { model.closeDropdown() }
                 AlternativesDropdown(model: model) { chosen in
                     let original = model.segments.first { $0.id == id }?.text ?? ""
-                    let translation = model.text
-                    // Close before re-translating: the reworded result re-renders
-                    // the same word ids, so a still-open dropdown would reappear
-                    // over the new translation until Esc.
-                    model.closeDropdown()
-                    pickAlternative(original, chosen, translation)
+                    // The coordinator's restart resets the pane (closing this dropdown
+                    // via resetTranslationPane), so the reworded result can't reappear
+                    // under a stale dropdown.
+                    pickAlternative(original, chosen, model.text)
                 }
                 .fixedSize()
                 .offset(dropdownOffset(wordRect: wordRect, container: proxy.size))

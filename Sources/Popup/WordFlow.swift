@@ -8,6 +8,10 @@ struct TextSegment: Identifiable, Hashable {
     let id: Int
     let text: String
     let isWord: Bool
+    // True only for a non-word run that is pure whitespace (collapses to a single
+    // space and to a wrap-collapsible `.space` in the flow); punctuation runs and
+    // words are false. Classified once here so display and layout can't disagree.
+    let isWhitespace: Bool
 }
 
 enum Tokenizer {
@@ -22,7 +26,8 @@ enum Tokenizer {
 
         func flush() {
             guard let isWord = bufferIsWord, !buffer.isEmpty else { return }
-            out.append(TextSegment(id: out.count, text: buffer, isWord: isWord))
+            let isWhitespace = !isWord && buffer.allSatisfy(\.isWhitespace)
+            out.append(TextSegment(id: out.count, text: buffer, isWord: isWord, isWhitespace: isWhitespace))
             buffer = ""
         }
 
