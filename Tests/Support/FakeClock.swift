@@ -1,5 +1,5 @@
 import Foundation
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 final class FakeClock: TimeSource, @unchecked Sendable {
     var current: TimeInterval

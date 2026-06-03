@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct DirectionDetectorTests {
     @Test func polishTextGoesToSecondLanguage() {

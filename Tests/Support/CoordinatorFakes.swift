@@ -1,6 +1,6 @@
 import Foundation
 import CoreGraphics
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 /// A one-shot gate a test can use to suspend a producer mid-stream and release
 /// it on demand, so cancellation/reassignment can be exercised while a stream is

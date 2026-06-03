@@ -1,6 +1,6 @@
 import AppKit
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct EscKeyHandlingTests {
     private let esc = EscKeyHandling.escKeyCode

@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 struct SelectionGuardTests {
     @Test func changeCountNotIncreasedThrowsNothingSelected() {

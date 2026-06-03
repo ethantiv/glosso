@@ -2,11 +2,11 @@ import SwiftUI
 import AppKit
 
 @main
-struct TranslatorApp: App {
+struct GlossoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Translator", image: "MenuBarIcon") {
+        MenuBarExtra("Glosso", image: "MenuBarIcon") {
             if appDelegate.appState.listening {
                 Text("Nasłuch aktywny — podwójne ⌘C tłumaczy zaznaczenie")
             } else if appDelegate.appState.accessibilityGranted {

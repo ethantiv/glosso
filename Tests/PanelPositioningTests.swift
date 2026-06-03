@@ -1,6 +1,6 @@
 import CoreGraphics
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite("PanelPositioning")
 struct PanelPositioningTests {

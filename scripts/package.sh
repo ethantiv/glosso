@@ -4,8 +4,8 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-PROJECT="TranslatorMenuBar.xcodeproj"
-SCHEME="TranslatorMenuBar"
+PROJECT="Glosso.xcodeproj"
+SCHEME="Glosso"
 DEST="platform=macOS,arch=arm64"
 DD=".build/dd"
 OUT=".build/release"

@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct PromptBuilderTests {
     @Test func includesSwapInstructionAndOutputOnlyDirective() {

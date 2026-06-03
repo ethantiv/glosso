@@ -1,5 +1,5 @@
 import Foundation
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @MainActor
 final class FakeLoginItem: LoginItemManaging {
