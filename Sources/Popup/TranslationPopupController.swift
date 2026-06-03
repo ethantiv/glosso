@@ -13,6 +13,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var eventTap: CFMachPort?
     private var tapRunLoopSource: CFRunLoopSource?
     private var escMonitor: Any?
+    private var outsideClickMonitor: Any?
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
@@ -195,6 +196,21 @@ final class TranslationPopupController: TranslationPopupPresenting {
     }
 
     private func installMonitors() {
+        // A global mouse monitor fires only for clicks delivered to *other* apps, so
+        // it sees exactly the clicks that land outside our non-activating panel —
+        // clicks inside it stay local and the SwiftUI scrim handles those. Used only
+        // to close an open word dropdown (issue #30); it never dismisses the panel
+        // (that outside-click-to-dismiss was deliberately dropped in 5f4a549 when the
+        // window became movable and gained a close button).
+        outsideClickMonitor = NSEvent.addGlobalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, self.model.dropdownVisible else { return }
+                self.model.closeDropdown()
+            }
+        }
+
         // The panel is non-activating and the app is LSUIElement, so Esc is routed
         // to the foreground (source) app. A global NSEvent monitor can only observe
         // it — it can't stop Esc from also firing in the source app (issue #27). A
@@ -286,6 +302,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         if let escMonitor {
             NSEvent.removeMonitor(escMonitor)
             self.escMonitor = nil
+        }
+        if let outsideClickMonitor {
+            NSEvent.removeMonitor(outsideClickMonitor)
+            self.outsideClickMonitor = nil
         }
     }
 
