@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct NDJSONStreamParserTests {
     @Test func parsesTokenLine() throws {

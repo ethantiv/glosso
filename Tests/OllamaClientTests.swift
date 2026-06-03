@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 // Serialized: every case mutates the process-global MockURLProtocol.handler,
 // so Swift Testing's default parallelism would let one case's request read

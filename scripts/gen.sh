@@ -4,4 +4,4 @@ set -euo pipefail
 cd "$(dirname "$0")/.."
 
 xcodegen generate
-echo "✅ Projekt wygenerowany: TranslatorMenuBar.xcodeproj"
+echo "✅ Projekt wygenerowany: Glosso.xcodeproj"

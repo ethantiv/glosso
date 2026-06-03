@@ -1,4 +1,4 @@
-name: TranslatorMenuBar
+name: Glosso
 options:
   bundleIdPrefix: com.mirek
   deploymentTarget:
@@ -14,7 +14,7 @@ settings:
     CODE_SIGN_IDENTITY: "Apple Development"
     ENABLE_HARDENED_RUNTIME: YES
 targets:
-  TranslatorMenuBar:
+  Glosso:
     type: application
     platform: macOS
     sources:
@@ -23,29 +23,29 @@ targets:
       path: Generated/Info.plist
       properties:
         LSUIElement: true
-        CFBundleDisplayName: Translator
+        CFBundleDisplayName: Glosso
     entitlements:
-      path: Generated/TranslatorMenuBar.entitlements
+      path: Generated/Glosso.entitlements
       properties:
         com.apple.security.app-sandbox: false
         com.apple.security.network.client: true
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.translatormenubar
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso
         ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
     scheme:
       testTargets:
-        - TranslatorMenuBarTests
+        - GlossoTests
       gatherCoverageData: true
-  TranslatorMenuBarTests:
+  GlossoTests:
     type: bundle.unit-test
     platform: macOS
     sources:
       - path: Tests
       - path: TestsIntegration
     dependencies:
-      - target: TranslatorMenuBar
+      - target: Glosso
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.translatormenubar.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso.tests
         GENERATE_INFOPLIST_FILE: YES

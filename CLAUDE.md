@@ -11,34 +11,34 @@ A macOS menu-bar agent (`LSUIElement`, no Dock icon) that translates the current
 The Xcode project is **generated** by XcodeGen and is git-ignored. Never edit `*.xcodeproj` by hand — change `project.yml`, then regenerate. All four scripts regenerate the project first, so new source files are picked up automatically.
 
 ```bash
-scripts/gen.sh      # regenerate TranslatorMenuBar.xcodeproj from project.yml
+scripts/gen.sh      # regenerate Glosso.xcodeproj from project.yml
 scripts/build.sh    # xcodegen generate + xcodebuild (Debug, arm64) → .build/dd/...
 scripts/run.sh      # build + open the app (look for the bubble icon in the menu bar)
 scripts/test.sh     # xcodebuild test → .build/TestResults.xcresult
-scripts/package.sh  # Release build + signature-preserving zip → .build/release/TranslatorMenuBar.zip
+scripts/package.sh  # Release build + signature-preserving zip → .build/release/Glosso.zip
 ```
 
-`scripts/package.sh` produces a standalone `.zip` for a personal install: unzip, drag `TranslatorMenuBar.app` to `/Applications` (it then shows in Launchpad/Spotlight and runs without Xcode). It uses `ditto` (not `zip`) so the signature survives. Signed with the same free personal team — fine for your own Mac, **not notarized**, so distributing it to other machines would trip Gatekeeper. The "Launch at login" toggle (`SMAppService.mainApp`) only registers reliably once the app lives in `/Applications`.
+`scripts/package.sh` produces a standalone `.zip` for a personal install: unzip, drag `Glosso.app` to `/Applications` (it then shows in Launchpad/Spotlight and runs without Xcode). It uses `ditto` (not `zip`) so the signature survives. Signed with the same free personal team — fine for your own Mac, **not notarized**, so distributing it to other machines would trip Gatekeeper. The "Launch at login" toggle (`SMAppService.mainApp`) only registers reliably once the app lives in `/Applications`.
 
 **Builds and `xcodebuild` must run outside the sandbox** (`dangerouslyDisableSandbox: true`). Inside the sandbox they fail with `Operation not permitted`. `gh` and other network calls (GitHub API, Ollama over TLS) also need `dangerouslyDisableSandbox: true` — in the sandbox they fail with a TLS cert error (`OSStatus -26276`), not the build's `Operation not permitted`. During `/babysit-pr`, resolving a `claude-review` thread (`gh api graphql … resolveReviewThread`) is user-authorized in two cases: (1) findings actually fixed in committed code, and (2) findings you deliberately skipped after posting a rationale reply on the thread (low-value, or whose only fix would change a documented design decision). Leave a thread **unresolved only** when it is genuinely handed to a human — an un-adjudicable product/design call you did not decide yourself. The Bash tool's shell is **zsh** — unquoted `$var` is not word-split; iterate lists with `while IFS= read -r` (a `for x in $list` runs once on the whole string).
 
-Signing uses a **free personal team** (Team ID `F266Z8F83B` in `project.yml`). The scripts pass `-allowProvisioningUpdates` so the first build creates the "Apple Development" cert. Accessibility consent (TCC) is pinned to the signing identity, so changing `DEVELOPMENT_TEAM`/signing style means re-granting it (`tccutil reset Accessibility com.mirek.translatormenubar`, then re-add the app).
+Signing uses a **free personal team** (Team ID `F266Z8F83B` in `project.yml`). The scripts pass `-allowProvisioningUpdates` so the first build creates the "Apple Development" cert. Accessibility consent (TCC) is pinned to the signing identity, so changing `DEVELOPMENT_TEAM`/signing style means re-granting it (`tccutil reset Accessibility com.mirek.glosso`, then re-add the app).
 
 Live "Cannot find type X" / "No such module 'Testing'" diagnostics in the editor before a build are **SourceKit noise** (single module, not yet indexed), not real errors — verify against an actual `scripts/build.sh`/`test.sh` run.
 
 Tests use the **Swift Testing** framework (`import Testing`, `@Test`, `@Suite`, `#expect`) — not XCTest. To run one suite or test, add `-only-testing`:
 
 ```bash
-xcodebuild test -project TranslatorMenuBar.xcodeproj -scheme TranslatorMenuBar \
+xcodebuild test -project Glosso.xcodeproj -scheme Glosso \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/dd \
-  -only-testing:TranslatorMenuBarTests/AppCoordinatorTests
+  -only-testing:GlossoTests/AppCoordinatorTests
 ```
 
 ## Architecture
 
 **`Sources/Core/Contracts.swift` is the frozen seam.** Every module talks to the others only through the protocols and value types defined there (`LLMClient`, `HotkeyMonitor`, `PasteboardReading`, `TranslationPopupPresenting`, `AccessibilityAuthorizing`, `DoubleKeyDetecting`, `TimeSource`, `ModelListing`, plus the `TranslationEvent`/`TranslationError`/`CaptureError`/`SecondLanguage`/`Formality` enums and `LLMConfig`). `LLMClient.translate(_:model:second:formality:)` and `prewarm(model:)` take the user-selected model and second language per call; `alternatives(for:in:source:second:model:)` (non-streaming, returns `[String]`) and `reword(original:to:in:source:second:formality:model:)` (streaming, like `translate`) back the per-word alternatives feature (issue #17). Concrete types are injected; tests swap in fakes from `Tests/Support/`. When changing a cross-module behavior, change the protocol here first.
 
-`AppCoordinator` (`Sources/Coordinator/`, `@MainActor`) wires the modules and owns the flow. `AppDelegate` (`Sources/App/TranslatorApp.swift`) builds the real instances and starts it; it **early-returns under XCTest** (`XCTestConfigurationFilePath`) so the app side effects don't fire during tests.
+`AppCoordinator` (`Sources/Coordinator/`, `@MainActor`) wires the modules and owns the flow. `AppDelegate` (`Sources/App/GlossoApp.swift`) builds the real instances and starts it; it **early-returns under XCTest** (`XCTestConfigurationFilePath`) so the app side effects don't fire during tests.
 
 The four functional modules, each behind a protocol:
 
@@ -57,7 +57,7 @@ A fifth **Settings** module (`Sources/Settings/`) holds the user-editable config
 
 ### Config & permissions
 
-`LLMConfig.default` (model `gemma4:26b-mlx`, `think:false`, `temperature:0`, `keepAlive:"30m"`) lives in `Contracts.swift` and seeds the fresh-install defaults. At runtime the `model` and the second language come from `SettingsStore` (UserDefaults) per translation; `think`/`temperature`/`keepAlive`/`endpoint` stay fixed in `OllamaClient`'s base config. The app is **not sandboxed** (`Generated/TranslatorMenuBar.entitlements` sets `app-sandbox: false`, `network.client: true`) because Accessibility is incompatible with MAS sandboxing. Deployment target is macOS 26.0, Swift 6 (strict concurrency — note the `MainActor.assumeIsolated` shims around non-isolated AppKit monitor callbacks).
+`LLMConfig.default` (model `gemma4:26b-mlx`, `think:false`, `temperature:0`, `keepAlive:"30m"`) lives in `Contracts.swift` and seeds the fresh-install defaults. At runtime the `model` and the second language come from `SettingsStore` (UserDefaults) per translation; `think`/`temperature`/`keepAlive`/`endpoint` stay fixed in `OllamaClient`'s base config. The app is **not sandboxed** (`Generated/Glosso.entitlements` sets `app-sandbox: false`, `network.client: true`) because Accessibility is incompatible with MAS sandboxing. Deployment target is macOS 26.0, Swift 6 (strict concurrency — note the `MainActor.assumeIsolated` shims around non-isolated AppKit monitor callbacks).
 
 App icon and the custom menu-bar glyph live in `Sources/Assets.xcassets/` (`AppIcon.appiconset`, `MenuBarIcon.imageset`); the icon name is wired via `ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon` in `project.yml`.
 
@@ -65,4 +65,4 @@ App icon and the custom menu-bar glyph live in `Sources/Assets.xcassets/` (`AppI
 
 - `Tests/` — fast unit tests, no network, using the fakes in `Tests/Support/`.
 - `TestsIntegration/OllamaLiveTests.swift` — hits a real Ollama and **silently skips (returns early) when `localhost:11434` is unreachable**, so the suite stays green without a running daemon.
-- Every test/helper file needs `@testable import TranslatorMenuBar` to see our types, and `import Foundation` when it uses Foundation types (e.g. `TimeInterval`). Helpers under `Tests/Support/` are easy to forget.
+- Every test/helper file needs `@testable import Glosso` to see our types, and `import Foundation` when it uses Foundation types (e.g. `TimeInterval`). Helpers under `Tests/Support/` are easy to forget.

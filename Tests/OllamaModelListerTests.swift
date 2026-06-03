@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 // A dedicated URLProtocol (not the shared MockURLProtocol) so this suite's
 // process-global handler can't race OllamaClientTests' handler when Swift Testing

@@ -1,4 +1,4 @@
-# Translator Menu Bar
+# Glosso
 
 A macOS menu-bar app that translates whatever you've selected when you hit **Cmd+C twice in a row**. It uses a local LLM (Gemma via [Ollama](https://ollama.com)) and shows the result in a small panel next to the cursor.
 

@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct TokenizerTests {
     // The split must be lossless: rebuilding from the segments reproduces the input

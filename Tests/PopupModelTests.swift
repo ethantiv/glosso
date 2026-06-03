@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @MainActor
 @Suite struct PopupModelTests {

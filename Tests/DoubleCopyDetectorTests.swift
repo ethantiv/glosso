@@ -1,6 +1,6 @@
 import Foundation
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct DoubleCopyDetectorTests {
     @Test func firstCopyIsNeverDouble() {

@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct SecondLanguageTests {
     // The five offered languages, locked so the Settings picker and the persisted

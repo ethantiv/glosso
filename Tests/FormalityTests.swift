@@ -1,5 +1,5 @@
 import Testing
-@testable import TranslatorMenuBar
+@testable import Glosso
 
 @Suite struct FormalityTests {
     // The three offered modes, locked so the Settings picker and the persisted
