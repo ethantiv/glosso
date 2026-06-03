@@ -25,6 +25,28 @@ struct PopupView: View {
     private var showAccentEdge: Bool { model.phase == .streaming || model.phase == .done }
 
     var body: some View {
+        // The open dropdown is an in-window overlay, so the window must be tall
+        // enough to show it; for a short translation it isn't. Reserve transparent
+        // space below the (unchanged) panel box only while a dropdown is open, so
+        // it grows the window downward and the dropdown floats there unclipped
+        // (issue #32). The dropdown is always placed below the word into this space.
+        panelBox
+            .padding(.bottom, reservedBottom)
+            .overlayPreferenceValue(WordAnchorKey.self) { anchors in
+                dropdownOverlay(anchors: anchors)
+            }
+            .scaleEffect(appeared ? 1 : 0.965)
+            .opacity(appeared ? 1 : 0)
+            .onAppear {
+                if reduceMotion {
+                    appeared = true
+                } else {
+                    withAnimation(PopupTheme.enterCurve) { appeared = true }
+                }
+            }
+    }
+
+    private var panelBox: some View {
         VStack(spacing: 0) {
             header
             HStack(alignment: .top, spacing: 0) {
@@ -43,18 +65,12 @@ struct PopupView: View {
             RoundedRectangle(cornerRadius: PopupTheme.rWindow)
                 .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
         )
-        .overlayPreferenceValue(WordAnchorKey.self) { anchors in
-            dropdownOverlay(anchors: anchors)
-        }
-        .scaleEffect(appeared ? 1 : 0.965)
-        .opacity(appeared ? 1 : 0)
-        .onAppear {
-            if reduceMotion {
-                appeared = true
-            } else {
-                withAnimation(PopupTheme.enterCurve) { appeared = true }
-            }
-        }
+    }
+
+    // Window growth that hosts the open dropdown. Not animated: animating it would
+    // fire didResizeNotification (and its top-left re-pin) every frame mid-grow.
+    private var reservedBottom: CGFloat {
+        model.dropdownVisible ? estimatedDropdownHeight + dropdownGap : 0
     }
 
     // MARK: Header
@@ -351,17 +367,22 @@ struct PopupView: View {
         }
     }
 
-    private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
-        let gap: CGFloat = 4
-        let estimatedHeight: CGFloat = model.altsLoading || model.alternatives.isEmpty
+    private let dropdownGap: CGFloat = 4
+
+    // Estimate, not a measurement: v1 alternatives are single words on one line, so
+    // 32pt/row slightly over-reserves and never clips. Drives both reservedBottom and
+    // the (no-longer-needed) flip decision below.
+    private var estimatedDropdownHeight: CGFloat {
+        model.altsLoading || model.alternatives.isEmpty
             ? 40 : CGFloat(model.alternatives.count) * 32 + 8
+    }
+
+    private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
+        // reservedBottom always leaves room below the word, so place the dropdown
+        // there — no upward flip needed (issue #32).
         let maxX = max(6, container.width - AlternativesDropdown.width - 6)
         let x = min(max(6, wordRect.minX), maxX)
-        var y = wordRect.maxY + gap
-        if y + estimatedHeight > container.height {
-            y = wordRect.minY - gap - estimatedHeight
-        }
-        if y < 6 { y = 6 }
+        let y = max(6, wordRect.maxY + dropdownGap)
         return CGSize(width: x, height: y)
     }
 
