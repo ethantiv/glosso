@@ -25,6 +25,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         tearDown()
 
         resetTranslationPane()
+        // A fresh capture must not let Undo reach back to an unrelated previous
+        // translation (issue #25); resetTranslationPane is shared with reword, which
+        // keeps the snapshot, so clear it only on this fresh-translation path.
+        model.clearUndo()
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
