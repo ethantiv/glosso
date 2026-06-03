@@ -369,9 +369,12 @@ struct PopupView: View {
 
     private let dropdownGap: CGFloat = 4
 
-    // Estimate, not a measurement: v1 alternatives are single words on one line, so
-    // 32pt/row slightly over-reserves and never clips. Drives both reservedBottom and
-    // the (no-longer-needed) flip decision below.
+    // Estimate, not a measurement; drives how far reservedBottom grows the window.
+    // 32pt/row fits a single-line alternative with a little slack. buildAlternatives
+    // may return short phrases, which can wrap in the 200pt-wide dropdown and exceed
+    // this — then the overflow rows clip at the grown window's edge. Acceptable for
+    // now because alternatives are overwhelmingly single words; revisit with a real
+    // measurement if multi-line alternatives become common.
     private var estimatedDropdownHeight: CGFloat {
         model.altsLoading || model.alternatives.isEmpty
             ? 40 : CGFloat(model.alternatives.count) * 32 + 8
