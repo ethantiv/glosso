@@ -7,7 +7,8 @@ enum SelectionGuard {
     }
 
     static func nonEmptyText(_ string: String?) throws -> String {
-        guard let s = string, !s.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { throw CaptureError.emptyOrNonText }
+        let trimmed = string?.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let s = trimmed, !s.isEmpty else { throw CaptureError.emptyOrNonText }
         return s
     }
 }
