@@ -25,9 +25,14 @@ struct SelectionGuardTests {
         #expect(result == "Cześć")
     }
 
-    @Test func surroundingWhitespacePreserved() throws {
+    @Test func surroundingWhitespaceTrimmed() throws {
         let result = try SelectionGuard.validate(currentChangeCount: 6, baselineChangeCount: 5, string: "  hej  ")
-        #expect(result == "  hej  ")
+        #expect(result == "hej")
+    }
+
+    @Test func innerWhitespacePreservedOuterTrimmed() throws {
+        let result = try SelectionGuard.validate(currentChangeCount: 6, baselineChangeCount: 5, string: "\t  dzień  dobry \n")
+        #expect(result == "dzień  dobry")
     }
 
     @Test func nonEmptyTextRejectsNil() {
