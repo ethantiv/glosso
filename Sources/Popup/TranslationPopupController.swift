@@ -7,6 +7,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onSelectFormality: (@MainActor (Formality) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
+    var onReplace: (@MainActor (_ translation: String) -> Void)?
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
@@ -49,7 +50,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
             },
             pickAlternative: { [weak self] original, chosen, translation in
                 self?.onPickAlternative?(original, chosen, translation)
-            }
+            },
+            replace: { [weak self] text in self?.onReplace?(text) }
         ))
         // Let the SwiftUI content drive the window size so the panel grows to fit
         // longer text instead of clipping it (capped per pane, then scrolls).

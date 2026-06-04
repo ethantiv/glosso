@@ -164,6 +164,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onSelectFormality: (@MainActor (Formality) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
+    var onReplace: (@MainActor (_ translation: String) -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?
@@ -199,6 +200,12 @@ final class FakePopup: TranslationPopupPresenting {
         dismissCount += 1
         onDismiss?()
     }
+}
+
+@MainActor
+final class FakeSelectionReplacer: SelectionReplacing {
+    private(set) var replacedText: String?
+    func replace(with text: String) { replacedText = text }
 }
 
 @MainActor
