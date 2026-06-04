@@ -61,11 +61,15 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // visibleFrame excludes the menu bar / notch and the Dock, so the window
         // never opens partly behind them.
         let frame = screen(containing: screenPoint).visibleFrame
-        let topLeft = PanelPositioning.topLeft(
+        let panelTopLeft = PanelPositioning.topLeft(
             forMouse: screenPoint,
             panelSize: size,
             screenFrame: frame
         )
+        // The window carries a transparent shadow margin around the visible panel, so
+        // shift its top-left up-left by that margin to keep the panel under the cursor.
+        let margin = PopupView.shadowMargin
+        let topLeft = CGPoint(x: panelTopLeft.x - margin, y: panelTopLeft.y + margin)
         anchorTopLeft = topLeft
         anchorScreenFrame = frame
         panel.setFrameTopLeftPoint(topLeft)

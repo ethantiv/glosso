@@ -18,6 +18,12 @@ struct PopupView: View {
     private static let translationWidth: CGFloat = 300
     private static let maxPaneHeight: CGFloat = 400
 
+    // Transparent inset reserved inside the window for the panel's SwiftUI shadow to
+    // render unclipped (radius 16 + y 6 ≈ 22 below, less on the sides/top). The panel
+    // sits this far from the window edges, so the controller shifts the window
+    // top-left by the same amount to keep the visible panel under the cursor.
+    static let shadowMargin: CGFloat = 24
+
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
     // Replace overwrites the still-selected source in place, so unlike the
     // non-destructive Copy it must not be offered for a truncated result — one
@@ -37,10 +43,12 @@ struct PopupView: View {
         // it grows the window downward and the dropdown floats there unclipped
         // (issue #32). The dropdown is always placed below the word into this space.
         panelBox
+            .shadow(color: .black.opacity(0.20), radius: 16, y: 6)
             .padding(.bottom, reservedBottom)
             .overlayPreferenceValue(WordAnchorKey.self) { anchors in
                 dropdownOverlay(anchors: anchors)
             }
+            .padding(Self.shadowMargin)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
             .onAppear {
@@ -76,7 +84,7 @@ struct PopupView: View {
     // Window growth that hosts the open dropdown. Not animated: animating it would
     // fire didResizeNotification (and its top-left re-pin) every frame mid-grow.
     private var reservedBottom: CGFloat {
-        model.dropdownVisible ? estimatedDropdownHeight + dropdownGap : 0
+        model.dropdownVisible ? estimatedDropdownHeight + dropdownGap + dropdownShadowPad : 0
     }
 
     // MARK: Header
@@ -384,6 +392,11 @@ struct PopupView: View {
 
     private let dropdownGap: CGFloat = 4
 
+    // Slack around the dropdown so its .shadow(radius:10, y:4) renders inside the
+    // window instead of clipping at the edge when the word sits near the panel's
+    // bottom/right (the AlternativesDropdown shadow extends ~14pt down, ~10pt side).
+    private let dropdownShadowPad: CGFloat = 14
+
     // Estimate, not a measurement; drives how far reservedBottom grows the window.
     // 32pt/row fits a single-line alternative with a little slack. buildAlternatives
     // may return short phrases, which can wrap in the 200pt-wide dropdown and exceed
@@ -398,9 +411,9 @@ struct PopupView: View {
     private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
         // reservedBottom always leaves room below the word, so place the dropdown
         // there — no upward flip needed (issue #32).
-        let maxX = max(6, container.width - AlternativesDropdown.width - 6)
-        let x = min(max(6, wordRect.minX), maxX)
-        let y = max(6, wordRect.maxY + dropdownGap)
+        let maxX = max(dropdownShadowPad, container.width - AlternativesDropdown.width - dropdownShadowPad)
+        let x = min(max(dropdownShadowPad, wordRect.minX), maxX)
+        let y = max(dropdownShadowPad, wordRect.maxY + dropdownGap)
         return CGSize(width: x, height: y)
     }
 
