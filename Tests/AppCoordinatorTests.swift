@@ -371,6 +371,58 @@ import Testing
         #expect(llm.recorder.rewordFormality == .formal)
     }
 
+    // MARK: Replace (issue #22)
+
+    // Clicking Replace after a translation pastes it over the source selection and
+    // dismisses the popup — but only when the source app is still frontmost.
+    @Test func replacePastesTranslationAndDismissesWhenSourceAppUnchanged() async {
+        let llm = FakeLLMClient(events: [.token("Hello"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let replacer = FakeSelectionReplacer()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
+            replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 123 }
+        )
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+        popup.onReplace?("Hello")
+
+        #expect(replacer.replacedText == "Hello")
+        #expect(popup.dismissCount == 1)
+        #expect(popup.errorMessage == nil)
+    }
+
+    // If the user switched apps (Cmd+Tab) after copying, Replace must not paste into
+    // the wrong app: it surfaces an error and leaves the clipboard/popup untouched.
+    @Test func replaceIsASafeNoOpWhenFrontmostAppChanged() async {
+        let llm = FakeLLMClient(events: [.token("Hello"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let replacer = FakeSelectionReplacer()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
+            replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 999 }   // a different app is frontmost now
+        )
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+        popup.onReplace?("Hello")
+
+        #expect(replacer.replacedText == nil)
+        #expect(popup.errorMessage == "Aplikacja źródłowa się zmieniła — nie wklejono.")
+        #expect(popup.dismissCount == 0)
+    }
+
     @Test func nonTextSelectionReportsImmediately() async {
         let llm = FakeLLMClient()
         let popup = FakePopup()

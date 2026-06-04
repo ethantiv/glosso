@@ -7,6 +7,7 @@ struct PopupView: View {
     let selectFormality: (Formality) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
+    let replace: (String) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = false
@@ -156,6 +157,13 @@ struct PopupView: View {
     private var headerButtons: some View {
         HStack(spacing: 2) {
             if canCopy {
+                Button(action: { replace(model.text) }) {
+                    iconLabel("text.insert")
+                        .foregroundStyle(Color.secondary)
+                }
+                .buttonStyle(IconButtonStyle())
+                .help("Zastąp zaznaczenie tłumaczeniem")
+                .accessibilityLabel("Zastąp zaznaczenie tłumaczeniem")
                 Button(action: copy) {
                     iconLabel(copied ? "checkmark" : "doc.on.doc")
                         .contentTransition(.symbolEffect(.replace))

@@ -216,6 +216,9 @@ protocol TranslationPopupPresenting: AnyObject {
     /// coordinator can re-translate the clause with that word in place. Carries the
     /// original word, the chosen alternative and the current full translation.
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)? { get set }
+    /// Fires when the user clicks Replace, carrying the finished translation so the
+    /// coordinator can paste it over the source selection (issue #22).
+    var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }
     func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String)
     func append(token: String)
@@ -233,4 +236,11 @@ protocol AccessibilityAuthorizing {
     var isTrusted: Bool { get }
     func requestAccess(prompt: Bool)
     func openSystemSettings()
+}
+
+@MainActor
+protocol SelectionReplacing {
+    /// Pastes `text` over the current selection in the frontmost app via a
+    /// synthesized Cmd+V, preserving and restoring the clipboard (issue #22).
+    func replace(with text: String)
 }

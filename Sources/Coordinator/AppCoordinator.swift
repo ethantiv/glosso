@@ -8,6 +8,7 @@ final class AppCoordinator {
     private let reader: any PasteboardReading
     private let axReader: any AXSelectionReading
     private let popup: any TranslationPopupPresenting
+    private let replacer: any SelectionReplacing
     private let settings: SettingsStore
 
     private let pollStepMs: Int
@@ -21,6 +22,10 @@ final class AppCoordinator {
     // text and point are one unit so a new capture can't half-reset them.
     private var lastCapture: (text: String, point: CGPoint)?
 
+    // The frontmost app's PID at the double-press, retained so Replace can verify
+    // the source app hasn't changed before pasting back into it (issue #22).
+    private var lastSourcePID: pid_t?
+
     init(
         llm: any LLMClient,
         monitor: any HotkeyMonitor,
@@ -28,6 +33,7 @@ final class AppCoordinator {
         axReader: any AXSelectionReading,
         popup: any TranslationPopupPresenting,
         settings: SettingsStore,
+        replacer: any SelectionReplacing = SystemSelectionReplacer(),
         pollStepMs: Int = 12,
         pollMaxAttempts: Int = 40,
         frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
@@ -37,6 +43,7 @@ final class AppCoordinator {
         self.reader = reader
         self.axReader = axReader
         self.popup = popup
+        self.replacer = replacer
         self.settings = settings
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
@@ -58,6 +65,7 @@ final class AppCoordinator {
         popup.onPickAlternative = { [weak self] original, chosen, translation in
             self?.handlePickAlternative(original: original, chosen: chosen, translation: translation)
         }
+        popup.onReplace = { [weak self] translation in self?.handleReplace(translation: translation) }
 
         do {
             try monitor.start()
@@ -102,6 +110,7 @@ final class AppCoordinator {
         // presenting rather than orphaning a popup the newer task already replaced.
         if Task.isCancelled { return }
         lastCapture = nil
+        lastSourcePID = sourcePID
         popup.present(at: point, formality: settings.formality)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
@@ -142,6 +151,18 @@ final class AppCoordinator {
             return
         }
         popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
+    /// Pastes the finished translation over the still-live source selection (issue
+    /// #22). Mirrors the AX-fallback guard: if the frontmost app changed since the
+    /// double-press, refuse rather than paste into the wrong app.
+    func handleReplace(translation: String) {
+        guard let sourcePID = lastSourcePID, sourcePID == frontmostPID() else {
+            popup.showError("Aplikacja źródłowa się zmieniła — nie wklejono.")
+            return
+        }
+        replacer.replace(with: translation)
+        popup.dismiss()
     }
 
     func handleFormalityChange(_ formality: Formality) {
