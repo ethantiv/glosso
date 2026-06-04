@@ -423,6 +423,62 @@ import Testing
         #expect(popup.dismissCount == 0)
     }
 
+    // The source app is still frontmost, but the user clicked into the document
+    // mid-stream and collapsed the selection — an empty (non-nil) AXSelectedText is
+    // positive proof of that. Replace must refuse rather than insert at the cursor.
+    @Test func replaceRefusesWhenSelectionCollapsed() async {
+        let llm = FakeLLMClient(events: [.token("Hello"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let replacer = FakeSelectionReplacer()
+        let ax = FakeAXSelectionReader()
+        ax.text = "   "
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: ax, popup: popup, settings: makeSettings(),
+            replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 123 }
+        )
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+        popup.onReplace?("Hello")
+
+        #expect(replacer.replacedText == nil)
+        #expect(popup.errorMessage == "Brak zaznaczenia do zastąpienia.")
+        #expect(popup.dismissCount == 0)
+    }
+
+    // A live, non-empty AXSelectedText means the selection is still there — Replace
+    // proceeds. (nil, the Electron/Chromium case where AX exposes nothing, is the
+    // default fake and is covered by the happy-path test above.)
+    @Test func replaceProceedsWhenSelectionStillLive() async {
+        let llm = FakeLLMClient(events: [.token("Hello"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let replacer = FakeSelectionReplacer()
+        let ax = FakeAXSelectionReader()
+        ax.text = "Dzień dobry"
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
+            axReader: ax, popup: popup, settings: makeSettings(),
+            replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostPID: { 123 }
+        )
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
+        popup.onReplace?("Hello")
+
+        #expect(replacer.replacedText == "Hello")
+        #expect(popup.dismissCount == 1)
+        #expect(popup.errorMessage == nil)
+    }
+
     @Test func nonTextSelectionReportsImmediately() async {
         let llm = FakeLLMClient()
         let popup = FakePopup()

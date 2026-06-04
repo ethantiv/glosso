@@ -161,6 +161,18 @@ final class AppCoordinator {
             popup.showError("Aplikacja źródłowa się zmieniła — nie wklejono.")
             return
         }
+        // The PID match only proves the source app is still frontmost, not that its
+        // selection is still live: clicking back into the source while the
+        // translation streamed collapses it to an insertion point, and a synthesized
+        // Cmd+V would then *insert* the translation at the cursor instead of replacing.
+        // A non-nil but empty AXSelectedText is positive proof the selection
+        // collapsed; nil means AX exposes no selection at all (Electron/Chromium),
+        // where Cmd+V still works — so only an empty, non-nil read blocks the paste.
+        if let selection = axReader.selectedText(),
+           selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            popup.showError("Brak zaznaczenia do zastąpienia.")
+            return
+        }
         replacer.replace(with: translation)
         popup.dismiss()
     }
