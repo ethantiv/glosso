@@ -19,6 +19,11 @@ struct PopupView: View {
     private static let maxPaneHeight: CGFloat = 400
 
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
+    // Replace overwrites the still-selected source in place, so unlike the
+    // non-destructive Copy it must not be offered for a truncated result — one
+    // click would replace the original selection with the partial translation
+    // (the source app has no undo for the lost selection), issue #22.
+    private var canReplace: Bool { canCopy && !model.truncated }
     private var canUndo: Bool {
         model.canUndo && (model.phase == .done || model.phase == .error)
     }
@@ -156,7 +161,7 @@ struct PopupView: View {
 
     private var headerButtons: some View {
         HStack(spacing: 2) {
-            if canCopy {
+            if canReplace {
                 Button(action: { replace(model.text) }) {
                     iconLabel("text.insert")
                         .foregroundStyle(Color.secondary)
@@ -164,6 +169,8 @@ struct PopupView: View {
                 .buttonStyle(IconButtonStyle())
                 .help("Zastąp zaznaczenie tłumaczeniem")
                 .accessibilityLabel("Zastąp zaznaczenie tłumaczeniem")
+            }
+            if canCopy {
                 Button(action: copy) {
                     iconLabel(copied ? "checkmark" : "doc.on.doc")
                         .contentTransition(.symbolEffect(.replace))
