@@ -19,11 +19,15 @@ final class FloatingPanel: NSPanel {
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         // Borderless has no title bar, so a transparent background lets the
-        // rounded SwiftUI material show through and the window shadow hug it.
-        // Dragging anywhere on the background moves the panel (no title bar grab).
+        // rounded SwiftUI material show through. Dragging anywhere on the
+        // background moves the panel (no title bar grab).
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = true
+        // The shadow is drawn in SwiftUI (PopupView), not by AppKit: the system
+        // window shadow hugs the whole content alpha, which rings the dropdown's
+        // protruding part with a hard contour. SwiftUI shadows on the panel and the
+        // dropdown stay independent and soft.
+        hasShadow = false
         isMovableByWindowBackground = true
     }
 

@@ -154,7 +154,7 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        .background(VisualEffectBackground(material: .popover))
+        .background(PopupTheme.menuSurface)
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
         .overlay(
             RoundedRectangle(cornerRadius: PopupTheme.rPane)

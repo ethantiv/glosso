@@ -8,7 +8,7 @@ struct GlossoApp: App {
     var body: some Scene {
         MenuBarExtra("Glosso", image: "MenuBarIcon") {
             if appDelegate.appState.listening {
-                Text("Nasłuch aktywny — podwójne ⌘C tłumaczy zaznaczenie")
+                Text("Glosso · aktywny")
             } else if appDelegate.appState.accessibilityGranted {
                 Text("Dostępność OK, ale nasłuch nie wystartował.")
                 Button("Sprawdź ponownie") {

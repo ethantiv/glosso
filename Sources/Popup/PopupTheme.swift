@@ -10,6 +10,14 @@ enum PopupTheme {
     }
     static let accent = Color(nsColor: accentNSColor)
 
+    // Solid, matte fill for the alternatives menu — opaque on purpose (not the
+    // translucent .popover material) so it reads lighter and less glassy.
+    static let menuSurfaceNSColor = NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return isDark ? NSColor(white: 0.22, alpha: 1) : NSColor(white: 1, alpha: 1)
+    }
+    static let menuSurface = Color(nsColor: menuSurfaceNSColor)
+
     static var accentTintStrong: Color { accent.opacity(0.18) }
     static var accentWash: Color { accent.opacity(0.07) }
     static var chipNeutralBg: Color { Color.primary.opacity(0.08) }
