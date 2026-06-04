@@ -33,6 +33,10 @@ final class SystemSelectionReplacer: SelectionReplacing {
         Task { @MainActor in
             try? await Task.sleep(for: restoreDelay)
             let pasteboard = NSPasteboard.general
+            // Only restore if our translation is still on the clipboard. A double
+            // Cmd+C started within the restore window already replaced it with a new
+            // source — restoring would clobber that capture's clipboard with stale text.
+            guard pasteboard.string(forType: .string) == text else { return }
             pasteboard.clearContents()
             pasteboard.setString(saved, forType: .string)
         }
