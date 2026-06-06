@@ -65,6 +65,9 @@ final class AppCoordinator {
         popup.onPickAlternative = { [weak self] original, chosen, translation in
             self?.handlePickAlternative(original: original, chosen: chosen, translation: translation)
         }
+        popup.onFetchExplanation = { [weak self] word, translation in
+            await self?.fetchExplanation(word: word, translation: translation) ?? ""
+        }
         popup.onReplace = { [weak self] translation in self?.handleReplace(translation: translation) }
 
         do {
@@ -196,6 +199,17 @@ final class AppCoordinator {
         return (try? await llm.alternatives(
             for: word, in: translation, source: capture.text,
             second: settings.secondLanguage, model: settings.modelName)) ?? []
+    }
+
+    /// Asks the model for a one-sentence Polish explanation of a clicked word's
+    /// rendering (issue #39). Mirrors `fetchAlternatives`: the word and translation
+    /// come from the popup, the source is the last capture, any failure (or no
+    /// capture) collapses to "" — the dropdown then shows its fallback message.
+    func fetchExplanation(word: String, translation: String) async -> String {
+        guard let capture = lastCapture else { return "" }
+        return (try? await llm.explain(
+            word: word, in: translation, source: capture.text,
+            second: settings.secondLanguage, model: settings.modelName)) ?? ""
     }
 
     /// The user picked an alternative: re-translate the clause with that word in

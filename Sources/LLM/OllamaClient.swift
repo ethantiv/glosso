@@ -41,6 +41,28 @@ final class OllamaClient: LLMClient {
         return AlternativesParser.parse(body, original: word)
     }
 
+    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
+        // Same locked invariants and non-streaming shape as alternatives (issue #39).
+        var config = self.config
+        config.model = model
+        let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, second: second)
+        let request = try Self.makeRequest(config: config, prompt: prompt, stream: false)
+        let (data, response): (Data, URLResponse)
+        do {
+            (data, response) = try await session.data(for: request)
+        } catch let error as URLError where error.code == .cancelled {
+            throw TranslationError.cancelled
+        } catch {
+            throw TranslationError.ollamaUnreachable
+        }
+        guard let http = response as? HTTPURLResponse else { throw TranslationError.ollamaUnreachable }
+        let chunk = try? JSONDecoder().decode(GenerateChunk.self, from: data)
+        if let message = chunk?.error { throw TranslationError.ollamaError(message) }
+        guard http.statusCode == 200 else { throw TranslationError.httpStatus(http.statusCode) }
+        guard let body = chunk?.response else { throw TranslationError.malformedStream }
+        return ExplanationParser.clean(body)
+    }
+
     // Shared NDJSON streaming used by translate() and reword(): only the model is
     // user-selectable per call; the base config keeps the empirical invariants
     // (think:false, temperature:0, keep_alive, endpoint) locked.
