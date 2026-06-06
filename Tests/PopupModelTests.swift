@@ -83,6 +83,50 @@ import Testing
         #expect(model.text == "bieżąca")
     }
 
+    // MARK: Explanation sub-state — "Dlaczego tak?" (issue #39)
+
+    @Test func openExplanationArmsLoadingAndBumpsToken() {
+        let model = PopupModel()
+        model.openDropdown(for: 2)
+        let before = model.explanationRequestToken
+
+        model.openExplanation()
+
+        #expect(model.showingExplanation == true)
+        #expect(model.explanationLoading == true)
+        #expect(model.explanationText.isEmpty)
+        #expect(model.explanationRequestToken == before + 1)
+    }
+
+    @Test func closeExplanationReturnsToAlternatives() {
+        let model = PopupModel()
+        model.openDropdown(for: 2)
+        model.openExplanation()
+        model.explanationText = "bo gramatyka"
+        model.explanationLoading = false
+
+        model.closeExplanation()
+
+        #expect(model.showingExplanation == false)
+        #expect(model.explanationText.isEmpty)
+        #expect(model.explanationLoading == false)
+        // The dropdown itself stays open on the same word.
+        #expect(model.dropdownVisible == true)
+    }
+
+    @Test func closeDropdownAlsoClearsExplanation() {
+        let model = PopupModel()
+        model.openDropdown(for: 2)
+        model.openExplanation()
+        model.explanationText = "bo gramatyka"
+
+        model.closeDropdown()
+
+        #expect(model.dropdownVisible == false)
+        #expect(model.showingExplanation == false)
+        #expect(model.explanationText.isEmpty)
+    }
+
     @Test func secondSnapshotOverridesFirst() {
         let model = PopupModel()
         model.text = "wersja A"

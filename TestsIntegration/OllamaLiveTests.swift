@@ -28,4 +28,15 @@ import Testing
 
         #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
+
+    @Test func explainsAgainstLiveOllama() async throws {
+        guard await ollamaReachable() else { return }
+
+        let client = OllamaClient()
+        let explanation = try await client.explain(
+            word: "przeszłość", in: "die Vergangenheit", source: "przeszłość",
+            second: .german, model: LLMConfig.default.model)
+
+        #expect(!explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+    }
 }

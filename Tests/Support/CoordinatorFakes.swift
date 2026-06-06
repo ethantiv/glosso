@@ -32,6 +32,12 @@ struct FakeLLMClient: LLMClient {
         var altSource: String?
         var altSecond: SecondLanguage?
         var altModel: String?
+        // explain(...)
+        var explainWord: String?
+        var explainTranslation: String?
+        var explainSource: String?
+        var explainSecond: SecondLanguage?
+        var explainModel: String?
         // reword(...)
         var rewordOriginal: String?
         var rewordChosen: String?
@@ -50,19 +56,25 @@ struct FakeLLMClient: LLMClient {
     let gate: StreamGate?
     let alternativesResult: [String]
     let alternativesError: TranslationError?
+    let explanationResult: String
+    let explanationError: TranslationError?
 
     init(
         events: [TranslationEvent] = [.token("ok"), .finished(doneReason: "stop")],
         error: TranslationError? = nil,
         gate: StreamGate? = nil,
         alternatives: [String] = ["alt-one", "alt-two"],
-        alternativesError: TranslationError? = nil
+        alternativesError: TranslationError? = nil,
+        explanation: String = "bo tak każe gramatyka",
+        explanationError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
         self.gate = gate
         self.alternativesResult = alternatives
         self.alternativesError = alternativesError
+        self.explanationResult = explanation
+        self.explanationError = explanationError
     }
 
     func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -92,6 +104,16 @@ struct FakeLLMClient: LLMClient {
         recorder.altModel = model
         if let alternativesError { throw alternativesError }
         return alternativesResult
+    }
+
+    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
+        recorder.explainWord = word
+        recorder.explainTranslation = translation
+        recorder.explainSource = source
+        recorder.explainSecond = second
+        recorder.explainModel = model
+        if let explanationError { throw explanationError }
+        return explanationResult
     }
 
     private func makeStream() -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -164,6 +186,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onSelectFormality: (@MainActor (Formality) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
+    var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?

@@ -344,6 +344,61 @@ import Testing
         #expect(result == [])
     }
 
+    // MARK: Per-word explanation — "Dlaczego tak?" (issue #39)
+
+    // Tapping "Dlaczego tak?" asks the model for an explanation, threading the
+    // captured source and the persisted second language alongside the clicked word.
+    @Test func fetchExplanationThreadsSourceAndSecondLanguage() async {
+        let llm = FakeLLMClient(explanation: "Rzeczownik rodzaju żeńskiego.")
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "die Vergangenheit"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .german)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        let result = await popup.onFetchExplanation?("przeszłość", "To jest przeszłość")
+        #expect(result == "Rzeczownik rodzaju żeńskiego.")
+        #expect(llm.recorder.explainWord == "przeszłość")
+        #expect(llm.recorder.explainTranslation == "To jest przeszłość")
+        #expect(llm.recorder.explainSource == "die Vergangenheit")   // the captured source
+        #expect(llm.recorder.explainSecond == .german)
+    }
+
+    // Before any capture there is no source context, so a fetch returns empty
+    // rather than calling the model with an empty source.
+    @Test func fetchExplanationBeforeCaptureReturnsEmpty() async {
+        let llm = FakeLLMClient(explanation: "x")
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+
+        coordinator.start()
+        let result = await popup.onFetchExplanation?("foo", "bar")
+
+        #expect(result == "")
+        #expect(llm.recorder.explainWord == nil)
+    }
+
+    // A failed explanation fetch collapses to an empty string (the dropdown shows a
+    // fallback message), never surfacing as an error in the pane.
+    @Test func fetchExplanationSwallowsErrorsIntoEmptyString() async {
+        let llm = FakeLLMClient(explanation: "", explanationError: .ollamaUnreachable)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "great"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        let result = await popup.onFetchExplanation?("wspaniały", "wspaniały")
+
+        #expect(result == "")
+    }
+
     // Picking an alternative resets the result pane and re-translates the clause via
     // reword, threading the chosen word, the captured source and the persisted tone.
     @Test func pickingAlternativeRewordsTheClause() async {

@@ -151,6 +151,12 @@ protocol LLMClient: Sendable {
     /// unchanged. Streams the revised translation exactly like `translate`, so the
     /// coordinator can feed it into the same popup pane.
     func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
+    /// A single short Polish sentence explaining why the clicked word of the
+    /// finished translation was rendered that way — its literal sense in context,
+    /// the nuance separating it from alternatives, or the grammatical form — for
+    /// the learner-facing "Dlaczego tak?" row in the per-word dropdown (issue #39).
+    /// Non-streaming like `alternatives`; the source and full translation give context.
+    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String
 }
 
 /// Lists the models actually installed in Ollama, so Settings can offer a live
@@ -216,6 +222,12 @@ protocol TranslationPopupPresenting: AnyObject {
     /// coordinator can re-translate the clause with that word in place. Carries the
     /// original word, the chosen alternative and the current full translation.
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)? { get set }
+    /// Fires when the user taps "Dlaczego tak?" for a clicked word, asking the
+    /// coordinator for a one-sentence Polish explanation of that rendering (issue
+    /// #39). Carries the clicked word and the current full translation; the
+    /// coordinator fills in the source and second language. Returns an empty string
+    /// on any failure, which the dropdown shows as a fallback message.
+    var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)? { get set }
     /// Fires when the user clicks Replace, carrying the finished translation so the
     /// coordinator can paste it over the source selection (issue #22).
     var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }

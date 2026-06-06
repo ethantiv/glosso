@@ -6,6 +6,7 @@ struct PopupView: View {
     let close: () -> Void
     let selectFormality: (Formality) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
+    let fetchExplanation: (_ word: String, _ translation: String) async -> String
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
 
@@ -366,6 +367,20 @@ struct PopupView: View {
         }
     }
 
+    private func onTapExplain(word: String, translation: String) {
+        model.openExplanation()
+        let token = model.explanationRequestToken
+        Task { @MainActor in
+            let explanation = await fetchExplanation(word, translation)
+            // The dropdown may have closed or reopened on another word while the
+            // fetch ran; only land if this is still the request the user is waiting on.
+            guard model.explanationRequestToken == token,
+                  model.dropdownVisible, model.showingExplanation else { return }
+            model.explanationText = explanation
+            model.explanationLoading = false
+        }
+    }
+
     @ViewBuilder
     private func dropdownOverlay(anchors: [Int: Anchor<CGRect>]) -> some View {
         GeometryReader { proxy in
@@ -374,16 +389,24 @@ struct PopupView: View {
                 Color.clear
                     .contentShape(Rectangle())
                     .onTapGesture { model.closeDropdown() }
-                AlternativesDropdown(model: model) { chosen in
-                    let original = model.segments.first { $0.id == id }?.text ?? ""
-                    // Snapshot the current result before the reword replaces it, so the
-                    // header Undo button can restore it (issue #25).
-                    model.snapshotForUndo()
-                    // The coordinator's restart resets the pane (closing this dropdown
-                    // via resetTranslationPane), so the reworded result can't reappear
-                    // under a stale dropdown.
-                    pickAlternative(original, chosen, model.text)
-                }
+                AlternativesDropdown(
+                    model: model,
+                    onPick: { chosen in
+                        let original = model.segments.first { $0.id == id }?.text ?? ""
+                        // Snapshot the current result before the reword replaces it, so the
+                        // header Undo button can restore it (issue #25).
+                        model.snapshotForUndo()
+                        // The coordinator's restart resets the pane (closing this dropdown
+                        // via resetTranslationPane), so the reworded result can't reappear
+                        // under a stale dropdown.
+                        pickAlternative(original, chosen, model.text)
+                    },
+                    onExplain: {
+                        let word = model.segments.first { $0.id == id }?.text ?? ""
+                        onTapExplain(word: word, translation: model.text)
+                    },
+                    onBack: { model.closeExplanation() }
+                )
                 .fixedSize()
                 .offset(dropdownOffset(wordRect: wordRect, container: proxy.size))
             }
@@ -404,8 +427,17 @@ struct PopupView: View {
     // now because alternatives are overwhelmingly single words; revisit with a real
     // measurement if multi-line alternatives become common.
     private var estimatedDropdownHeight: CGFloat {
-        model.altsLoading || model.alternatives.isEmpty
+        // The "Dlaczego tak?" header row (issue #39) adds one row above either view.
+        let explainRow: CGFloat = 36
+        if model.showingExplanation {
+            // A one-sentence explanation wraps to a few lines in the 200pt dropdown;
+            // reserve generously so the grown window doesn't clip it (estimate, not a
+            // measurement — same caveat as the alternatives path below).
+            return explainRow + (model.explanationLoading ? 40 : 132)
+        }
+        let list = model.altsLoading || model.alternatives.isEmpty
             ? 40 : CGFloat(model.alternatives.count) * 32 + 8
+        return explainRow + list
     }
 
     private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {

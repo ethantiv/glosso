@@ -30,6 +30,17 @@ final class PopupModel {
     // overwrite the dropdown the user has since reopened on another word.
     var altsRequestToken: Int = 0
 
+    // "Dlaczego tak?" sub-state of the dropdown (issue #39). When showingExplanation
+    // is true the dropdown swaps its alternatives list for the explanation of the
+    // selected word; the back row returns to the list. An empty explanationText once
+    // explanationLoading clears means "fetch failed" — the dropdown shows a fallback.
+    var showingExplanation: Bool = false
+    var explanationText: String = ""
+    var explanationLoading: Bool = false
+    // Mirrors altsRequestToken: bumped on each open so a slow explanation fetch can't
+    // land in a dropdown the user has since reopened on another word or closed.
+    var explanationRequestToken: Int = 0
+
     // Memoizes the tokenization keyed on `text` so re-renders that don't change the
     // translation (hover, dropdown open/close) reuse it instead of re-tokenizing.
     @ObservationIgnored private var segmentsCache: (text: String, value: [TextSegment])?
@@ -54,6 +65,24 @@ final class PopupModel {
         selectedWordID = nil
         altsLoading = false
         alternatives = []
+        closeExplanation()
+    }
+
+    // Switches the open dropdown into its "Dlaczego tak?" view and arms a fresh fetch
+    // (issue #39). Keeps selectedWordID, so the dropdown stays anchored to the word.
+    func openExplanation() {
+        showingExplanation = true
+        explanationText = ""
+        explanationLoading = true
+        explanationRequestToken &+= 1
+    }
+
+    // Returns the dropdown to its alternatives list (the back row) or clears the
+    // sub-state when the whole dropdown closes.
+    func closeExplanation() {
+        showingExplanation = false
+        explanationText = ""
+        explanationLoading = false
     }
 
     // Single-level undo of the last word-alternative reword (issue #25). Holds the

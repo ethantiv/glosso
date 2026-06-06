@@ -127,30 +127,17 @@ struct WordAnchorKey: PreferenceKey {
 struct AlternativesDropdown: View {
     let model: PopupModel
     let onPick: (String) -> Void
+    let onExplain: () -> Void
+    let onBack: () -> Void
 
     static let width: CGFloat = 200
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.altsLoading {
-                HStack(spacing: 8) {
-                    ProgressView().controlSize(.small)
-                    Text("Szukam alternatyw…")
-                        .font(PopupTheme.fontMeta)
-                        .foregroundStyle(.secondary)
-                }
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
-            } else if model.alternatives.isEmpty {
-                Text("Brak alternatyw")
-                    .font(PopupTheme.fontMeta)
-                    .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 9)
+            if model.showingExplanation {
+                explanationContent
             } else {
-                ForEach(Array(model.alternatives.enumerated()), id: \.offset) { _, alternative in
-                    AlternativeRow(text: alternative) { onPick(alternative) }
-                }
+                alternativesContent
             }
         }
         .frame(width: Self.width, alignment: .leading)
@@ -161,6 +148,86 @@ struct AlternativesDropdown: View {
                 .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+    }
+
+    // The learner-facing "Dlaczego tak?" view (issue #39): a back row, then the
+    // spinner or the one-line explanation (or a fallback when the fetch failed).
+    @ViewBuilder
+    private var explanationContent: some View {
+        Button(action: onBack) {
+            HStack(spacing: 6) {
+                Image(systemName: "chevron.left")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text("Dlaczego tak?")
+                    .font(PopupTheme.fontMeta)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(PopupTheme.accent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        Divider()
+        if model.explanationLoading {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Szukam wyjaśnienia…")
+                    .font(PopupTheme.fontMeta)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+        } else {
+            Text(model.explanationText.isEmpty ? "Nie udało się pobrać wyjaśnienia." : model.explanationText)
+                .font(PopupTheme.fontLead)
+                .foregroundStyle(model.explanationText.isEmpty ? Color.secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+        }
+    }
+
+    @ViewBuilder
+    private var alternativesContent: some View {
+        // Always offered (it explains the word, not the list), so it sits above
+        // whatever state the alternatives fetch is in.
+        Button(action: onExplain) {
+            HStack(spacing: 6) {
+                Image(systemName: "lightbulb")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text("Dlaczego tak?")
+                    .font(PopupTheme.fontMeta)
+                Spacer(minLength: 0)
+            }
+            .foregroundStyle(PopupTheme.accent)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        Divider()
+        if model.altsLoading {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Szukam alternatyw…")
+                    .font(PopupTheme.fontMeta)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+        } else if model.alternatives.isEmpty {
+            Text("Brak alternatyw")
+                .font(PopupTheme.fontMeta)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+        } else {
+            ForEach(Array(model.alternatives.enumerated()), id: \.offset) { _, alternative in
+                AlternativeRow(text: alternative) { onPick(alternative) }
+            }
+        }
     }
 }
 

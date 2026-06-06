@@ -7,6 +7,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onSelectFormality: (@MainActor (Formality) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
+    var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
 
     private var panel: FloatingPanel?
@@ -47,6 +48,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
             selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) },
             fetchAlternatives: { [weak self] word, translation in
                 await self?.onFetchAlternatives?(word, translation) ?? []
+            },
+            fetchExplanation: { [weak self] word, translation in
+                await self?.onFetchExplanation?(word, translation) ?? ""
             },
             pickAlternative: { [weak self] original, chosen, translation in
                 self?.onPickAlternative?(original, chosen, translation)
@@ -260,10 +264,17 @@ final class TranslationPopupController: TranslationPopupPresenting {
         switch EscKeyHandling.action(
             keyCode: keyCode,
             modifiers: NSEvent.ModifierFlags(rawValue: modifiersRawValue),
-            dropdownVisible: model.dropdownVisible
+            dropdownVisible: model.dropdownVisible,
+            explanationVisible: model.showingExplanation
         ) {
         case .passThrough:
             return false
+        case .closeExplanation:
+            // Same reasoning as closeDropdown: pure model mutation, run synchronously
+            // so a fast second Esc sees the explanation already closed and falls
+            // through to closing the dropdown.
+            model.closeExplanation()
+            return true
         case .closeDropdown:
             // closeDropdown() only mutates model state — it never touches the tap —
             // so run it synchronously. Deferring it would let a fast second Esc read
@@ -285,9 +296,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 switch EscKeyHandling.action(
                     keyCode: event.keyCode,
                     modifiers: event.modifierFlags,
-                    dropdownVisible: self.model.dropdownVisible
+                    dropdownVisible: self.model.dropdownVisible,
+                    explanationVisible: self.model.showingExplanation
                 ) {
                 case .passThrough: break
+                case .closeExplanation: self.model.closeExplanation()
                 case .closeDropdown: self.model.closeDropdown()
                 case .dismiss: self.dismiss()
                 }
