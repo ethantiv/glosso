@@ -127,6 +127,21 @@ import Testing
         #expect(model.explanationText.isEmpty)
     }
 
+    // Opening the dropdown on another word must start on the alternatives list, not
+    // inherit the prior word's explanation view (issue #39).
+    @Test func openDropdownClearsPriorExplanation() {
+        let model = PopupModel()
+        model.openDropdown(for: 1)
+        model.openExplanation()
+        model.explanationText = "bo gramatyka"
+        model.explanationLoading = false
+
+        model.openDropdown(for: 2)
+
+        #expect(model.showingExplanation == false)
+        #expect(model.explanationText.isEmpty)
+    }
+
     @Test func secondSnapshotOverridesFirst() {
         let model = PopupModel()
         model.text = "wersja A"

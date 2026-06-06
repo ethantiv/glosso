@@ -11,6 +11,7 @@ enum ExplanationParser {
            (first == "\"" && last == "\"")
             || (first == "'" && last == "'")
             || (first == "„" && last == "”")
+            || (first == "“" && last == "”")
             || (first == "„" && last == "\"") {
             trimmed = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
         }

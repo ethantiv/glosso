@@ -59,6 +59,9 @@ final class PopupModel {
         alternatives = []
         altsLoading = true
         altsRequestToken &+= 1
+        // A fresh dropdown always starts on the alternatives list, never inheriting
+        // a prior word's "Dlaczego tak?" view (issue #39).
+        closeExplanation()
     }
 
     func closeDropdown() {
