@@ -24,6 +24,7 @@ enum DirectionDetector {
         case .russian: .russian
         case .spanish: .spanish
         case .dutch: .dutch
+        case .french: .french
         }
     }
 }

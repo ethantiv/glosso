@@ -2,14 +2,14 @@ import Testing
 @testable import Glosso
 
 @Suite struct SecondLanguageTests {
-    // The five offered languages, locked so the Settings picker and the persisted
+    // The offered languages, locked so the Settings picker and the persisted
     // raw values can't silently drift.
-    @Test func offersExactlyTheFiveConfiguredLanguages() {
-        #expect(SecondLanguage.allCases == [.english, .german, .russian, .spanish, .dutch])
+    @Test func offersExactlyTheConfiguredLanguages() {
+        #expect(SecondLanguage.allCases == [.english, .german, .russian, .spanish, .dutch, .french])
     }
 
     @Test func rawValuesArePersistenceCodes() {
-        #expect(SecondLanguage.allCases.map(\.rawValue) == ["en", "de", "ru", "es", "nl"])
+        #expect(SecondLanguage.allCases.map(\.rawValue) == ["en", "de", "ru", "es", "nl", "fr"])
     }
 
     // englishName feeds the prompt instruction; a wrong value would translate to
@@ -20,12 +20,14 @@ import Testing
         #expect(SecondLanguage.russian.englishName == "Russian")
         #expect(SecondLanguage.spanish.englishName == "Spanish")
         #expect(SecondLanguage.dutch.englishName == "Dutch")
+        #expect(SecondLanguage.french.englishName == "French")
     }
 
     @Test func displayNamesArePolish() {
         #expect(SecondLanguage.russian.displayName == "rosyjski")
         #expect(SecondLanguage.spanish.displayName == "hiszpański")
         #expect(SecondLanguage.dutch.displayName == "niderlandzki")
+        #expect(SecondLanguage.french.displayName == "francuski")
     }
 
     // The popup arrow reads "PL → XX" / "XX → PL" off the second language's code.

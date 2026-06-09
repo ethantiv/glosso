@@ -59,7 +59,7 @@ struct SettingsView: View {
                     }
                     .labelsHidden()
                     .accessibilityLabel("Model Ollama")
-                    .fixedSize()
+                    .frame(maxWidth: 200)
                 }
                 rowDivider
                 row("Lista modeli", nil) {

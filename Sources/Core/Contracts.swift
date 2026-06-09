@@ -10,6 +10,7 @@ enum SecondLanguage: String, CaseIterable, Sendable {
     case russian = "ru"
     case spanish = "es"
     case dutch = "nl"
+    case french = "fr"
 
     /// Polish display name for the Settings picker.
     var displayName: String {
@@ -19,6 +20,7 @@ enum SecondLanguage: String, CaseIterable, Sendable {
         case .russian: "rosyjski"
         case .spanish: "hiszpański"
         case .dutch: "niderlandzki"
+        case .french: "francuski"
         }
     }
 
@@ -30,6 +32,7 @@ enum SecondLanguage: String, CaseIterable, Sendable {
         case .russian: "Russian"
         case .spanish: "Spanish"
         case .dutch: "Dutch"
+        case .french: "French"
         }
     }
 
@@ -41,6 +44,7 @@ enum SecondLanguage: String, CaseIterable, Sendable {
         case .russian: "RU"
         case .spanish: "ES"
         case .dutch: "NL"
+        case .french: "FR"
         }
     }
 }
