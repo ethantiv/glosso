@@ -29,6 +29,14 @@ struct ResizeGripArea: NSViewRepresentable {
         // attempt — the non-activating panel's app is usually inactive.
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
+        // Lets FloatingPanel's isMovableByWindowBackground gate answer "not over
+        // the grip" at mouseDown time — the race-free way to keep a grip drag
+        // from also moving the window (see FloatingPanel).
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            (window as? FloatingPanel)?.resizeGripView = self
+        }
+
         // Cursor rects are only serviced reliably on key windows, and this
         // panel never becomes key — drive the cursor from a tracking area.
         override func updateTrackingAreas() {
@@ -36,7 +44,7 @@ struct ResizeGripArea: NSViewRepresentable {
             trackingAreas.forEach(removeTrackingArea)
             addTrackingArea(NSTrackingArea(
                 rect: .zero,
-                options: [.activeAlways, .inVisibleRect, .cursorUpdate, .mouseEnteredAndExited],
+                options: [.activeAlways, .inVisibleRect, .cursorUpdate],
                 owner: self,
                 userInfo: nil
             ))
@@ -44,19 +52,6 @@ struct ResizeGripArea: NSViewRepresentable {
 
         override func cursorUpdate(with event: NSEvent) {
             NSCursor.frameResize(position: .bottomRight, directions: .all).set()
-        }
-
-        // NSHostingView computes the window's background-drag region itself and
-        // ignores this subview's mouseDownCanMoveWindow (empirically: the window
-        // moved along while the grip was dragged), so suspend background
-        // dragging while the cursor is over the grip — toggling at mouseDown
-        // is too late for the precomputed region.
-        override func mouseEntered(with event: NSEvent) {
-            window?.isMovableByWindowBackground = false
-        }
-
-        override func mouseExited(with event: NSEvent) {
-            window?.isMovableByWindowBackground = true
         }
 
         // Deltas come from NSEvent.mouseLocation (screen coordinates): the

@@ -1,6 +1,10 @@
 import AppKit
 
 final class FloatingPanel: NSPanel {
+    // Registered by ResizeGripArea.GripView so the background-drag gate below
+    // knows where the grip is.
+    weak var resizeGripView: NSView?
+
     init(contentRect: CGRect) {
         // No .resizable here: on a resizable window AppKit stops honoring the
         // hosting controller's preferredContentSize, which kills the grow-as-
@@ -38,4 +42,21 @@ final class FloatingPanel: NSPanel {
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
+
+    // AppKit samples this property synchronously while processing the mouseDown
+    // that would start a background drag, so answering per mouse position keeps
+    // the window movable everywhere except over the resize grip — dragging the
+    // grip must only resize. Nothing reactive works there: the grip NSView's
+    // mouseDownCanMoveWindow is ignored (the drag decision is made above the
+    // hit-tested view), and toggling this property from mouseEntered races a
+    // fast grab.
+    override var isMovableByWindowBackground: Bool {
+        get {
+            guard super.isMovableByWindowBackground else { return false }
+            guard let grip = resizeGripView, grip.window === self else { return true }
+            let pointInGrip = grip.convert(mouseLocationOutsideOfEventStream, from: nil)
+            return !grip.bounds.contains(pointInGrip)
+        }
+        set { super.isMovableByWindowBackground = newValue }
+    }
 }
