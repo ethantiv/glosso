@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build a Release .app and zip it for a drag-to-/Applications install.
+# Build a Release .app, zip it, and install it into /Applications.
 # Free-team signed (Apple Development) — for your own Mac, not notarized.
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -27,4 +27,13 @@ rm -f "$ZIP"
 # ditto (not zip) preserves the code signature and resource forks.
 ditto -c -k --keepParent "$APP" "$ZIP"
 echo "✅ Spakowano → $ZIP"
-echo "   Rozpakuj i przeciągnij $SCHEME.app do /Applications (pojawi się w Launchpad/Spotlight)."
+
+APP_DEST="/Applications/$SCHEME.app"
+if pgrep -xq "$SCHEME"; then
+  osascript -e "tell application \"$SCHEME\" to quit" || true
+  sleep 1
+fi
+rm -rf "$APP_DEST"
+ditto "$APP" "$APP_DEST"
+open "$APP_DEST"
+echo "✅ Zainstalowano i uruchomiono → $APP_DEST (pojawi się w Launchpad/Spotlight)."
