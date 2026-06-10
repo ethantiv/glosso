@@ -27,15 +27,12 @@ struct PopupView: View {
     // top-left by the same amount to keep the visible panel under the cursor.
     static let shadowMargin: CGFloat = 24
 
-    // Floor for user resizing (panel.contentMinSize): the panes at their design
-    // widths plus the Divider and the shadow margins, so the card never clips at
-    // minimum width; 160 is the controller's initial content height.
-    static var minWindowSize: CGSize {
-        CGSize(
-            width: sourceWidth + translationWidth + 1 + 2 * shadowMargin,
-            height: 160 + 2 * shadowMargin
-        )
-    }
+    // The resize grip stretches the content, not the window: each pane gets half
+    // of the dragged width, and the height cap rises by the dragged height — the
+    // window then follows the grown content (see PopupModel.sizeDelta). Dragging
+    // down is only visible once the text is tall enough to hit the cap.
+    private var paneWidthDelta: CGFloat { model.sizeDelta.width / 2 }
+    private var paneMaxHeight: CGFloat { Self.maxPaneHeight + model.sizeDelta.height }
 
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
     // Replace overwrites the still-selected source in place, so unlike the
@@ -63,10 +60,6 @@ struct PopupView: View {
                 dropdownOverlay(anchors: anchors)
             }
             .padding(Self.shadowMargin)
-            // Pinning the root frame to the grip-chosen size makes it the content's
-            // ideal size, so the window follows through the same preferredContentSize
-            // pipeline that grows it during streaming (see PopupModel.userSize).
-            .frame(width: model.userSize?.width, height: model.userSize?.height)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
             .onAppear {
@@ -101,9 +94,6 @@ struct PopupView: View {
 
     // Window growth that hosts the open dropdown. Not animated: animating it would
     // fire didResizeNotification (and its top-left re-pin) every frame mid-grow.
-    // Once the user has resized the window (sizingOptions cleared) it no longer
-    // grows for this reservation — the card squeezes inside the fixed window
-    // instead, clipping only near minimum height with a tall dropdown.
     private var reservedBottom: CGFloat {
         model.dropdownVisible ? estimatedDropdownHeight + dropdownGap + dropdownShadowPad : 0
     }
@@ -287,7 +277,7 @@ struct PopupView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: model.userResized ? .infinity : Self.maxPaneHeight)
+                .frame(maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
             } else if model.phase == .capturing {
                 // Only shimmer while we are still waiting for the selection; an
@@ -297,11 +287,7 @@ struct PopupView: View {
             }
         }
         .padding(PopupTheme.padPane)
-        .frame(
-            minWidth: Self.sourceWidth,
-            maxWidth: model.userResized ? .infinity : Self.sourceWidth,
-            alignment: .leading
-        )
+        .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
         .background(PopupTheme.paneRecessed)
     }
 
@@ -317,11 +303,7 @@ struct PopupView: View {
             content
         }
         .padding(PopupTheme.padPane)
-        .frame(
-            minWidth: Self.translationWidth,
-            maxWidth: model.userResized ? .infinity : Self.translationWidth,
-            alignment: .leading
-        )
+        .frame(width: Self.translationWidth + paneWidthDelta, alignment: .leading)
         .overlay(alignment: .top) {
             if showAccentEdge {
                 Rectangle()
@@ -357,7 +339,7 @@ struct PopupView: View {
             ScrollView {
                 wordFlow
             }
-            .frame(maxHeight: model.userResized ? .infinity : Self.maxPaneHeight)
+            .frame(maxHeight: paneMaxHeight)
             .scrollBounceBehavior(.basedOnSize)
         }
     }

@@ -19,7 +19,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
-    private var resizeStartSize: CGSize?
+    private var resizeStartDelta: CGSize?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
 
@@ -36,8 +36,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
-        model.userSize = nil
-        resizeStartSize = nil
+        model.sizeDelta = .zero
+        resizeStartDelta = nil
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -178,27 +178,18 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.phase = .capturing
     }
 
-    // Resizes the window from the PopupView grip — by feeding the size into the
-    // model, never by setFrame: the hosting machinery reverts a competing
-    // setFrame to the content's ideal size within the same call (even after
-    // clearing sizingOptions). With the root frame pinned to userSize that ideal
-    // size IS the user's size, the window follows, and the didResize observer
-    // keeps the top-left pinned so it grows down-right under the grip. The min
-    // clamp never exceeds the starting size: a short translation's window is
-    // naturally smaller than minWindowSize and must not jump on the first drag.
+    // Resizes from the PopupView grip — by stretching the content (pane widths
+    // and height cap via model.sizeDelta), never the window: the hosting
+    // machinery reverts a competing setFrame to the content's ideal size within
+    // the same call, and pinning the root frame recurses the layout until the
+    // stack overflows. The window follows the grown content through the same
+    // preferredContentSize pipeline as streaming, and the didResize observer
+    // keeps the top-left pinned so it grows down-right under the grip.
     private func handleResizeDrag(translation: CGSize, ended: Bool) {
-        guard let panel else { return }
-        if resizeStartSize == nil { resizeStartSize = panel.frame.size }
-        guard let startSize = resizeStartSize else { return }
-        model.userSize = PanelResize.size(
-            startSize: startSize,
-            translation: translation,
-            minSize: CGSize(
-                width: min(startSize.width, PopupView.minWindowSize.width),
-                height: min(startSize.height, PopupView.minWindowSize.height)
-            )
-        )
-        if ended { resizeStartSize = nil }
+        if resizeStartDelta == nil { resizeStartDelta = model.sizeDelta }
+        guard let startDelta = resizeStartDelta else { return }
+        model.sizeDelta = PanelResize.delta(startDelta: startDelta, translation: translation)
+        if ended { resizeStartDelta = nil }
     }
 
     func dismiss() {

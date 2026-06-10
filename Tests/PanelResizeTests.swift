@@ -4,26 +4,21 @@ import Testing
 
 @Suite("PanelResize")
 struct PanelResizeTests {
-    let start = CGSize(width: 600, height: 200)
-    let minSize = CGSize(width: 400, height: 150)
-
-    @Test("dragging the grip right and down grows the window size")
+    @Test("dragging the grip right and down grows the content delta")
     func growsWithDrag() {
-        let size = PanelResize.size(
-            startSize: start,
-            translation: CGSize(width: 50, height: 30),
-            minSize: minSize
+        let delta = PanelResize.delta(
+            startDelta: CGSize(width: 40, height: 20),
+            translation: CGSize(width: 50, height: 30)
         )
-        #expect(size == CGSize(width: 650, height: 230))
+        #expect(delta == CGSize(width: 90, height: 50))
     }
 
-    @Test("shrinking clamps at the minimum size so the card layout never collapses")
-    func clampsAtMinimumSize() {
-        let size = PanelResize.size(
-            startSize: start,
-            translation: CGSize(width: -500, height: -500),
-            minSize: minSize
+    @Test("shrinking clamps at zero so the panes never go below their design size")
+    func clampsAtZero() {
+        let delta = PanelResize.delta(
+            startDelta: CGSize(width: 40, height: 20),
+            translation: CGSize(width: -500, height: -500)
         )
-        #expect(size == minSize)
+        #expect(delta == .zero)
     }
 }

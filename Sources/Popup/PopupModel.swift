@@ -18,13 +18,14 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
-    // Window size chosen by dragging the resize grip; nil = content-driven sizing.
-    // PopupView pins its root frame to it, so the user's size flows through the
-    // same preferredContentSize pipeline that grows the window during streaming —
-    // a competing setFrame is reverted by that pipeline within the same call.
+    // Extra size added by dragging the resize grip. It widens the panes and
+    // raises their height cap in PopupView, and the window then follows the
+    // grown content through the same preferredContentSize pipeline that grows
+    // it during streaming. The window itself is never resized directly: a
+    // competing setFrame is reverted by that pipeline within the same call,
+    // and pinning the root frame recurses the layout until the stack overflows.
     // Reset on each fresh present().
-    var userSize: CGSize? = nil
-    var userResized: Bool { userSize != nil }
+    var sizeDelta: CGSize = .zero
 
     // Per-word alternatives dropdown (issue #17). An empty `alternatives` once
     // `altsLoading` clears means "none / fetch failed" — the coordinator collapses

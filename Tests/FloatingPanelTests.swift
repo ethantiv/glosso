@@ -12,11 +12,4 @@ struct FloatingPanelTests {
         #expect(panel.styleMask.contains(.borderless))
         #expect(!panel.styleMask.contains(.resizable))
     }
-
-    @Test("minimum window size never clips the card at its design pane widths")
-    func minWindowSizeCoversDesignLayout() {
-        let minSize = PopupView.minWindowSize
-        #expect(minSize.width >= 561 + 2 * PopupView.shadowMargin)
-        #expect(minSize.height >= 160 + 2 * PopupView.shadowMargin)
-    }
 }
