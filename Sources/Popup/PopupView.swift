@@ -25,6 +25,16 @@ struct PopupView: View {
     // top-left by the same amount to keep the visible panel under the cursor.
     static let shadowMargin: CGFloat = 24
 
+    // Floor for user resizing (panel.contentMinSize): the panes at their design
+    // widths plus the Divider and the shadow margins, so the card never clips at
+    // minimum width; 160 is the controller's initial content height.
+    static var minWindowSize: CGSize {
+        CGSize(
+            width: sourceWidth + translationWidth + 1 + 2 * shadowMargin,
+            height: 160 + 2 * shadowMargin
+        )
+    }
+
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
     // Replace overwrites the still-selected source in place, so unlike the
     // non-destructive Copy it must not be offered for a truncated result — one
@@ -84,6 +94,9 @@ struct PopupView: View {
 
     // Window growth that hosts the open dropdown. Not animated: animating it would
     // fire didResizeNotification (and its top-left re-pin) every frame mid-grow.
+    // Once the user has resized the window (sizingOptions cleared) it no longer
+    // grows for this reservation — the card squeezes inside the fixed window
+    // instead, clipping only near minimum height with a tall dropdown.
     private var reservedBottom: CGFloat {
         model.dropdownVisible ? estimatedDropdownHeight + dropdownGap + dropdownShadowPad : 0
     }
@@ -240,7 +253,7 @@ struct PopupView: View {
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                 }
-                .frame(maxHeight: Self.maxPaneHeight)
+                .frame(maxHeight: model.userResized ? .infinity : Self.maxPaneHeight)
                 .scrollBounceBehavior(.basedOnSize)
             } else if model.phase == .capturing {
                 // Only shimmer while we are still waiting for the selection; an
@@ -250,7 +263,11 @@ struct PopupView: View {
             }
         }
         .padding(PopupTheme.padPane)
-        .frame(width: Self.sourceWidth, alignment: .leading)
+        .frame(
+            minWidth: Self.sourceWidth,
+            maxWidth: model.userResized ? .infinity : Self.sourceWidth,
+            alignment: .leading
+        )
         .background(PopupTheme.paneRecessed)
     }
 
@@ -266,7 +283,11 @@ struct PopupView: View {
             content
         }
         .padding(PopupTheme.padPane)
-        .frame(width: Self.translationWidth, alignment: .leading)
+        .frame(
+            minWidth: Self.translationWidth,
+            maxWidth: model.userResized ? .infinity : Self.translationWidth,
+            alignment: .leading
+        )
         .overlay(alignment: .top) {
             if showAccentEdge {
                 Rectangle()
@@ -302,7 +323,7 @@ struct PopupView: View {
             ScrollView {
                 wordFlow
             }
-            .frame(maxHeight: Self.maxPaneHeight)
+            .frame(maxHeight: model.userResized ? .infinity : Self.maxPaneHeight)
             .scrollBounceBehavior(.basedOnSize)
         }
     }

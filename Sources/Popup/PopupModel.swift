@@ -18,6 +18,9 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
+    // Set when the user grabs a window edge; switches PopupView from content-driven
+    // fixed frames to fill-the-window flexible ones. Reset on each fresh present().
+    var userResized: Bool = false
 
     // Per-word alternatives dropdown (issue #17). An empty `alternatives` once
     // `altsLoading` clears means "none / fetch failed" — the coordinator collapses

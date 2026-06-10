@@ -19,6 +19,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
+    private var liveResizeObserver: NSObjectProtocol?
+    // The panel retains the hosting controller via contentViewController; kept here
+    // only so the live-resize handler can clear its sizingOptions.
+    private weak var host: NSHostingController<PopupView>?
+    private var userSized = false
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
 
@@ -35,6 +40,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
+        model.userResized = false
+        userSized = false
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -61,6 +68,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // longer text instead of clipping it (capped per pane, then scrolls).
         host.sizingOptions = [.preferredContentSize]
         panel.contentViewController = host
+        self.host = host
+        // Constrains only user resizing (the panel is borderless, frame == content);
+        // content-driven sizing above is free to start smaller.
+        panel.contentMinSize = PopupView.minWindowSize
 
         // visibleFrame excludes the menu bar / notch and the Dock, so the window
         // never opens partly behind them.
@@ -89,7 +100,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             forName: NSWindow.didResizeNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
-                guard let self, let panel, self.panel === panel else { return }
+                guard let self, let panel, self.panel === panel, !self.userSized else { return }
                 let screenFrame = panel.screen?.visibleFrame ?? self.anchorScreenFrame
                 var topLeft = self.anchorTopLeft
                 let minTopY = screenFrame.minY + panel.frame.height
@@ -99,6 +110,24 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 if topLeft.x > maxLeftX { topLeft.x = maxLeftX }
                 if topLeft.x < screenFrame.minX { topLeft.x = screenFrame.minX }
                 panel.setFrameTopLeftPoint(topLeft)
+            }
+        }
+
+        // willStartLiveResize fires only for a user edge-drag, never for the
+        // programmatic resizes the hosting controller drives — an unambiguous
+        // "user took over" signal. From then on (for this panel's lifetime) the
+        // user owns the size: SwiftUI stops imposing its preferred size, the
+        // view switches to flexible fill-the-window frames, and the re-pin
+        // observer above goes inert so dragging the top/left edge isn't yanked
+        // back to the anchored top-left.
+        liveResizeObserver = NotificationCenter.default.addObserver(
+            forName: NSWindow.willStartLiveResizeNotification, object: panel, queue: .main
+        ) { [weak self, weak panel] _ in
+            MainActor.assumeIsolated {
+                guard let self, let panel, self.panel === panel else { return }
+                self.userSized = true
+                self.model.userResized = true
+                self.host?.sizingOptions = []
             }
         }
 
@@ -197,12 +226,15 @@ final class TranslationPopupController: TranslationPopupPresenting {
     // tearDown() and the close-button path so each tears the same state down once.
     private func releaseResources() {
         removeMonitors()
-        for observer in [closeObserver, resizeObserver, moveObserver].compactMap({ $0 }) {
+        for observer in [closeObserver, resizeObserver, moveObserver, liveResizeObserver]
+            .compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
         }
         closeObserver = nil
         resizeObserver = nil
         moveObserver = nil
+        liveResizeObserver = nil
+        host = nil
     }
 
     private func installMonitors() {
