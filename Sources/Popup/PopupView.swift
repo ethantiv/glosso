@@ -107,37 +107,28 @@ struct PopupView: View {
     // MARK: Resize grip
 
     // The window has no system resize edges (see FloatingPanel), so this grip in
-    // the card's bottom-right corner is the only resize affordance. The drag
-    // translation is window-stable: the window's top-left stays pinned while it
-    // grows down-right, so SwiftUI's global space doesn't shift under the gesture.
+    // the card's bottom-right corner is the only resize affordance. The hit area
+    // and cursor live in ResizeGripArea (an NSView): a SwiftUI DragGesture here
+    // would never fire — window-background dragging claims the mouseDown first.
     private var resizeGrip: some View {
-        Path { path in
-            path.move(to: CGPoint(x: 11, y: 3))
-            path.addLine(to: CGPoint(x: 3, y: 11))
-            path.move(to: CGPoint(x: 11, y: 7))
-            path.addLine(to: CGPoint(x: 7, y: 11))
-        }
-        .stroke(
-            hoverGrip ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary),
-            style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
-        )
-        .frame(width: 14, height: 14)
-        .padding(4)
-        .contentShape(Rectangle())
-        .onHover { hovering in
-            hoverGrip = hovering
-            if hovering {
-                NSCursor.frameResize(position: .bottomRight, directions: .all).push()
-            } else {
-                NSCursor.pop()
-            }
-        }
-        .gesture(
-            DragGesture(minimumDistance: 1, coordinateSpace: .global)
-                .onChanged { resizeBy($0.translation, false) }
-                .onEnded { resizeBy($0.translation, true) }
-        )
-        .accessibilityLabel("Zmień rozmiar okna")
+        ResizeGripArea(resizeBy: resizeBy)
+            .frame(width: 22, height: 22)
+            .overlay(
+                Path { path in
+                    path.move(to: CGPoint(x: 11, y: 3))
+                    path.addLine(to: CGPoint(x: 3, y: 11))
+                    path.move(to: CGPoint(x: 11, y: 7))
+                    path.addLine(to: CGPoint(x: 7, y: 11))
+                }
+                .stroke(
+                    hoverGrip ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary),
+                    style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
+                )
+                .frame(width: 14, height: 14)
+                .allowsHitTesting(false)
+            )
+            .onHover { hoverGrip = $0 }
+            .accessibilityLabel("Zmień rozmiar okna")
     }
 
     // MARK: Header
