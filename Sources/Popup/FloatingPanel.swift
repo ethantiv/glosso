@@ -1,10 +1,6 @@
 import AppKit
 
 final class FloatingPanel: NSPanel {
-    // Registered by ResizeGripArea.GripView so the background-drag gate below
-    // knows where the grip is.
-    weak var resizeGripView: NSView?
-
     init(contentRect: CGRect) {
         // No .resizable here: on a resizable window AppKit stops honoring the
         // hosting controller's preferredContentSize, which kills the grow-as-
@@ -28,8 +24,7 @@ final class FloatingPanel: NSPanel {
         isReleasedWhenClosed = false
         hidesOnDeactivate = false
         // Borderless has no title bar, so a transparent background lets the
-        // rounded SwiftUI material show through. Dragging anywhere on the
-        // background moves the panel (no title bar grab).
+        // rounded SwiftUI material show through.
         isOpaque = false
         backgroundColor = .clear
         // The shadow is drawn in SwiftUI (PopupView), not by AppKit: the system
@@ -37,26 +32,17 @@ final class FloatingPanel: NSPanel {
         // protruding part with a hard contour. SwiftUI shadows on the panel and the
         // dropdown stay independent and soft.
         hasShadow = false
-        isMovableByWindowBackground = true
+        // Moving is a SwiftUI WindowDragGesture on the card (PopupView), NOT the
+        // background-drag machinery: with this enabled the draggable region is
+        // published to the WindowServer ahead of time for the whole window, so
+        // dragging the resize grip also moved the window — and nothing reactive
+        // can stop it (the grip NSView's mouseDownCanMoveWindow is ignored, and
+        // hover/mouseDown toggles or a dynamic getter lose to the pre-published
+        // region). The gesture can't fire over the grip by construction: events
+        // over an NSViewRepresentable never enter SwiftUI's gesture graph.
+        isMovableByWindowBackground = false
     }
 
     override var canBecomeKey: Bool { false }
     override var canBecomeMain: Bool { false }
-
-    // AppKit samples this property synchronously while processing the mouseDown
-    // that would start a background drag, so answering per mouse position keeps
-    // the window movable everywhere except over the resize grip — dragging the
-    // grip must only resize. Nothing reactive works there: the grip NSView's
-    // mouseDownCanMoveWindow is ignored (the drag decision is made above the
-    // hit-tested view), and toggling this property from mouseEntered races a
-    // fast grab.
-    override var isMovableByWindowBackground: Bool {
-        get {
-            guard super.isMovableByWindowBackground else { return false }
-            guard let grip = resizeGripView, grip.window === self else { return true }
-            let pointInGrip = grip.convert(mouseLocationOutsideOfEventStream, from: nil)
-            return !grip.bounds.contains(pointInGrip)
-        }
-        set { super.isMovableByWindowBackground = newValue }
-    }
 }

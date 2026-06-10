@@ -10,6 +10,7 @@ struct PopupView: View {
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
+    let reportSize: (CGSize) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = false
@@ -22,10 +23,10 @@ struct PopupView: View {
     private static let maxPaneHeight: CGFloat = 400
 
     // Transparent inset reserved inside the window for the panel's SwiftUI shadow to
-    // render unclipped (radius 16 + y 6 ≈ 22 below, less on the sides/top). The panel
+    // render unclipped (radius 4 + y 1 = 5 below, less on the sides/top). The panel
     // sits this far from the window edges, so the controller shifts the window
     // top-left by the same amount to keep the visible panel under the cursor.
-    static let shadowMargin: CGFloat = 24
+    static let shadowMargin: CGFloat = 6
 
     // The resize grip stretches the content, not the window: each pane gets half
     // of the dragged width (rounded down — fractional widths destabilize the
@@ -56,12 +57,25 @@ struct PopupView: View {
         // (issue #32). The dropdown is always placed below the word into this space.
         panelBox
             .overlay(alignment: .bottomTrailing) { resizeGrip }
-            .shadow(color: .black.opacity(0.20), radius: 16, y: 6)
+            .shadow(color: .black.opacity(0.10), radius: 4, y: 1)
             .padding(.bottom, reservedBottom)
             .overlayPreferenceValue(WordAnchorKey.self) { anchors in
                 dropdownOverlay(anchors: anchors)
             }
             .padding(Self.shadowMargin)
+            // fixedSize lays the card out at its IDEAL size regardless of the
+            // window: under a concrete proposal the panes' ScrollViews greedily
+            // fill the window instead of reporting their content size. The
+            // measured ideal goes to the controller, which owns the window frame.
+            // Pinned top-leading: while the window catches up (one runloop turn),
+            // the card must not float centered with a detached shadow halo.
+            .fixedSize()
+            .onGeometryChange(for: CGSize.self) { proxy in
+                proxy.size
+            } action: { size in
+                reportSize(size)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
             .onAppear {
@@ -92,6 +106,14 @@ struct PopupView: View {
             RoundedRectangle(cornerRadius: PopupTheme.rWindow)
                 .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
         )
+        // Drag-to-move lives here, not in isMovableByWindowBackground (see
+        // FloatingPanel): interactive children (buttons, words, the tone pill)
+        // win SwiftUI's gesture arbitration over this ancestor gesture, and it
+        // cannot fire over the resize grip — events over an NSViewRepresentable
+        // never reach SwiftUI's gesture graph. The panel never becomes key, so
+        // the gesture only receives events with window-activation events allowed.
+        .gesture(WindowDragGesture())
+        .allowsWindowActivationEvents()
     }
 
     // Window growth that hosts the open dropdown. Not animated: animating it would

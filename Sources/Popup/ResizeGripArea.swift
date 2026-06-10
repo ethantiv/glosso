@@ -29,14 +29,6 @@ struct ResizeGripArea: NSViewRepresentable {
         // attempt — the non-activating panel's app is usually inactive.
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
 
-        // Lets FloatingPanel's isMovableByWindowBackground gate answer "not over
-        // the grip" at mouseDown time — the race-free way to keep a grip drag
-        // from also moving the window (see FloatingPanel).
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            (window as? FloatingPanel)?.resizeGripView = self
-        }
-
         // Cursor rects are only serviced reliably on key windows, and this
         // panel never becomes key — drive the cursor from a tracking area.
         override func updateTrackingAreas() {

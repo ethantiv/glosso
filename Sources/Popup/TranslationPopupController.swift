@@ -12,9 +12,14 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
-    // The panel retains the hosting view via contentView; kept here so the
-    // controller can read its intrinsic (ideal) size when applying the frame.
-    private weak var hostView: AutoSizingHostingView?
+    // The latest ideal window size reported by PopupView's onGeometryChange —
+    // the only size source: the hosting view runs with sizingOptions = [], so
+    // no AppKit constraint machinery can resize (or drift) the window on its
+    // own. (.intrinsicContentSize installs real size constraints and the
+    // window's autolayout then repositions the window with a drifting origin;
+    // .preferredContentSize resizes the window from inside window layout and
+    // recurses to a stack overflow under a live grip drag.)
+    private var contentIdealSize: CGSize?
     private var eventTap: CFMachPort?
     private var tapRunLoopSource: CFRunLoopSource?
     private var escMonitor: Any?
@@ -47,7 +52,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // reads NSWindow.title to name the window for VoiceOver; without it the
         // popup announces as an untitled window. Resolved to the direction in update().
         panel.title = "Tłumaczenie"
-        let hostView = AutoSizingHostingView(rootView: PopupView(
+        let hostView = NSHostingView(rootView: PopupView(
             model: model,
             close: { [weak self] in self?.dismiss() },
             selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) },
@@ -63,17 +68,21 @@ final class TranslationPopupController: TranslationPopupPresenting {
             replace: { [weak self] text in self?.onReplace?(text) },
             resizeBy: { [weak self] translation, ended in
                 self?.handleResizeDrag(translation: translation, ended: ended)
+            },
+            reportSize: { [weak self] size in
+                self?.contentIdealSize = size
+                self?.scheduleApplyContentSize()
             }
         ))
-        hostView.onIdealSizeChange = { [weak self] in self?.scheduleApplyContentSize() }
+        hostView.sizingOptions = []
         panel.contentView = hostView
-        self.hostView = hostView
 
         // Measure the content before positioning, so the panel opens at its
-        // real size instead of growing right after appearing.
+        // real size instead of growing right after appearing — the layout pass
+        // delivers the first reportSize.
+        contentIdealSize = nil
         hostView.layoutSubtreeIfNeeded()
-        var size = hostView.intrinsicContentSize
-        if size.width <= 0 || size.height <= 0 { size = Self.defaultSize }
+        let size = contentIdealSize ?? Self.defaultSize
 
         // visibleFrame excludes the menu bar / notch and the Dock, so the window
         // never opens partly behind them.
@@ -86,7 +95,12 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // The window carries a transparent shadow margin around the visible panel, so
         // shift its top-left up-left by that margin to keep the panel under the cursor.
         let margin = PopupView.shadowMargin
-        let topLeft = CGPoint(x: panelTopLeft.x - margin, y: panelTopLeft.y + margin)
+        // Whole points: a fractional anchor can never equal the window's
+        // integral frame, which would make applyContentSize re-apply forever.
+        let topLeft = CGPoint(
+            x: (panelTopLeft.x - margin).rounded(),
+            y: (panelTopLeft.y + margin).rounded()
+        )
         anchorTopLeft = topLeft
         anchorScreenFrame = frame
         panel.setFrame(
@@ -186,13 +200,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
     // taller panel would drop its bottom edge below the visible frame (behind
     // the Dock).
     private func applyContentSize() {
-        guard let panel, let hostView else { return }
-        var size = hostView.intrinsicContentSize
+        guard let panel, var size = contentIdealSize else { return }
         guard size.width > 0, size.height > 0 else { return }
         // Integral sizes: fractional window metrics round differently at the
         // window level and the mismatch re-invalidates layout forever.
         size = CGSize(width: size.width.rounded(.up), height: size.height.rounded(.up))
-        guard size != panel.frame.size else { return }
         let screenFrame = panel.screen?.visibleFrame ?? anchorScreenFrame
         var topLeft = anchorTopLeft
         let minTopY = screenFrame.minY + size.height
@@ -201,10 +213,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
         let maxLeftX = screenFrame.maxX - size.width
         if topLeft.x > maxLeftX { topLeft.x = maxLeftX }
         if topLeft.x < screenFrame.minX { topLeft.x = screenFrame.minX }
-        panel.setFrame(
-            CGRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height),
-            display: true
+        // Compare the whole target frame, not just the size: any drift of the
+        // origin (whatever its source) must be corrected back to the anchor.
+        let target = CGRect(
+            x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height
         )
+        guard target != panel.frame else { return }
+        panel.setFrame(target, display: true)
     }
 
     // Resizes from the PopupView grip — live, by stretching the content
@@ -249,8 +264,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         }
         closeObserver = nil
         moveObserver = nil
-        hostView?.onIdealSizeChange = nil
-        hostView = nil
+        contentIdealSize = nil
     }
 
     private func installMonitors() {
