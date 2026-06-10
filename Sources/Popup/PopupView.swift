@@ -28,10 +28,12 @@ struct PopupView: View {
     static let shadowMargin: CGFloat = 24
 
     // The resize grip stretches the content, not the window: each pane gets half
-    // of the dragged width, and the height cap rises by the dragged height — the
-    // window then follows the grown content (see PopupModel.sizeDelta). Dragging
-    // down is only visible once the text is tall enough to hit the cap.
-    private var paneWidthDelta: CGFloat { model.sizeDelta.width / 2 }
+    // of the dragged width (rounded down — fractional widths destabilize the
+    // window's ideal-size pipeline), and the height cap rises by the dragged
+    // height; the window then follows the grown content (see
+    // PopupModel.sizeDelta). Dragging down is only visible once the text is
+    // tall enough to hit the cap.
+    private var paneWidthDelta: CGFloat { (model.sizeDelta.width / 2).rounded(.down) }
     private var paneMaxHeight: CGFloat { Self.maxPaneHeight + model.sizeDelta.height }
 
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }

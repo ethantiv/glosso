@@ -21,4 +21,13 @@ struct PanelResizeTests {
         )
         #expect(delta == .zero)
     }
+
+    @Test("delta is rounded to whole points — fractional content widths destabilize the window's ideal-size pipeline")
+    func roundsToWholePoints() {
+        let delta = PanelResize.delta(
+            startDelta: .zero,
+            translation: CGSize(width: 10.4, height: 7.6)
+        )
+        #expect(delta == CGSize(width: 10, height: 8))
+    }
 }

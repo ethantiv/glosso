@@ -19,7 +19,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
-    private var resizeStartDelta: CGSize?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
 
@@ -37,7 +36,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.direction = .unknown
         model.formality = formality
         model.sizeDelta = .zero
-        resizeStartDelta = nil
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -178,18 +176,15 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.phase = .capturing
     }
 
-    // Resizes from the PopupView grip — by stretching the content (pane widths
-    // and height cap via model.sizeDelta), never the window: the hosting
-    // machinery reverts a competing setFrame to the content's ideal size within
-    // the same call, and pinning the root frame recurses the layout until the
-    // stack overflows. The window follows the grown content through the same
-    // preferredContentSize pipeline as streaming, and the didResize observer
-    // keeps the top-left pinned so it grows down-right under the grip.
+    // Resizes from the PopupView grip — by stretching the content once per
+    // finished drag (see PopupModel.sizeDelta for why neither the window nor
+    // the per-mouse-event content size can be driven directly). The window
+    // follows the grown content through the same preferredContentSize pipeline
+    // as streaming, and the didResize observer keeps the top-left pinned so it
+    // grows down-right under the grip.
     private func handleResizeDrag(translation: CGSize, ended: Bool) {
-        if resizeStartDelta == nil { resizeStartDelta = model.sizeDelta }
-        guard let startDelta = resizeStartDelta else { return }
-        model.sizeDelta = PanelResize.delta(startDelta: startDelta, translation: translation)
-        if ended { resizeStartDelta = nil }
+        guard ended else { return }
+        model.sizeDelta = PanelResize.delta(startDelta: model.sizeDelta, translation: translation)
     }
 
     func dismiss() {
