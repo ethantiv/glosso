@@ -117,7 +117,7 @@ struct PopupView: View {
     }
 
     // Window growth that hosts the open dropdown. Not animated: animating it would
-    // fire didResizeNotification (and its top-left re-pin) every frame mid-grow.
+    // report a new ideal size (and a window setFrame) every frame mid-grow.
     private var reservedBottom: CGFloat {
         model.dropdownVisible ? estimatedDropdownHeight + dropdownGap + dropdownShadowPad : 0
     }
@@ -127,7 +127,7 @@ struct PopupView: View {
     // The window has no system resize edges (see FloatingPanel), so this grip in
     // the card's bottom-right corner is the only resize affordance. The hit area
     // and cursor live in ResizeGripArea (an NSView): a SwiftUI DragGesture here
-    // would never fire — window-background dragging claims the mouseDown first.
+    // never receives the drag (see ResizeGripArea).
     private var resizeGrip: some View {
         ResizeGripArea(resizeBy: resizeBy)
             .frame(width: 22, height: 22)
@@ -139,7 +139,7 @@ struct PopupView: View {
                     path.addLine(to: CGPoint(x: 7, y: 11))
                 }
                 .stroke(
-                    hoverGrip ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary),
+                    hoverGrip ? HierarchicalShapeStyle.secondary : .tertiary,
                     style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
                 )
                 .frame(width: 14, height: 14)

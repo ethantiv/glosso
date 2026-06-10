@@ -2,11 +2,11 @@ import AppKit
 
 final class FloatingPanel: NSPanel {
     init(contentRect: CGRect) {
-        // No .resizable here: on a resizable window AppKit stops honoring the
-        // hosting controller's preferredContentSize, which kills the grow-as-
-        // tokens-stream behavior, and its edge zones don't respond on a panel
-        // that never becomes key anyway. User resizing is handled by the custom
-        // grip in PopupView instead.
+        // No .resizable here: its system edge-resize zones would fight the
+        // controller-owned window frame (applyContentSize is the single writer;
+        // competing setFrame calls get reverted synchronously), and they don't
+        // respond on a panel that never becomes key anyway. User resizing is
+        // handled by the custom grip in PopupView instead.
         super.init(
             contentRect: contentRect,
             styleMask: [.nonactivatingPanel, .borderless],

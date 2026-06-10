@@ -27,6 +27,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var closeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
     private var sizeApplyScheduled = false
+    // applyContentSize's own clamped setFrame fires didMoveNotification; the
+    // moveObserver must skip it, or a temporary clamp (panel too tall for the
+    // screen) gets baked into the anchor and the panel never returns down once
+    // the content shrinks back.
+    private var isApplyingFrame = false
     private var resizeStartDelta: CGSize?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
@@ -46,6 +51,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.formality = formality
         model.sizeDelta = .zero
         resizeStartDelta = nil
+        contentIdealSize = nil
 
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: Self.defaultSize))
         // Borderless windows have no visible title, but macOS accessibility still
@@ -66,21 +72,29 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 self?.onPickAlternative?(original, chosen, translation)
             },
             replace: { [weak self] text in self?.onReplace?(text) },
-            resizeBy: { [weak self] translation, ended in
-                self?.handleResizeDrag(translation: translation, ended: ended)
+            // Both sizing closures are gated on panel identity (like the didMove
+            // and willClose observers): the torn-down presentation's host view can
+            // fire a late onGeometryChange, and its grip can keep delivering an
+            // in-flight drag — neither may write into the new panel's sizing.
+            resizeBy: { [weak self, weak panel] translation, ended in
+                guard let self, let panel, self.panel === panel else { return }
+                self.handleResizeDrag(translation: translation, ended: ended)
             },
-            reportSize: { [weak self] size in
-                self?.contentIdealSize = size
-                self?.scheduleApplyContentSize()
+            reportSize: { [weak self, weak panel] size in
+                guard let self, let panel, self.panel === panel else { return }
+                self.contentIdealSize = size
+                self.scheduleApplyContentSize()
             }
         ))
         hostView.sizingOptions = []
+        // The identity guards above need the panel to be current before the first
+        // layout pass fires reportSize.
+        self.panel = panel
         panel.contentView = hostView
 
         // Measure the content before positioning, so the panel opens at its
         // real size instead of growing right after appearing — the layout pass
         // delivers the first reportSize.
-        contentIdealSize = nil
         hostView.layoutSubtreeIfNeeded()
         let size = contentIdealSize ?? Self.defaultSize
 
@@ -97,18 +111,18 @@ final class TranslationPopupController: TranslationPopupPresenting {
         let margin = PopupView.shadowMargin
         // Whole points: a fractional anchor can never equal the window's
         // integral frame, which would make applyContentSize re-apply forever.
-        let topLeft = CGPoint(
+        anchorTopLeft = CGPoint(
             x: (panelTopLeft.x - margin).rounded(),
             y: (panelTopLeft.y + margin).rounded()
         )
-        anchorTopLeft = topLeft
         anchorScreenFrame = frame
-        panel.setFrame(
-            CGRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height),
-            display: false
-        )
+        // The initial frame flows through the same single writer as every later
+        // size change, so present() can't drift from applyContentSize (rounding,
+        // clamping) and trigger a corrective setFrame one runloop turn after
+        // the panel appears.
+        contentIdealSize = size
+        applyContentSize()
         panel.orderFrontRegardless()
-        self.panel = panel
 
         // The window is movable, so a user drag re-anchors where the content-
         // driven growth in applyContentSize() should grow from; otherwise it
@@ -117,8 +131,17 @@ final class TranslationPopupController: TranslationPopupPresenting {
             forName: NSWindow.didMoveNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
-                guard let self, let panel, self.panel === panel else { return }
-                self.anchorTopLeft = CGPoint(x: panel.frame.minX, y: panel.frame.maxY)
+                guard let self, let panel, self.panel === panel,
+                      !self.isApplyingFrame else { return }
+                // Whole points, same invariant as the present() anchor: a
+                // fractional anchor can never equal the window's integral frame.
+                self.anchorTopLeft = CGPoint(
+                    x: panel.frame.minX.rounded(),
+                    y: panel.frame.maxY.rounded()
+                )
+                // Keep the nil-screen fallback in applyContentSize coherent with
+                // wherever the user dragged the window.
+                self.anchorScreenFrame = panel.screen?.visibleFrame ?? self.anchorScreenFrame
             }
         }
 
@@ -205,21 +228,25 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // Integral sizes: fractional window metrics round differently at the
         // window level and the mismatch re-invalidates layout forever.
         size = CGSize(width: size.width.rounded(.up), height: size.height.rounded(.up))
-        let screenFrame = panel.screen?.visibleFrame ?? anchorScreenFrame
-        var topLeft = anchorTopLeft
-        let minTopY = screenFrame.minY + size.height
-        if topLeft.y < minTopY { topLeft.y = minTopY }
-        if topLeft.y > screenFrame.maxY { topLeft.y = screenFrame.maxY }
-        let maxLeftX = screenFrame.maxX - size.width
-        if topLeft.x > maxLeftX { topLeft.x = maxLeftX }
-        if topLeft.x < screenFrame.minX { topLeft.x = screenFrame.minX }
+        // The window deliberately overhangs the visible frame by the transparent
+        // shadow margin (present() shifts it so the visible card sits under the
+        // cursor); clamp against the margin-expanded frame, or the first apply
+        // near a screen edge would yank that shift back.
+        let margin = PopupView.shadowMargin
+        let screenFrame = (panel.screen?.visibleFrame ?? anchorScreenFrame)
+            .insetBy(dx: -margin, dy: -margin)
+        let topLeft = PanelPositioning.clampedTopLeft(
+            anchorTopLeft, panelSize: size, screenFrame: screenFrame
+        )
         // Compare the whole target frame, not just the size: any drift of the
         // origin (whatever its source) must be corrected back to the anchor.
         let target = CGRect(
             x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height
         )
         guard target != panel.frame else { return }
+        isApplyingFrame = true
         panel.setFrame(target, display: true)
+        isApplyingFrame = false
     }
 
     // Resizes from the PopupView grip — live, by stretching the content
@@ -228,10 +255,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
     // sizing flows through that one path; the window is never resized from
     // the drag handler itself.
     private func handleResizeDrag(translation: CGSize, ended: Bool) {
-        if resizeStartDelta == nil { resizeStartDelta = model.sizeDelta }
-        guard let startDelta = resizeStartDelta else { return }
-        model.sizeDelta = PanelResize.delta(startDelta: startDelta, translation: translation)
-        if ended { resizeStartDelta = nil }
+        let startDelta = resizeStartDelta ?? model.sizeDelta
+        resizeStartDelta = ended ? nil : startDelta
+        let newDelta = PanelResize.delta(startDelta: startDelta, translation: translation)
+        // Whole-point deltas make consecutive drag events frequently identical,
+        // and @Observable notifies on every write — skip no-op writes so a slow
+        // drag doesn't re-layout the whole PopupView per mouse event.
+        if newDelta != model.sizeDelta { model.sizeDelta = newDelta }
     }
 
     func dismiss() {

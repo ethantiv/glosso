@@ -11,19 +11,34 @@ enum PanelPositioning {
         screenFrame: CGRect,
         offset: CGFloat = 12
     ) -> CGPoint {
-        var topLeftX = mouse.x + offset
-        var topLeftY = mouse.y
+        clampedTopLeft(
+            CGPoint(x: mouse.x + offset, y: mouse.y),
+            panelSize: panelSize,
+            screenFrame: screenFrame
+        )
+    }
+
+    /// Clamps a panel top-left so the whole panel stays inside `screenFrame`.
+    /// Shared by the initial mouse-relative placement above and the controller's
+    /// applyContentSize so the two can't disagree. When the panel is larger than
+    /// the frame, the left and top edges win: the header (with the close button)
+    /// stays reachable while the overflow drops off the bottom/right.
+    static func clampedTopLeft(
+        _ topLeft: CGPoint,
+        panelSize: CGSize,
+        screenFrame: CGRect
+    ) -> CGPoint {
+        var clamped = topLeft
 
         let maxX = screenFrame.maxX - panelSize.width
-        if topLeftX > maxX { topLeftX = maxX }
-        if topLeftX < screenFrame.minX { topLeftX = screenFrame.minX }
+        if clamped.x > maxX { clamped.x = maxX }
+        if clamped.x < screenFrame.minX { clamped.x = screenFrame.minX }
 
         // top-left y is the panel's top edge; the bottom edge sits height below it.
-        let maxTopY = screenFrame.maxY
         let minTopY = screenFrame.minY + panelSize.height
-        if topLeftY > maxTopY { topLeftY = maxTopY }
-        if topLeftY < minTopY { topLeftY = minTopY }
+        if clamped.y < minTopY { clamped.y = minTopY }
+        if clamped.y > screenFrame.maxY { clamped.y = screenFrame.maxY }
 
-        return CGPoint(x: topLeftX, y: topLeftY)
+        return clamped
     }
 }

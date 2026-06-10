@@ -5,8 +5,8 @@ import Testing
 @MainActor
 @Suite("FloatingPanel")
 struct FloatingPanelTests {
-    @Test("panel stays a non-activating borderless window without .resizable, which would stop AppKit from honoring the content-driven size")
-    func styleMaskKeepsContentDrivenSizing() {
+    @Test("panel stays a non-activating borderless window without .resizable, whose system edge-resize would fight the controller-owned window frame")
+    func styleMaskKeepsControllerOwnedSizing() {
         let panel = FloatingPanel(contentRect: .zero)
         #expect(panel.styleMask.contains(.nonactivatingPanel))
         #expect(panel.styleMask.contains(.borderless))

@@ -1,11 +1,10 @@
 import AppKit
 import SwiftUI
 
-// AppKit-level hit area for the resize grip. A SwiftUI DragGesture never sees
-// the drag here: with isMovableByWindowBackground the window-move tracking
-// claims the mouseDown unless the hit-tested NSView opts out, and NSHostingView
-// only opts out real controls (Button etc.), not bare gesture modifiers. This
-// NSView opts out itself and reports the drag as a cumulative translation in
+// AppKit-level hit area for the resize grip: a SwiftUI DragGesture in this spot
+// never receives the drag on the non-activating panel, and the grip needs
+// acceptsFirstMouse (first click while the app is inactive) and tracking-area
+// cursor handling anyway. Reports the drag as a cumulative translation in
 // SwiftUI's y-down convention, matching the resizeBy callback.
 struct ResizeGripArea: NSViewRepresentable {
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
@@ -24,7 +23,6 @@ struct ResizeGripArea: NSViewRepresentable {
         var resizeBy: ((_ translation: CGSize, _ ended: Bool) -> Void)?
         private var startMouse: CGPoint?
 
-        override var mouseDownCanMoveWindow: Bool { false }
         // Without this the first click on the grip is eaten as an activation
         // attempt — the non-activating panel's app is usually inactive.
         override func acceptsFirstMouse(for event: NSEvent?) -> Bool { true }
@@ -36,7 +34,7 @@ struct ResizeGripArea: NSViewRepresentable {
             trackingAreas.forEach(removeTrackingArea)
             addTrackingArea(NSTrackingArea(
                 rect: .zero,
-                options: [.activeAlways, .inVisibleRect, .cursorUpdate],
+                options: [.activeAlways, .inVisibleRect, .cursorUpdate, .mouseEnteredAndExited],
                 owner: self,
                 userInfo: nil
             ))
@@ -44,6 +42,15 @@ struct ResizeGripArea: NSViewRepresentable {
 
         override func cursorUpdate(with event: NSEvent) {
             NSCursor.frameResize(position: .bottomRight, directions: .all).set()
+        }
+
+        // The exit-side restore of a cursorUpdate area rides the key window's
+        // cursor servicing, which this never-key panel doesn't get — restore the
+        // arrow explicitly or the resize cursor sticks over the whole popup.
+        // Exit events aren't delivered mid-drag (no .enabledDuringMouseDrag), so
+        // the resize cursor survives a drag that leaves the grip.
+        override func mouseExited(with event: NSEvent) {
+            NSCursor.arrow.set()
         }
 
         // Deltas come from NSEvent.mouseLocation (screen coordinates): the
