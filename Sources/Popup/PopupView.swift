@@ -63,6 +63,10 @@ struct PopupView: View {
                 dropdownOverlay(anchors: anchors)
             }
             .padding(Self.shadowMargin)
+            // Pinning the root frame to the grip-chosen size makes it the content's
+            // ideal size, so the window follows through the same preferredContentSize
+            // pipeline that grows it during streaming (see PopupModel.userSize).
+            .frame(width: model.userSize?.width, height: model.userSize?.height)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
             .onAppear {

@@ -18,9 +18,13 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
-    // Set when the user grabs a window edge; switches PopupView from content-driven
-    // fixed frames to fill-the-window flexible ones. Reset on each fresh present().
-    var userResized: Bool = false
+    // Window size chosen by dragging the resize grip; nil = content-driven sizing.
+    // PopupView pins its root frame to it, so the user's size flows through the
+    // same preferredContentSize pipeline that grows the window during streaming —
+    // a competing setFrame is reverted by that pipeline within the same call.
+    // Reset on each fresh present().
+    var userSize: CGSize? = nil
+    var userResized: Bool { userSize != nil }
 
     // Per-word alternatives dropdown (issue #17). An empty `alternatives` once
     // `altsLoading` clears means "none / fetch failed" — the coordinator collapses

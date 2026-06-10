@@ -19,11 +19,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
-    // The panel retains the hosting controller via contentViewController; kept here
-    // only so the resize-grip handler can clear its sizingOptions.
-    private weak var host: NSHostingController<PopupView>?
-    private var userSized = false
-    private var resizeStartFrame: CGRect?
+    private var resizeStartSize: CGSize?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
 
@@ -40,9 +36,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
-        model.userResized = false
-        userSized = false
-        resizeStartFrame = nil
+        model.userSize = nil
+        resizeStartSize = nil
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -72,7 +67,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // longer text instead of clipping it (capped per pane, then scrolls).
         host.sizingOptions = [.preferredContentSize]
         panel.contentViewController = host
-        self.host = host
 
         // visibleFrame excludes the menu bar / notch and the Dock, so the window
         // never opens partly behind them.
@@ -101,7 +95,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             forName: NSWindow.didResizeNotification, object: panel, queue: .main
         ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
-                guard let self, let panel, self.panel === panel, !self.userSized else { return }
+                guard let self, let panel, self.panel === panel else { return }
                 let screenFrame = panel.screen?.visibleFrame ?? self.anchorScreenFrame
                 var topLeft = self.anchorTopLeft
                 let minTopY = screenFrame.minY + panel.frame.height
@@ -184,28 +178,27 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.phase = .capturing
     }
 
-    // Resizes the window from the PopupView grip. The first drag of a panel's
-    // lifetime is the "user took over" switch: SwiftUI stops imposing its
-    // preferred content size, the view goes to flexible fill-the-window frames,
-    // and the top-left re-pin observer goes inert (our own setFrame calls would
-    // otherwise re-trigger it). The top-left stays pinned by PanelResize, so the
-    // window grows down-right under the grip.
+    // Resizes the window from the PopupView grip — by feeding the size into the
+    // model, never by setFrame: the hosting machinery reverts a competing
+    // setFrame to the content's ideal size within the same call (even after
+    // clearing sizingOptions). With the root frame pinned to userSize that ideal
+    // size IS the user's size, the window follows, and the didResize observer
+    // keeps the top-left pinned so it grows down-right under the grip. The min
+    // clamp never exceeds the starting size: a short translation's window is
+    // naturally smaller than minWindowSize and must not jump on the first drag.
     private func handleResizeDrag(translation: CGSize, ended: Bool) {
         guard let panel else { return }
-        if resizeStartFrame == nil {
-            resizeStartFrame = panel.frame
-            userSized = true
-            model.userResized = true
-            host?.sizingOptions = []
-        }
-        guard let startFrame = resizeStartFrame else { return }
-        let frame = PanelResize.frame(
-            startFrame: startFrame,
+        if resizeStartSize == nil { resizeStartSize = panel.frame.size }
+        guard let startSize = resizeStartSize else { return }
+        model.userSize = PanelResize.size(
+            startSize: startSize,
             translation: translation,
-            minSize: PopupView.minWindowSize
+            minSize: CGSize(
+                width: min(startSize.width, PopupView.minWindowSize.width),
+                height: min(startSize.height, PopupView.minWindowSize.height)
+            )
         )
-        panel.setFrame(frame, display: true)
-        if ended { resizeStartFrame = nil }
+        if ended { resizeStartSize = nil }
     }
 
     func dismiss() {
@@ -239,7 +232,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
         closeObserver = nil
         resizeObserver = nil
         moveObserver = nil
-        host = nil
     }
 
     private func installMonitors() {
