@@ -210,7 +210,7 @@ private struct SettingsWindowConfigurator: NSViewRepresentable {
             for name in [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification] {
                 observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
                     guard let window = note.object as? NSWindow else { return }
-                    self?.configure(window)
+                    MainActor.assumeIsolated { self?.configure(window) }
                 })
             }
         }
