@@ -36,7 +36,7 @@ struct ResizeGripArea: NSViewRepresentable {
             trackingAreas.forEach(removeTrackingArea)
             addTrackingArea(NSTrackingArea(
                 rect: .zero,
-                options: [.activeAlways, .inVisibleRect, .cursorUpdate],
+                options: [.activeAlways, .inVisibleRect, .cursorUpdate, .mouseEnteredAndExited],
                 owner: self,
                 userInfo: nil
             ))
@@ -44,6 +44,19 @@ struct ResizeGripArea: NSViewRepresentable {
 
         override func cursorUpdate(with event: NSEvent) {
             NSCursor.frameResize(position: .bottomRight, directions: .all).set()
+        }
+
+        // NSHostingView computes the window's background-drag region itself and
+        // ignores this subview's mouseDownCanMoveWindow (empirically: the window
+        // moved along while the grip was dragged), so suspend background
+        // dragging while the cursor is over the grip — toggling at mouseDown
+        // is too late for the precomputed region.
+        override func mouseEntered(with event: NSEvent) {
+            window?.isMovableByWindowBackground = false
+        }
+
+        override func mouseExited(with event: NSEvent) {
+            window?.isMovableByWindowBackground = true
         }
 
         // Deltas come from NSEvent.mouseLocation (screen coordinates): the

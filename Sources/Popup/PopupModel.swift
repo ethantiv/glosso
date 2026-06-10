@@ -18,17 +18,11 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
-    // Extra size added by the resize grip, applied once per finished drag. It
-    // widens the panes and raises their height cap in PopupView, and the window
-    // then follows the grown content through the same preferredContentSize
-    // pipeline that grows it during streaming. The window is never resized
-    // directly (a competing setFrame is reverted within the same call, pinning
-    // the root frame recurses the layout until the stack overflows), and the
-    // delta must not change on every mouse event either: continuous ideal-size
-    // changes make NSHostingView.updateAnimatedWindowSize re-enter window
-    // layout until the stack overflows. One discrete change per mouse-up is the
-    // same stable shape as the dropdown's reservedBottom growth (issue #32).
-    // Reset on each fresh present().
+    // Extra size added by dragging the resize grip. It widens the panes and
+    // raises their height cap in PopupView; the hosting view then reports the
+    // grown ideal size and TranslationPopupController.applyContentSize() moves
+    // the window frame — the same single path that grows the window during
+    // streaming. Reset on each fresh present().
     var sizeDelta: CGSize = .zero
 
     // Per-word alternatives dropdown (issue #17). An empty `alternatives` once
