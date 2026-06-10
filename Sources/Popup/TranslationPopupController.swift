@@ -127,8 +127,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // The window is movable, so a user drag re-anchors where the content-
         // driven growth in applyContentSize() should grow from; otherwise it
         // would yank the window back to the original spot on the next token.
+        // queue must stay nil: window notifications post on the main thread and
+        // a nil queue delivers synchronously inside setFrame, while the
+        // isApplyingFrame guard is still set — with queue: .main the block runs
+        // a runloop turn later, after the flag is cleared, and a clamped
+        // self-applied frame would get baked into the anchor.
         moveObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.didMoveNotification, object: panel, queue: .main
+            forName: NSWindow.didMoveNotification, object: panel, queue: nil
         ) { [weak self, weak panel] _ in
             MainActor.assumeIsolated {
                 guard let self, let panel, self.panel === panel,
