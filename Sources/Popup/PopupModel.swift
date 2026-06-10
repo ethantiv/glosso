@@ -18,6 +18,12 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
+    // Extra size added by dragging the resize grip. It widens the panes and
+    // raises their height cap in PopupView; the hosting view then reports the
+    // grown ideal size and TranslationPopupController.applyContentSize() moves
+    // the window frame — the same single path that grows the window during
+    // streaming. Reset on each fresh present().
+    var sizeDelta: CGSize = .zero
 
     // Per-word alternatives dropdown (issue #17). An empty `alternatives` once
     // `altsLoading` clears means "none / fetch failed" — the coordinator collapses

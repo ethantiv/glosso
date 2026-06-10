@@ -59,8 +59,8 @@ struct FlowItemKindKey: LayoutValueKey {
 }
 
 /// A wrapping flow of inline items (macOS-native `Layout`). Reports a correct
-/// `sizeThatFits` so the panel's `preferredContentSize` sizing and top-left re-pin
-/// keep working. A `.popover`/`Menu` is deliberately NOT used for the dropdown
+/// `sizeThatFits` so the controller-owned window sizing (PopupView's ideal-size
+/// measuring) keeps working. A `.popover`/`Menu` is deliberately NOT used for the dropdown
 /// (see AlternativesDropdown) — it would force key-window status and break the
 /// non-activating panel's focus model.
 struct FlowLayout: Layout {
