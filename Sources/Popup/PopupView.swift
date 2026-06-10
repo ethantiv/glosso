@@ -9,11 +9,13 @@ struct PopupView: View {
     let fetchExplanation: (_ word: String, _ translation: String) async -> String
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
+    let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = false
     @State private var appeared = false
     @State private var hoverWordID: Int?
+    @State private var hoverGrip = false
 
     private static let sourceWidth: CGFloat = 268
     private static let translationWidth: CGFloat = 300
@@ -54,6 +56,7 @@ struct PopupView: View {
         // it grows the window downward and the dropdown floats there unclipped
         // (issue #32). The dropdown is always placed below the word into this space.
         panelBox
+            .overlay(alignment: .bottomTrailing) { resizeGrip }
             .shadow(color: .black.opacity(0.20), radius: 16, y: 6)
             .padding(.bottom, reservedBottom)
             .overlayPreferenceValue(WordAnchorKey.self) { anchors in
@@ -99,6 +102,42 @@ struct PopupView: View {
     // instead, clipping only near minimum height with a tall dropdown.
     private var reservedBottom: CGFloat {
         model.dropdownVisible ? estimatedDropdownHeight + dropdownGap + dropdownShadowPad : 0
+    }
+
+    // MARK: Resize grip
+
+    // The window has no system resize edges (see FloatingPanel), so this grip in
+    // the card's bottom-right corner is the only resize affordance. The drag
+    // translation is window-stable: the window's top-left stays pinned while it
+    // grows down-right, so SwiftUI's global space doesn't shift under the gesture.
+    private var resizeGrip: some View {
+        Path { path in
+            path.move(to: CGPoint(x: 11, y: 3))
+            path.addLine(to: CGPoint(x: 3, y: 11))
+            path.move(to: CGPoint(x: 11, y: 7))
+            path.addLine(to: CGPoint(x: 7, y: 11))
+        }
+        .stroke(
+            hoverGrip ? AnyShapeStyle(.secondary) : AnyShapeStyle(.tertiary),
+            style: StrokeStyle(lineWidth: 1.5, lineCap: .round)
+        )
+        .frame(width: 14, height: 14)
+        .padding(4)
+        .contentShape(Rectangle())
+        .onHover { hovering in
+            hoverGrip = hovering
+            if hovering {
+                NSCursor.frameResize(position: .bottomRight, directions: .all).push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+        .gesture(
+            DragGesture(minimumDistance: 1, coordinateSpace: .global)
+                .onChanged { resizeBy($0.translation, false) }
+                .onEnded { resizeBy($0.translation, true) }
+        )
+        .accessibilityLabel("Zmień rozmiar okna")
     }
 
     // MARK: Header

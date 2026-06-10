@@ -19,11 +19,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var closeObserver: NSObjectProtocol?
     private var resizeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
-    private var liveResizeObserver: NSObjectProtocol?
     // The panel retains the hosting controller via contentViewController; kept here
-    // only so the live-resize handler can clear its sizingOptions.
+    // only so the resize-grip handler can clear its sizingOptions.
     private weak var host: NSHostingController<PopupView>?
     private var userSized = false
+    private var resizeStartFrame: CGRect?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
 
@@ -42,6 +42,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.formality = formality
         model.userResized = false
         userSized = false
+        resizeStartFrame = nil
 
         let size = Self.defaultSize
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: size))
@@ -62,16 +63,16 @@ final class TranslationPopupController: TranslationPopupPresenting {
             pickAlternative: { [weak self] original, chosen, translation in
                 self?.onPickAlternative?(original, chosen, translation)
             },
-            replace: { [weak self] text in self?.onReplace?(text) }
+            replace: { [weak self] text in self?.onReplace?(text) },
+            resizeBy: { [weak self] translation, ended in
+                self?.handleResizeDrag(translation: translation, ended: ended)
+            }
         ))
         // Let the SwiftUI content drive the window size so the panel grows to fit
         // longer text instead of clipping it (capped per pane, then scrolls).
         host.sizingOptions = [.preferredContentSize]
         panel.contentViewController = host
         self.host = host
-        // Constrains only user resizing (the panel is borderless, frame == content);
-        // content-driven sizing above is free to start smaller.
-        panel.contentMinSize = PopupView.minWindowSize
 
         // visibleFrame excludes the menu bar / notch and the Dock, so the window
         // never opens partly behind them.
@@ -110,24 +111,6 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 if topLeft.x > maxLeftX { topLeft.x = maxLeftX }
                 if topLeft.x < screenFrame.minX { topLeft.x = screenFrame.minX }
                 panel.setFrameTopLeftPoint(topLeft)
-            }
-        }
-
-        // willStartLiveResize fires only for a user edge-drag, never for the
-        // programmatic resizes the hosting controller drives — an unambiguous
-        // "user took over" signal. From then on (for this panel's lifetime) the
-        // user owns the size: SwiftUI stops imposing its preferred size, the
-        // view switches to flexible fill-the-window frames, and the re-pin
-        // observer above goes inert so dragging the top/left edge isn't yanked
-        // back to the anchored top-left.
-        liveResizeObserver = NotificationCenter.default.addObserver(
-            forName: NSWindow.willStartLiveResizeNotification, object: panel, queue: .main
-        ) { [weak self, weak panel] _ in
-            MainActor.assumeIsolated {
-                guard let self, let panel, self.panel === panel else { return }
-                self.userSized = true
-                self.model.userResized = true
-                self.host?.sizingOptions = []
             }
         }
 
@@ -201,6 +184,30 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.phase = .capturing
     }
 
+    // Resizes the window from the PopupView grip. The first drag of a panel's
+    // lifetime is the "user took over" switch: SwiftUI stops imposing its
+    // preferred content size, the view goes to flexible fill-the-window frames,
+    // and the top-left re-pin observer goes inert (our own setFrame calls would
+    // otherwise re-trigger it). The top-left stays pinned by PanelResize, so the
+    // window grows down-right under the grip.
+    private func handleResizeDrag(translation: CGSize, ended: Bool) {
+        guard let panel else { return }
+        if resizeStartFrame == nil {
+            resizeStartFrame = panel.frame
+            userSized = true
+            model.userResized = true
+            host?.sizingOptions = []
+        }
+        guard let startFrame = resizeStartFrame else { return }
+        let frame = PanelResize.frame(
+            startFrame: startFrame,
+            translation: translation,
+            minSize: PopupView.minWindowSize
+        )
+        panel.setFrame(frame, display: true)
+        if ended { resizeStartFrame = nil }
+    }
+
     func dismiss() {
         guard let panel else { return }
         // Remove the willClose observer first so close() below doesn't re-enter
@@ -226,14 +233,12 @@ final class TranslationPopupController: TranslationPopupPresenting {
     // tearDown() and the close-button path so each tears the same state down once.
     private func releaseResources() {
         removeMonitors()
-        for observer in [closeObserver, resizeObserver, moveObserver, liveResizeObserver]
-            .compactMap({ $0 }) {
+        for observer in [closeObserver, resizeObserver, moveObserver].compactMap({ $0 }) {
             NotificationCenter.default.removeObserver(observer)
         }
         closeObserver = nil
         resizeObserver = nil
         moveObserver = nil
-        liveResizeObserver = nil
         host = nil
     }
 

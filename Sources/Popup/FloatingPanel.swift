@@ -2,13 +2,14 @@ import AppKit
 
 final class FloatingPanel: NSPanel {
     init(contentRect: CGRect) {
-        // .resizable on a borderless panel enables the system edge-drag resize
-        // zones without a title bar; resizing works even though the panel never
-        // becomes key. The hot zones sit at the window frame edge, which lies
-        // PopupView.shadowMargin outside the visible card.
+        // No .resizable here: on a resizable window AppKit stops honoring the
+        // hosting controller's preferredContentSize, which kills the grow-as-
+        // tokens-stream behavior, and its edge zones don't respond on a panel
+        // that never becomes key anyway. User resizing is handled by the custom
+        // grip in PopupView instead.
         super.init(
             contentRect: contentRect,
-            styleMask: [.nonactivatingPanel, .borderless, .resizable],
+            styleMask: [.nonactivatingPanel, .borderless],
             backing: .buffered,
             defer: false
         )

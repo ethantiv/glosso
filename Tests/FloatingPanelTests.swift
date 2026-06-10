@@ -5,12 +5,12 @@ import Testing
 @MainActor
 @Suite("FloatingPanel")
 struct FloatingPanelTests {
-    @Test("panel is user-resizable without losing its non-activating borderless style")
-    func styleMaskAllowsResizing() {
+    @Test("panel stays a non-activating borderless window without .resizable, which would stop AppKit from honoring the content-driven size")
+    func styleMaskKeepsContentDrivenSizing() {
         let panel = FloatingPanel(contentRect: .zero)
-        #expect(panel.styleMask.contains(.resizable))
         #expect(panel.styleMask.contains(.nonactivatingPanel))
         #expect(panel.styleMask.contains(.borderless))
+        #expect(!panel.styleMask.contains(.resizable))
     }
 
     @Test("minimum window size never clips the card at its design pane widths")
