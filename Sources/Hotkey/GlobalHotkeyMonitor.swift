@@ -12,17 +12,15 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
 
     private var monitor: Any?
     private var detector: any DoubleKeyDetecting
-    private let clock: any TimeSource
+    private let clock = SystemClock()
     private let changeCountProvider: @MainActor () -> Int
     private var pendingBaseline: Int?
 
     init(
         detector: any DoubleKeyDetecting = DoubleCopyDetector(),
-        clock: any TimeSource = SystemClock(),
         changeCountProvider: @escaping @MainActor () -> Int = { NSPasteboard.general.changeCount }
     ) {
         self.detector = detector
-        self.clock = clock
         self.changeCountProvider = changeCountProvider
     }
 
