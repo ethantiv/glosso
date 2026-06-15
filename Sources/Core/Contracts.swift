@@ -178,10 +178,6 @@ protocol LoginItemManaging {
     func setEnabled(_ enabled: Bool) throws
 }
 
-protocol TimeSource: Sendable {
-    func now() -> TimeInterval
-}
-
 protocol DoubleKeyDetecting: Sendable {
     mutating func registerCopy(at now: TimeInterval) -> Bool
     mutating func reset()

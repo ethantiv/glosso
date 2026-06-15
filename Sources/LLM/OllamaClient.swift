@@ -18,11 +18,21 @@ final class OllamaClient: LLMClient {
     }
 
     func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String] {
-        // Same locked invariants as translate; only the model is user-selectable.
-        var config = self.config
-        config.model = model
         let prompt = PromptBuilder.buildAlternatives(word: word, translation: translation, source: source, second: second)
-        let request = try Self.makeRequest(config: config, prompt: prompt, stream: false)
+        return AlternativesParser.parse(try await generate(prompt: prompt, model: model), original: word)
+    }
+
+    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, second: second)
+        return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
+    }
+
+    // One non-streaming generate, shared by alternatives() and explain() (issue
+    // #17/#39). Same locked invariants as translate; only the model is
+    // user-selectable per call. Returns the model's raw `response` body; each
+    // caller parses it (AlternativesParser / ExplanationParser).
+    private func generate(prompt: String, model: String) async throws -> String {
+        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false)
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
@@ -38,29 +48,7 @@ final class OllamaClient: LLMClient {
         if let message = chunk?.error { throw TranslationError.ollamaError(message) }
         guard http.statusCode == 200 else { throw TranslationError.httpStatus(http.statusCode) }
         guard let body = chunk?.response else { throw TranslationError.malformedStream }
-        return AlternativesParser.parse(body, original: word)
-    }
-
-    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
-        // Same locked invariants and non-streaming shape as alternatives (issue #39).
-        var config = self.config
-        config.model = model
-        let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, second: second)
-        let request = try Self.makeRequest(config: config, prompt: prompt, stream: false)
-        let (data, response): (Data, URLResponse)
-        do {
-            (data, response) = try await session.data(for: request)
-        } catch let error as URLError where error.code == .cancelled {
-            throw TranslationError.cancelled
-        } catch {
-            throw TranslationError.ollamaUnreachable
-        }
-        guard let http = response as? HTTPURLResponse else { throw TranslationError.ollamaUnreachable }
-        let chunk = try? JSONDecoder().decode(GenerateChunk.self, from: data)
-        if let message = chunk?.error { throw TranslationError.ollamaError(message) }
-        guard http.statusCode == 200 else { throw TranslationError.httpStatus(http.statusCode) }
-        guard let body = chunk?.response else { throw TranslationError.malformedStream }
-        return ExplanationParser.clean(body)
+        return body
     }
 
     // Shared NDJSON streaming used by translate() and reword(): only the model is
@@ -73,9 +61,7 @@ final class OllamaClient: LLMClient {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    var config = baseConfig
-                    config.model = model
-                    let request = try Self.makeRequest(config: config, prompt: prompt, stream: true)
+                    let request = try Self.makeRequest(config: baseConfig, model: model, prompt: prompt, stream: true)
                     let (bytes, response) = try await session.bytes(for: request)
 
                     guard let http = response as? HTTPURLResponse else {
@@ -148,19 +134,22 @@ final class OllamaClient: LLMClient {
 
     func prewarm(model: String) async throws {
         do {
-            var config = self.config
-            config.model = model
             // Empty prompt = load-only: Ollama loads the model and primes
             // keep_alive without running an inference pass, so a real translation
             // never has to queue behind the prewarm's own generation.
-            let request = try Self.makeRequest(config: config, prompt: "", stream: false)
+            let request = try Self.makeRequest(config: config, model: model, prompt: "", stream: false)
             _ = try await session.data(for: request)
         } catch {
             // best-effort: prewarm failures must not surface
         }
     }
 
-    private static func makeRequest(config: LLMConfig, prompt: String, stream: Bool) throws -> URLRequest {
+    // Applies the per-call model over the base config (whose empirical invariants
+    // — think:false, temperature:0, keep_alive, endpoint — stay locked) in one
+    // place, so no caller hand-copies the config to swap the model.
+    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool) throws -> URLRequest {
+        var config = baseConfig
+        config.model = model
         var request = URLRequest(url: config.endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
