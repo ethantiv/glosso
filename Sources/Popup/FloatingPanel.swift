@@ -15,9 +15,9 @@ final class FloatingPanel: NSPanel {
         )
 
         level = .floating
-        // .transient is documented as mutually exclusive with .canJoinAllSpaces;
-        // keeping both can make the panel vanish on a Space switch mid-stream.
-        collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary]
+        // No .canJoinAllSpaces: the panel stays on the Space it was opened on and is
+        // hidden on the others, instead of appearing on every desktop at once.
+        collectionBehavior = [.fullScreenAuxiliary]
         isFloatingPanel = true
         // NSPanel defaults to releasing itself on close; combined with our own
         // strong reference being dropped in dismiss() that over-releases under ARC.
