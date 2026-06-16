@@ -17,10 +17,12 @@ final class AppCoordinator {
 
     private var captureTask: Task<Void, Never>?
 
-    // Retained so the popup's tone pill can re-translate the same selection with a
-    // different formality, without the user copying again. nil until a capture lands;
-    // text and point are one unit so a new capture can't half-reset them.
-    private var lastCapture: (text: String, point: CGPoint)?
+    // Retained so the popup's tone pill and verb strip can re-run over the same
+    // selection without the user copying again. nil until a capture lands; text,
+    // point and action are one unit so a new capture can't half-reset them. The
+    // action starts at .translate and changes when the user picks another verb
+    // (issue #23); a fresh capture always resets it back to .translate.
+    private var lastCapture: (text: String, point: CGPoint, action: Action)?
 
     // The frontmost app's PID at the double-press, retained so Replace can verify
     // the source app hasn't changed before pasting back into it (issue #22).
@@ -59,6 +61,7 @@ final class AppCoordinator {
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
+        popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
         popup.onFetchAlternatives = { [weak self] word, translation in
             await self?.fetchAlternatives(word: word, translation: translation) ?? []
         }
@@ -120,7 +123,7 @@ final class AppCoordinator {
             do {
                 let text = try reader.readSelection(baselineChangeCount: baseline)
                 if Task.isCancelled { return }
-                await stream(text, at: point)
+                await stream(text, at: point, action: .translate)
                 return
             } catch CaptureError.emptyOrNonText {
                 popup.showError("Zaznaczenie nie zawiera tekstu do tłumaczenia.")
@@ -150,7 +153,7 @@ final class AppCoordinator {
         }
         if let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
             if Task.isCancelled { return }
-            await stream(axText, at: point)
+            await stream(axText, at: point, action: .translate)
             return
         }
         popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
@@ -186,7 +189,20 @@ final class AppCoordinator {
         captureTask?.cancel()
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
-            await self?.stream(capture.text, at: capture.point)
+            await self?.stream(capture.text, at: capture.point, action: capture.action)
+        }
+    }
+
+    /// The user picked a verb in the palette strip (issue #23): re-run that action
+    /// over the same captured selection and stream into the same pane. Mirrors the
+    /// formality-change path; the action is not persisted, so a fresh capture
+    /// resets it back to .translate.
+    func handleActionChange(_ action: Action) {
+        guard let capture = lastCapture else { return }
+        captureTask?.cancel()
+        popup.restartTranslation()
+        captureTask = Task { @MainActor [weak self] in
+            await self?.stream(capture.text, at: capture.point, action: action)
         }
     }
 
@@ -224,11 +240,18 @@ final class AppCoordinator {
         }
     }
 
-    private func stream(_ text: String, at point: CGPoint) async {
-        lastCapture = (text, point)
+    private func stream(_ text: String, at point: CGPoint, action: Action) async {
+        lastCapture = (text, point, action)
         let second = settings.secondLanguage
-        popup.update(direction: DirectionDetector.detect(text, second: second), sourceText: text)
-        await consume(llm.translate(text, model: settings.modelName, second: second, formality: settings.formality))
+        // The direction arrow / language pair only describe a translation; the other
+        // verbs don't translate, so the popup hides that header on a .unknown direction.
+        let direction = action == .translate
+            ? DirectionDetector.detect(text, second: second)
+            : .unknown
+        popup.update(direction: direction, sourceText: text, action: action)
+        await consume(llm.run(
+            text, action: action, model: settings.modelName,
+            second: second, formality: settings.formality, humanize: settings.humanize))
     }
 
     // Keeps the existing direction/source in place (only the result pane was reset

@@ -76,6 +76,39 @@ enum Formality: String, CaseIterable, Sendable {
     }
 }
 
+/// What the model should do with the selection, user-selectable in the popup's
+/// verb strip (issue #23). `translate` is the default — the gesture's original
+/// meaning; the rest re-run over the same captured text. Each verb is just a
+/// different prompt (see `PromptBuilder.build`); the streaming/popup stack is
+/// shared. Distinct from `LLMClient.explain(word:)`, which explains one word of a
+/// finished translation (issue #39) — `Action.explain` explains the whole selection.
+enum Action: String, CaseIterable, Sendable {
+    case translate
+    case explain
+    case summarize
+    case fixGrammar
+
+    /// Polish label for the verb strip pill.
+    var displayName: String {
+        switch self {
+        case .translate: "Tłumacz"
+        case .explain: "Wyjaśnij"
+        case .summarize: "Streść"
+        case .fixGrammar: "Popraw"
+        }
+    }
+
+    /// SF Symbol shown alongside the label in the pill.
+    var systemImage: String {
+        switch self {
+        case .translate: "character.book.closed"
+        case .explain: "lightbulb"
+        case .summarize: "text.append"
+        case .fixGrammar: "checkmark.circle"
+        }
+    }
+}
+
 enum TranslationDirection: Sendable, Equatable {
     case fromPolish(SecondLanguage)   // PL → second language
     case toPolish(SecondLanguage)     // second language → PL
@@ -143,7 +176,11 @@ struct LLMConfig: Sendable {
 }
 
 protocol LLMClient: Sendable {
-    func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error>
+    /// Runs `action` over `text` and streams the result into the popup, exactly
+    /// like the original translate path (issue #23). `humanize` only affects the
+    /// `.translate` action — it folds a "natural human writing" directive into the
+    /// prompt (default-on, toggled in Settings); the other verbs ignore it.
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
     /// Context-aware alternatives for a single word of the finished translation,
     /// for the popup's per-word dropdown (issue #17). Given the source text, the
@@ -213,6 +250,9 @@ protocol TranslationPopupPresenting: AnyObject {
     /// Fires when the user cycles the tone pill, carrying the newly selected
     /// formality so the coordinator can persist it and re-translate.
     var onSelectFormality: (@MainActor (Formality) -> Void)? { get set }
+    /// Fires when the user picks a verb in the palette strip (issue #23), so the
+    /// coordinator can re-run that action over the same captured selection.
+    var onSelectAction: (@MainActor (Action) -> Void)? { get set }
     /// Fires when the user clicks a word in the finished translation, asking the
     /// coordinator for context-aware alternatives (issue #17). Carries the clicked
     /// word and the current full translation; the coordinator fills in the source
@@ -232,7 +272,7 @@ protocol TranslationPopupPresenting: AnyObject {
     /// coordinator can paste it over the source selection (issue #22).
     var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }
     func present(at screenPoint: CGPoint, formality: Formality)
-    func update(direction: TranslationDirection, sourceText: String)
+    func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)
     func showError(_ message: String)
     func finish(truncated: Bool)

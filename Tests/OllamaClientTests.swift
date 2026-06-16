@@ -28,7 +28,7 @@ import Testing
 
         let client = makeClient()
         var tokens: [String] = []
-        for try await event in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {
+        for try await event in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {
             if case let .token(value) = event {
                 tokens.append(value)
             }
@@ -45,7 +45,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaUnreachable) {
-            for try await _ in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {}
         }
     }
 
@@ -59,7 +59,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'gemma4:26b-mlx' not found")) {
-            for try await _ in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {}
         }
     }
 
@@ -77,7 +77,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.malformedStream) {
-            for try await _ in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {}
         }
     }
 
@@ -89,7 +89,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaUnreachable) {
-            for try await _ in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {}
         }
     }
 
@@ -102,7 +102,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.httpStatus(500)) {
-            for try await _ in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {}
         }
     }
 
@@ -119,7 +119,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model not found, try pulling it first")) {
-            for try await _ in client.translate("Cześć", model: "m", second: .english, formality: .automatic) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, humanize: false) {}
         }
     }
 }

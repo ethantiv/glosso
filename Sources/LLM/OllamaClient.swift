@@ -9,8 +9,8 @@ final class OllamaClient: LLMClient {
         self.config = config
     }
 
-    func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
-        stream(prompt: PromptBuilder.build(for: text, second: second, formality: formality), model: model)
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
+        stream(prompt: PromptBuilder.build(for: text, action: action, second: second, formality: formality, humanize: humanize), model: model)
     }
 
     func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {

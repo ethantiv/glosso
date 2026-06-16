@@ -18,6 +18,9 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
+    // The selected palette verb (issue #23). Drives which header controls show and
+    // whether the result is clickable-per-word. Reset to .translate on each capture.
+    var action: Action = .translate
     // Extra size added by dragging the resize grip. It widens the panes and
     // raises their height cap in PopupView; the hosting view then reports the
     // grown ideal size and TranslationPopupController.applyContentSize() moves

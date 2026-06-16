@@ -5,6 +5,7 @@ import SwiftUI
 final class TranslationPopupController: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
+    var onSelectAction: (@MainActor (Action) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
@@ -49,6 +50,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
+        // A fresh capture always starts on Translate (issue #23); the verb is not
+        // persisted across captures.
+        model.action = .translate
         model.sizeDelta = .zero
         resizeStartDelta = nil
         contentIdealSize = nil
@@ -62,6 +66,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             model: model,
             close: { [weak self] in self?.dismiss() },
             selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) },
+            selectAction: { [weak self] action in self?.onSelectAction?(action) },
             fetchAlternatives: { [weak self] word, translation in
                 await self?.onFetchAlternatives?(word, translation) ?? []
             },
@@ -170,10 +175,13 @@ final class TranslationPopupController: TranslationPopupPresenting {
         installMonitors()
     }
 
-    func update(direction: TranslationDirection, sourceText: String) {
+    func update(direction: TranslationDirection, sourceText: String, action: Action) {
         model.direction = direction
         model.sourceText = sourceText
-        panel?.title = "Tłumaczenie · \(direction.label)"
+        model.action = action
+        panel?.title = action == .translate
+            ? "Tłumaczenie · \(direction.label)"
+            : action.displayName
     }
 
     func append(token: String) {
