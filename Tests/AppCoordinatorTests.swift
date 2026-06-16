@@ -350,6 +350,63 @@ import Testing
         #expect(llm.recorder.receivedText == nil)
     }
 
+    // MARK: Editable source (issue #44)
+
+    // Editing the source text and asking to translate again re-runs over the EDITED
+    // text, resets the pane, and keeps the current action — no re-copy needed.
+    @Test func editingSourceRerunsWithNewText() async {
+        let llm = FakeLLMClient(events: [.token("…"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+
+        popup.onRetranslate?("Poprawiony tekst")   // user edited the source and hit Przetłumacz
+        var spins = 0
+        while llm.recorder.receivedText != "Poprawiony tekst" && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(popup.restartCount == 1)
+        #expect(llm.recorder.receivedText == "Poprawiony tekst")
+        #expect(llm.recorder.receivedAction == .translate)
+        #expect(popup.presentedSourceText == "Poprawiony tekst")
+    }
+
+    // Re-translating before any text was captured is a no-op (nothing to re-run).
+    @Test func retranslateBeforeCaptureIsNoop() {
+        let llm = FakeLLMClient()
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+
+        coordinator.start()
+        popup.onRetranslate?("cokolwiek")
+
+        #expect(popup.restartCount == 0)
+        #expect(llm.recorder.receivedText == nil)
+    }
+
+    // An empty edit is ignored — there is nothing meaningful to translate.
+    @Test func retranslateWithEmptyTextIsNoop() async {
+        let llm = FakeLLMClient(events: [.token("…"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        popup.onRetranslate?("")
+
+        #expect(popup.restartCount == 0)
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+    }
+
     // MARK: Per-word alternatives (issue #17)
 
     // Clicking a word asks the model for alternatives, threading the captured
