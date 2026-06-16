@@ -344,7 +344,7 @@ import Testing
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
 
         coordinator.start()
-        popup.onSelectAction?(.explain)
+        popup.onSelectAction?(.fixGrammar)
 
         #expect(popup.restartCount == 0)
         #expect(llm.recorder.receivedText == nil)

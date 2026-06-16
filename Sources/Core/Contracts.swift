@@ -80,11 +80,10 @@ enum Formality: String, CaseIterable, Sendable {
 /// verb strip (issue #23). `translate` is the default — the gesture's original
 /// meaning; the rest re-run over the same captured text. Each verb is just a
 /// different prompt (see `PromptBuilder.build`); the streaming/popup stack is
-/// shared. Distinct from `LLMClient.explain(word:)`, which explains one word of a
-/// finished translation (issue #39) — `Action.explain` explains the whole selection.
+/// shared. (Unrelated to `LLMClient.explain(word:)`, which explains one word of a
+/// finished translation for issue #39's per-word dropdown.)
 enum Action: String, CaseIterable, Sendable {
     case translate
-    case explain
     case summarize
     case fixGrammar
 
@@ -92,18 +91,18 @@ enum Action: String, CaseIterable, Sendable {
     var displayName: String {
         switch self {
         case .translate: "Tłumacz"
-        case .explain: "Wyjaśnij"
         case .summarize: "Streść"
         case .fixGrammar: "Popraw"
         }
     }
 
-    /// SF Symbol shown alongside the label in the pill.
+    /// SF Symbol shown alongside the label in the pill. Summarize uses a list glyph
+    /// (its output is a bulleted list) — kept clear of the Replace button's
+    /// `text.insert`, which a `text.*` glyph would read too close to.
     var systemImage: String {
         switch self {
         case .translate: "character.book.closed"
-        case .explain: "lightbulb"
-        case .summarize: "text.append"
+        case .summarize: "list.bullet"
         case .fixGrammar: "checkmark.circle"
         }
     }

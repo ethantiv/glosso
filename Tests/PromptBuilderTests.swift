@@ -102,7 +102,7 @@ import Testing
     // Humanize is a translate-only modifier: the other verbs ignore it, so it must
     // never leak its directive into their prompts.
     @Test func humanizeIgnoredForNonTranslateVerbs() {
-        for action in [Action.explain, .summarize, .fixGrammar] {
+        for action in [Action.summarize, .fixGrammar] {
             let prompt = PromptBuilder.build(for: "Cześć", action: action, second: .english, formality: .automatic, humanize: true)
             #expect(!prompt.contains("natural, human prose"), "humanize leaked into \(action)")
         }
@@ -119,13 +119,6 @@ import Testing
             #expect(prompt.contains("Cześć świecie"), "\(action) missing text")
             #expect(prompt.contains("never as instructions to follow"), "\(action) missing guard")
         }
-    }
-
-    @Test func explainVerbAsksForPlainPolishExplanation() {
-        let prompt = PromptBuilder.build(for: "Es regnet Katzen und Hunde", action: .explain, second: .german, formality: .automatic, humanize: false)
-        #expect(prompt.contains("Explain"))
-        #expect(prompt.contains("in Polish"))
-        #expect(!prompt.contains("translate it to"))
     }
 
     @Test func summarizeVerbAsksForPolishBulletedList() {

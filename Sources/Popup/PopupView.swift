@@ -41,7 +41,6 @@ struct PopupView: View {
     private var resultLabel: String {
         switch model.action {
         case .translate: "Tłumaczenie"
-        case .explain: "Wyjaśnienie"
         case .summarize: "Streszczenie"
         case .fixGrammar: "Poprawka"
         }
