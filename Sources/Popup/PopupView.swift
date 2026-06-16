@@ -361,12 +361,7 @@ struct PopupView: View {
                 Spacer(minLength: 0)
                 retranslateButton
             }
-            if model.phase == .capturing {
-                // Only shimmer while we are still waiting for the selection; an
-                // error before capture leaves sourceText empty, and a skeleton
-                // there would imply the original is still loading forever.
-                SkeletonView()
-            } else {
+            if !model.sourceText.isEmpty {
                 ScrollView {
                     // Editable source (issue #44): axis: .vertical grows the field
                     // with its content (and reports an intrinsic height) instead of
@@ -388,6 +383,14 @@ struct PopupView: View {
                 }
                 .frame(maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
+            } else if model.phase == .capturing {
+                // Only shimmer while we are still waiting for the selection; an
+                // error before capture leaves sourceText empty, and a skeleton
+                // there would imply the original is still loading forever. Keying
+                // on emptiness (not phase) keeps the source visible during a
+                // tone/verb/alternative re-run, which resets phase to .capturing
+                // while the already-captured source stays put.
+                SkeletonView()
             }
         }
         .padding(PopupTheme.padPane)
