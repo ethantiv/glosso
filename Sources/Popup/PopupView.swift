@@ -5,6 +5,7 @@ struct PopupView: View {
     let model: PopupModel
     let close: () -> Void
     let selectFormality: (Formality) -> Void
+    let selectAction: (Action) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
     let fetchExplanation: (_ word: String, _ translation: String) async -> String
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
@@ -36,6 +37,14 @@ struct PopupView: View {
     // tall enough to hit the cap.
     private var paneWidthDelta: CGFloat { (model.sizeDelta.width / 2).rounded(.down) }
     private var paneMaxHeight: CGFloat { Self.maxPaneHeight + model.sizeDelta.height }
+
+    private var resultLabel: String {
+        switch model.action {
+        case .translate: "Tłumaczenie"
+        case .summarize: "Streszczenie"
+        case .fixGrammar: "Poprawka"
+        }
+    }
 
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
     // Replace overwrites the still-selected source in place, so unlike the
@@ -90,6 +99,10 @@ struct PopupView: View {
     private var panelBox: some View {
         VStack(spacing: 0) {
             header
+            // Only Translate carries a language pair and tone, so this second row
+            // shows for it alone — the other verbs drop it rather than leave an
+            // empty band (issue #23).
+            if model.action == .translate { translateControls }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
                 Divider()
@@ -151,16 +164,60 @@ struct PopupView: View {
 
     // MARK: Header
 
+    // First row: the verb strip (issue #23) and the action buttons. The strip is
+    // always present, so non-translate modes never show an empty header band.
     private var header: some View {
-        HStack(spacing: 10) {
-            languagePair
-            tonePill
+        HStack(spacing: 6) {
+            ForEach(Action.allCases, id: \.self) { action in
+                verbPill(action)
+            }
             Spacer(minLength: 0)
             headerButtons
         }
         .padding(.leading, 13)
         .padding(.trailing, PopupTheme.padWindow)
         .padding(.vertical, PopupTheme.padWindow)
+    }
+
+    // Second row, Translate-only: the language pair and tone pill.
+    private var translateControls: some View {
+        HStack(spacing: 10) {
+            languagePair
+            tonePill
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.bottom, PopupTheme.padWindow)
+    }
+
+    private func verbPill(_ action: Action) -> some View {
+        let active = model.action == action
+        return Button {
+            guard model.action != action else { return }
+            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
+                model.action = action
+            }
+            // Switching verbs re-runs from scratch, so the pre-reword result no
+            // longer applies — drop the undo snapshot (mirrors the tone pill).
+            model.clearUndo()
+            selectAction(action)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: action.systemImage)
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text(action.displayName)
+                    .font(PopupTheme.fontMeta)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("\(action.displayName) zaznaczenie")
+        .accessibilityLabel("\(action.displayName) zaznaczenie")
+        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -320,7 +377,7 @@ struct PopupView: View {
     private var translationPane: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                label("Tłumaczenie")
+                label(resultLabel)
                 if showLiveDot { LiveDot() }
                 Spacer(minLength: 0)
             }
@@ -357,11 +414,20 @@ struct PopupView: View {
                     .foregroundStyle(.primary)
             }
         case .done:
-            // Words become individually clickable (issue #17); this drops
-            // drag-to-select on the result, but the header Copy button still
-            // copies the whole translation.
             ScrollView {
-                wordFlow
+                // Per-word alternatives (#17/#39) only make sense for a translation,
+                // so only Translate gets the clickable word flow (which drops
+                // drag-to-select); the other verbs render plain selectable text.
+                if model.action == .translate {
+                    wordFlow
+                } else {
+                    Text(model.text)
+                        .font(PopupTheme.fontLead)
+                        .foregroundStyle(.primary)
+                        .textSelection(.enabled)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
             }
             .frame(maxHeight: paneMaxHeight)
             .scrollBounceBehavior(.basedOnSize)

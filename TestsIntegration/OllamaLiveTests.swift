@@ -20,7 +20,7 @@ import Testing
 
         let client = OllamaClient()
         var output = ""
-        for try await event in client.translate("Dzień dobry", model: LLMConfig.default.model, second: .english, formality: .automatic) {
+        for try await event in client.run("Dzień dobry", action: .translate, model: LLMConfig.default.model, second: .english, formality: .automatic, humanize: false) {
             if case let .token(value) = event {
                 output += value
             }

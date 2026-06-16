@@ -96,6 +96,13 @@ struct SettingsView: View {
             }
 
             group("Ogólne") {
+                row("Uczłowiecz tłumaczenia", "Wynik brzmi naturalnie, bez znamion pisma AI") {
+                    Toggle("", isOn: $store.humanize)
+                        .labelsHidden()
+                        .accessibilityLabel("Uczłowiecz tłumaczenia")
+                        .toggleStyle(.switch)
+                }
+                rowDivider
                 row("Uruchamiaj przy logowaniu", "Startuje cicho w menu barze po zalogowaniu") {
                     Toggle("", isOn: $store.launchAtLogin)
                         .labelsHidden()

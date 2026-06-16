@@ -25,6 +25,8 @@ struct FakeLLMClient: LLMClient {
         var receivedModel: String?
         var receivedSecond: SecondLanguage?
         var receivedFormality: Formality?
+        var receivedAction: Action?
+        var receivedHumanize: Bool?
         var prewarmModel: String?
         // alternatives(...)
         var altWord: String?
@@ -77,11 +79,13 @@ struct FakeLLMClient: LLMClient {
         self.explanationError = explanationError
     }
 
-    func translate(_ text: String, model: String, second: SecondLanguage, formality: Formality) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
         recorder.receivedModel = model
         recorder.receivedSecond = second
         recorder.receivedFormality = formality
+        recorder.receivedAction = action
+        recorder.receivedHumanize = humanize
         return makeStream()
     }
 
@@ -184,6 +188,7 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
+    var onSelectAction: (@MainActor (Action) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
@@ -191,6 +196,7 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?
+    private(set) var presentedAction: Action?
     private(set) var presentedFormality: Formality?
     private(set) var dismissCount = 0
     private(set) var restartCount = 0
@@ -203,9 +209,10 @@ final class FakePopup: TranslationPopupPresenting {
         presented = true
         presentedFormality = formality
     }
-    func update(direction: TranslationDirection, sourceText: String) {
+    func update(direction: TranslationDirection, sourceText: String, action: Action) {
         presentedDirection = direction
         presentedSourceText = sourceText
+        presentedAction = action
     }
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }

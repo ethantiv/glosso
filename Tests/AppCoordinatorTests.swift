@@ -289,6 +289,67 @@ import Testing
         #expect(llm.recorder.receivedText == nil)
     }
 
+    // MARK: Action palette (issue #23)
+
+    // The first capture always runs the Translate verb and threads the persisted
+    // humanize setting into the LLM call.
+    @Test func firstCaptureRunsTranslateWithHumanizeSetting() async {
+        let llm = FakeLLMClient(events: [.token("Hi"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let settings = makeSettings()
+        settings.humanize = false
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedAction == .translate)
+        #expect(llm.recorder.receivedHumanize == false)
+        #expect(popup.presentedAction == .translate)
+        #expect(popup.presentedDirection == .fromPolish(.english))
+    }
+
+    // Picking a verb in the palette after a translation re-runs the SAME source
+    // text through that action and resets the pane — no re-copy needed. A non-
+    // translate verb computes no translation direction (the popup hides the arrow).
+    @Test func pickingVerbRerunsSameTextWithThatAction() async {
+        let llm = FakeLLMClient(events: [.token("…"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        #expect(llm.recorder.receivedAction == .translate)
+
+        popup.onSelectAction?(.summarize)   // user clicked the Streść pill
+        var spins = 0
+        while llm.recorder.receivedAction != .summarize && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(popup.restartCount == 1)
+        #expect(llm.recorder.receivedText == "Dzień dobry")
+        #expect(llm.recorder.receivedAction == .summarize)
+        #expect(popup.presentedAction == .summarize)
+        #expect(popup.presentedDirection == .unknown)
+    }
+
+    // Changing the verb before any text was captured is a no-op (nothing to re-run).
+    @Test func pickingVerbBeforeCaptureIsNoop() {
+        let llm = FakeLLMClient()
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+
+        coordinator.start()
+        popup.onSelectAction?(.fixGrammar)
+
+        #expect(popup.restartCount == 0)
+        #expect(llm.recorder.receivedText == nil)
+    }
+
     // MARK: Per-word alternatives (issue #17)
 
     // Clicking a word asks the model for alternatives, threading the captured
