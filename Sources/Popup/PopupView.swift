@@ -100,7 +100,10 @@ struct PopupView: View {
     private var panelBox: some View {
         VStack(spacing: 0) {
             header
-            verbStrip
+            // Only Translate carries a language pair and tone, so this second row
+            // shows for it alone — the other verbs drop it rather than leave an
+            // empty band (issue #23).
+            if model.action == .translate { translateControls }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
                 Divider()
@@ -162,13 +165,12 @@ struct PopupView: View {
 
     // MARK: Header
 
+    // First row: the verb strip (issue #23) and the action buttons. The strip is
+    // always present, so non-translate modes never show an empty header band.
     private var header: some View {
-        HStack(spacing: 10) {
-            // The language pair and tone only describe a translation; the other
-            // verbs hide them (issue #23).
-            if model.action == .translate {
-                languagePair
-                tonePill
+        HStack(spacing: 6) {
+            ForEach(Action.allCases, id: \.self) { action in
+                verbPill(action)
             }
             Spacer(minLength: 0)
             headerButtons
@@ -178,13 +180,11 @@ struct PopupView: View {
         .padding(.vertical, PopupTheme.padWindow)
     }
 
-    // MARK: Verb strip (issue #23)
-
-    private var verbStrip: some View {
-        HStack(spacing: 6) {
-            ForEach(Action.allCases, id: \.self) { action in
-                verbPill(action)
-            }
+    // Second row, Translate-only: the language pair and tone pill.
+    private var translateControls: some View {
+        HStack(spacing: 10) {
+            languagePair
+            tonePill
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 13)
