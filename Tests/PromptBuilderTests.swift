@@ -90,11 +90,13 @@ import Testing
     // prompt; off, the prompt must not carry it.
     @Test func humanizeAddsNaturalProseDirectiveOnlyWhenOn() {
         let on = PromptBuilder.build(for: "Cześć", action: .translate, second: .english, formality: .automatic, humanize: true)
-        #expect(on.contains("natural, human prose"))
-        #expect(on.contains("em dashes"))
+        #expect(on.contains("natural, fluent writing"))
+        // Must stay anchored to translating, or an English source gets rewritten in
+        // English instead of translated to Polish (see humanizeDirective).
+        #expect(on.contains("remain a translation into the target language"))
 
         let off = PromptBuilder.build(for: "Cześć", action: .translate, second: .english, formality: .automatic, humanize: false)
-        #expect(!off.contains("natural, human prose"))
+        #expect(!off.contains("natural, fluent writing"))
     }
 
     // Humanize is a translate-only modifier: the other verbs ignore it, so it must
@@ -126,10 +128,12 @@ import Testing
         #expect(!prompt.contains("translate it to"))
     }
 
-    @Test func summarizeVerbAsksForSameLanguageSummary() {
+    @Test func summarizeVerbAsksForPolishBulletedList() {
         let prompt = PromptBuilder.build(for: "Długi tekst…", action: .summarize, second: .english, formality: .automatic, humanize: false)
         #expect(prompt.contains("Summarize"))
-        #expect(prompt.contains("same language"))
+        #expect(prompt.contains("in Polish"))
+        #expect(prompt.contains("bulleted list"))
+        #expect(prompt.contains("5 to 8"))
     }
 
     @Test func fixGrammarVerbCorrectsAndKeepsLanguageAndThreadsFormality() {
