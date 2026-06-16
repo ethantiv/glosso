@@ -193,6 +193,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
+    var onRetranslate: (@MainActor (_ source: String) -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?

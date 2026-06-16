@@ -72,6 +72,7 @@ final class AppCoordinator {
             await self?.fetchExplanation(word: word, translation: translation) ?? ""
         }
         popup.onReplace = { [weak self] translation in self?.handleReplace(translation: translation) }
+        popup.onRetranslate = { [weak self] source in self?.handleSourceEdit(source) }
 
         do {
             try monitor.start()
@@ -203,6 +204,19 @@ final class AppCoordinator {
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
             await self?.stream(capture.text, at: capture.point, action: action)
+        }
+    }
+
+    /// The user edited the source text and asked to translate it again (issue #44):
+    /// re-run over the edited text with the same point and action. Mirrors the
+    /// verb/formality re-run path; stream() re-snapshots lastCapture with the new
+    /// text. An empty edit is ignored (nothing meaningful to translate).
+    func handleSourceEdit(_ text: String) {
+        guard let capture = lastCapture, !text.isEmpty else { return }
+        captureTask?.cancel()
+        popup.restartTranslation()
+        captureTask = Task { @MainActor [weak self] in
+            await self?.stream(text, at: capture.point, action: capture.action)
         }
     }
 

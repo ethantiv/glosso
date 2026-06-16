@@ -43,6 +43,12 @@ final class FloatingPanel: NSPanel {
         isMovableByWindowBackground = false
     }
 
-    override var canBecomeKey: Bool { false }
+    // The source pane is an editable field (issue #44). A non-activating panel only
+    // receives keystrokes while it is the key window, so it must be allowed to become
+    // key — .nonactivatingPanel keeps the owning (LSUIElement) app in the background
+    // even then, so typing into the field never yanks the user out of the source app.
+    // present() still uses orderFrontRegardless(), so the panel only becomes key when
+    // the user clicks into the field, not on appearance.
+    override var canBecomeKey: Bool { true }
     override var canBecomeMain: Bool { false }
 }

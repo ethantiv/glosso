@@ -270,6 +270,10 @@ protocol TranslationPopupPresenting: AnyObject {
     /// Fires when the user clicks Replace, carrying the finished translation so the
     /// coordinator can paste it over the source selection (issue #22).
     var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }
+    /// Fires when the user edits the source text and asks to translate it again
+    /// (issue #44), carrying the edited source. The coordinator re-runs over it with
+    /// the same point and action, exactly like the formality/verb re-run path.
+    var onRetranslate: (@MainActor (_ source: String) -> Void)? { get set }
     func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)

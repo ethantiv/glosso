@@ -2,7 +2,9 @@ import AppKit
 import SwiftUI
 
 struct PopupView: View {
-    let model: PopupModel
+    // @Bindable, not let: the source pane is an editable TextField bound to
+    // $model.sourceText (issue #44).
+    @Bindable var model: PopupModel
     let close: () -> Void
     let selectFormality: (Formality) -> Void
     let selectAction: (Action) -> Void
@@ -10,6 +12,7 @@ struct PopupView: View {
     let fetchExplanation: (_ word: String, _ translation: String) async -> String
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
+    let retranslate: (_ source: String) -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
     let reportSize: (CGSize) -> Void
 
@@ -54,6 +57,11 @@ struct PopupView: View {
     private var canReplace: Bool { canCopy && !model.truncated }
     private var canUndo: Bool {
         model.canUndo && (model.phase == .done || model.phase == .error)
+    }
+    // The re-translate button (issue #44) lights up only once the user has actually
+    // edited the source away from what was last sent to the model.
+    private var canRetranslate: Bool {
+        !model.sourceText.isEmpty && model.sourceText != model.capturedSource
     }
     private var showLiveDot: Bool { model.phase == .capturing || model.phase == .streaming }
     private var showAccentEdge: Bool { model.phase == .streaming || model.phase == .done }
@@ -348,28 +356,76 @@ struct PopupView: View {
 
     private var sourcePane: some View {
         VStack(alignment: .leading, spacing: 8) {
-            label("Oryginał")
+            HStack(spacing: 6) {
+                label("Oryginał")
+                Spacer(minLength: 0)
+                retranslateButton
+            }
             if !model.sourceText.isEmpty {
                 ScrollView {
-                    Text(model.sourceText)
+                    // Editable source (issue #44): axis: .vertical grows the field
+                    // with its content (and reports an intrinsic height) instead of
+                    // greedily filling like TextEditor, which the window auto-sizing
+                    // relies on. The ScrollView caps it at paneMaxHeight.
+                    TextField("", text: $model.sourceText, axis: .vertical)
+                        .textFieldStyle(.plain)
                         .font(PopupTheme.fontSource)
                         .foregroundStyle(.primary)
-                        .textSelection(.enabled)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
+                        .onKeyPress(.return, phases: .down) { press in
+                            guard press.modifiers.contains(.command), canRetranslate else {
+                                return .ignored
+                            }
+                            runRetranslate()
+                            return .handled
+                        }
                 }
                 .frame(maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
             } else if model.phase == .capturing {
                 // Only shimmer while we are still waiting for the selection; an
                 // error before capture leaves sourceText empty, and a skeleton
-                // there would imply the original is still loading forever.
+                // there would imply the original is still loading forever. Keying
+                // on emptiness (not phase) keeps the source visible during a
+                // tone/verb/alternative re-run, which resets phase to .capturing
+                // while the already-captured source stays put.
                 SkeletonView()
             }
         }
         .padding(PopupTheme.padPane)
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
         .background(PopupTheme.paneRecessed)
+    }
+
+    private var retranslateButton: some View {
+        Button(action: runRetranslate) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.trianglehead.clockwise")
+                    .font(.system(size: 10.5, weight: .semibold))
+                Text("Przetłumacz")
+                    .font(PopupTheme.fontMeta)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(PopupTheme.accentTintStrong, in: Capsule())
+            .foregroundStyle(PopupTheme.accent)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .disabled(!canRetranslate)
+        .opacity(canRetranslate ? 1 : 0)
+        .help("Przetłumacz poprawiony tekst ponownie (⌘↩)")
+        .accessibilityLabel("Przetłumacz poprawiony tekst ponownie")
+    }
+
+    // Editing re-runs from scratch, so the open word dropdown and the pre-edit undo
+    // snapshot no longer apply — drop both, mirroring the tone/verb pills.
+    private func runRetranslate() {
+        guard canRetranslate else { return }
+        model.closeDropdown()
+        model.clearUndo()
+        retranslate(model.sourceText)
     }
 
     // MARK: Translation pane

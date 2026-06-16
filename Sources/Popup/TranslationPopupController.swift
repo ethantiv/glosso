@@ -10,6 +10,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
+    var onRetranslate: (@MainActor (_ source: String) -> Void)?
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
@@ -77,6 +78,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 self?.onPickAlternative?(original, chosen, translation)
             },
             replace: { [weak self] text in self?.onReplace?(text) },
+            retranslate: { [weak self] source in self?.onRetranslate?(source) },
             // Both sizing closures are gated on panel identity (like the didMove
             // and willClose observers): the torn-down presentation's host view can
             // fire a late onGeometryChange, and its grip can keep delivering an
@@ -178,6 +180,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
     func update(direction: TranslationDirection, sourceText: String, action: Action) {
         model.direction = direction
         model.sourceText = sourceText
+        // Re-baseline the edit detector: the source just sent to the model is no
+        // longer "edited", so the re-translate button dims until the user types again.
+        model.capturedSource = sourceText
         model.action = action
         panel?.title = action == .translate
             ? "Tłumaczenie · \(direction.label)"

@@ -12,6 +12,10 @@ final class PopupModel {
     }
 
     var sourceText: String = ""
+    // The source as it was last sent to the model. sourceText is editable (issue #44);
+    // the re-translate button lights up while sourceText differs from this baseline and
+    // resets it on each run via update(), so it dims again once the edit is translated.
+    var capturedSource: String = ""
     var text: String = ""
     var phase: Phase = .capturing
     var direction: TranslationDirection = .unknown
