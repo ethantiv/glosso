@@ -104,7 +104,7 @@ import Testing
     @Test func humanizeIgnoredForNonTranslateVerbs() {
         for action in [Action.summarize, .fixGrammar] {
             let prompt = PromptBuilder.build(for: "Cześć", action: action, second: .english, formality: .automatic, humanize: true)
-            #expect(!prompt.contains("natural, human prose"), "humanize leaked into \(action)")
+            #expect(!prompt.contains("natural, fluent writing"), "humanize leaked into \(action)")
         }
     }
 
