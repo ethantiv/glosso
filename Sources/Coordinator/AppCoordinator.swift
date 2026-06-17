@@ -218,6 +218,7 @@ final class AppCoordinator {
         if captured == nil {
             captured = try? SelectionGuard.nonEmptyText(await captureViaSyntheticCopy())
         }
+        if Task.isCancelled { return }
         guard let text = captured else {
             notify("Nie udało się odczytać zaznaczenia do poprawy.")
             return
