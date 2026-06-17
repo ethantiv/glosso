@@ -120,8 +120,7 @@ struct PopupView: View {
                 truncatedFooter
             }
         }
-        .background(PopupTheme.accentWash)
-        .background(VisualEffectBackground(material: .popover))
+        .background(PopupTheme.surface)
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rWindow))
         .overlay(
             RoundedRectangle(cornerRadius: PopupTheme.rWindow)
@@ -212,9 +211,9 @@ struct PopupView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: action.systemImage)
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                 Text(action.displayName)
-                    .font(PopupTheme.fontMeta)
+                    .font(PopupTheme.fontControl)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -262,9 +261,9 @@ struct PopupView: View {
         } label: {
             HStack(spacing: 4) {
                 Image(systemName: "person.bubble")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                 Text(model.formality.displayName)
-                    .font(PopupTheme.fontMeta)
+                    .font(PopupTheme.fontControl)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -279,7 +278,7 @@ struct PopupView: View {
 
     private func pill(_ code: String, accent: Bool) -> some View {
         Text(code)
-            .font(PopupTheme.fontMeta)
+            .font(PopupTheme.fontControl)
             .tracking(0.2)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -369,7 +368,7 @@ struct PopupView: View {
                     // relies on. The ScrollView caps it at paneMaxHeight.
                     TextField("", text: $model.sourceText, axis: .vertical)
                         .textFieldStyle(.plain)
-                        .font(PopupTheme.fontSource)
+                        .font(PopupTheme.fontSourceText)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -395,7 +394,17 @@ struct PopupView: View {
         }
         .padding(PopupTheme.padPane)
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
-        .background(PopupTheme.paneRecessed)
+        // A whisper-thin top rule mirrors the translation pane's accent edge — same
+        // leading-to-clear gradient, just neutral — so both panes read as starting on
+        // the same top line (the source has no accent of its own).
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(LinearGradient(
+                    colors: [Color.primary.opacity(0.18), .clear],
+                    startPoint: .leading, endPoint: .trailing))
+                .frame(height: 1)
+                .opacity(0.7)
+        }
     }
 
     private var retranslateButton: some View {
@@ -404,7 +413,7 @@ struct PopupView: View {
                 Image(systemName: "arrow.trianglehead.clockwise")
                     .font(.system(size: 10.5, weight: .semibold))
                 Text("Przetłumacz")
-                    .font(PopupTheme.fontMeta)
+                    .font(PopupTheme.fontControl)
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
@@ -492,18 +501,33 @@ struct PopupView: View {
 
     private var wordFlow: some View {
         FlowLayout(lineSpacing: 5) {
-            ForEach(model.segments) { segment in
-                if segment.isWord {
-                    wordView(segment)
-                } else {
-                    Text(separatorDisplay(segment))
+            ForEach(FlowComposer.runs(model.segments)) { run in
+                switch run {
+                case .chunk(_, let leading, let word, let trailing):
+                    // The word stays the only clickable target; its hugging
+                    // punctuation rides in the same flow item so it can never wrap
+                    // onto a new line on its own.
+                    HStack(spacing: 0) {
+                        if !leading.isEmpty { punctuation(leading) }
+                        wordView(word)
+                        if !trailing.isEmpty { punctuation(trailing) }
+                    }
+                    .layoutValue(key: FlowItemKindKey.self, value: .word)
+                case .gap(_, let text, let isWhitespace):
+                    Text(isWhitespace ? " " : text)
                         .font(PopupTheme.fontLead)
                         .foregroundStyle(.primary)
-                        .layoutValue(key: FlowItemKindKey.self, value: separatorKind(segment))
+                        .layoutValue(key: FlowItemKindKey.self, value: isWhitespace ? .space : .other)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func punctuation(_ text: String) -> some View {
+        Text(text)
+            .font(PopupTheme.fontLead)
+            .foregroundStyle(.primary)
     }
 
     private func wordView(_ segment: TextSegment) -> some View {
@@ -525,16 +549,6 @@ struct PopupView: View {
                 else if hoverWordID == segment.id { hoverWordID = nil }
             }
             .onTapGesture { onTapWord(segment) }
-    }
-
-    private func separatorDisplay(_ segment: TextSegment) -> String {
-        // Collapse any whitespace run (spaces, tabs, newlines) to a single space
-        // for display; the real text lives in model.text and is what Copy/reword use.
-        segment.isWhitespace ? " " : segment.text
-    }
-
-    private func separatorKind(_ segment: TextSegment) -> FlowItemKind {
-        segment.isWhitespace ? .space : .other
     }
 
     private func onTapWord(_ segment: TextSegment) {
@@ -639,7 +653,7 @@ struct PopupView: View {
             Image(systemName: "exclamationmark.triangle.fill")
             Text("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.")
         }
-        .font(PopupTheme.fontMeta)
+        .font(PopupTheme.fontControl)
         .foregroundStyle(PopupTheme.warn)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, PopupTheme.padPane)
@@ -649,10 +663,10 @@ struct PopupView: View {
 
     private func label(_ text: String) -> some View {
         Text(text)
-            .font(PopupTheme.fontLabel)
+            .font(PopupTheme.fontSectionLabel)
             .tracking(0.5)
             .textCase(.uppercase)
-            .foregroundStyle(.tertiary)
+            .foregroundStyle(.secondary)
     }
 }
 

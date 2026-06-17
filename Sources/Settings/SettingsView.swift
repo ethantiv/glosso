@@ -23,8 +23,7 @@ struct SettingsView: View {
         .toolbar(removing: .title)
         .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
         .containerBackground(for: .window) {
-            VisualEffectBackground(material: .popover)
-                .overlay(PopupTheme.accentWash)
+            PopupTheme.surface
         }
         .background(SettingsWindowConfigurator())
         .task {
@@ -126,7 +125,7 @@ struct SettingsView: View {
             content()
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(PopupTheme.paneRecessed, in: RoundedRectangle(cornerRadius: PopupTheme.rPane))
+        .background(PopupTheme.groupedCard, in: RoundedRectangle(cornerRadius: PopupTheme.rPane))
         .overlay(
             RoundedRectangle(cornerRadius: PopupTheme.rPane)
                 .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
