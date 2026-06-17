@@ -245,9 +245,19 @@ final class AppCoordinator {
             return
         }
         // ponytail: best-effort paste; no read-only detection — add an AX writability probe if it bites
-        guard sourcePID == nil || sourcePID == frontmostPID() else {
+        guard let sourcePID, sourcePID == frontmostPID() else {
             copyToClipboard(corrected)
             notify("Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.")
+            return
+        }
+        // The selection can collapse to an insertion point while the model streams
+        // (a click back into the source); a non-nil but empty AXSelectedText proves
+        // it, and Cmd+V would then *insert* the correction at the cursor instead of
+        // replacing. Mirror handleReplace: hand it back via the clipboard, don't paste.
+        if let selection = axReader.selectedText(),
+           selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            copyToClipboard(corrected)
+            notify("Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.")
             return
         }
         replacer.replace(with: corrected)

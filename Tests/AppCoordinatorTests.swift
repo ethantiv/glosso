@@ -308,6 +308,32 @@ import Testing
         #expect(NSPasteboard.general.string(forType: .string) == "the cat")
     }
 
+    // The selection can collapse to an insertion point while the model streams (a
+    // click back into the source). A non-nil but empty AXSelectedText at paste time
+    // proves it; pasting would insert at the cursor, so the correction goes to the
+    // clipboard with a notice instead — mirroring handleReplace.
+    @Test func fixGrammarCopiesToClipboardWhenSelectionCollapsed() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.texts = ["teh cat", ""]    // read for capture, then collapsed at paste
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            frontmostPID: { 42 },
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(llm.recorder.receivedText == "teh cat")
+        #expect(replacer.replacedText == nil)   // no paste — would insert at cursor
+        #expect(messages.count == 1)
+        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+    }
+
     // If the user switched apps while the model streamed, pasting would land in the
     // wrong app — fall back to the clipboard plus a notification instead.
     @Test func fixGrammarFallsBackToClipboardWhenAppChanged() async {
