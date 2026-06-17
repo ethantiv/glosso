@@ -45,6 +45,68 @@ enum Tokenizer {
     }
 }
 
+/// One item laid out by `FlowLayout`: either a word with its hugging punctuation
+/// (a `.chunk`, never split across lines) or a `.gap` between words (whitespace,
+/// which collapses at a wrap, or a spaced separator like an em-dash).
+enum FlowRun: Identifiable {
+    case chunk(id: Int, leading: String, word: TextSegment, trailing: String)
+    case gap(id: Int, text: String, isWhitespace: Bool)
+
+    var id: Int {
+        switch self {
+        case .chunk(let id, _, _, _): id
+        case .gap(let id, _, _): id
+        }
+    }
+}
+
+/// Groups `Tokenizer` segments into flow runs so punctuation never wraps onto a new
+/// line on its own: closing punctuation (",.;:!?)" etc.) rides with the preceding
+/// word, opening punctuation ("([" etc.) with the following word, and only the
+/// whitespace between them is a break opportunity. Stays lossless — concatenating
+/// every run's text reproduces the input — so Copy/reword never drift.
+enum FlowComposer {
+    // A separator run splits at its whitespace: text before the first space hugs the
+    // previous word, text after the last space hugs the next, the rest is the gap.
+    // No whitespace at all (e.g. a hyphen) means no break — it hugs the previous word.
+    private static func split(_ s: String) -> (closing: String, gap: String, opening: String) {
+        guard let firstWS = s.firstIndex(where: \.isWhitespace),
+              let lastWS = s.lastIndex(where: \.isWhitespace) else {
+            return (s, "", "")
+        }
+        return (
+            String(s[s.startIndex..<firstWS]),
+            String(s[firstWS...lastWS]),
+            String(s[s.index(after: lastWS)...])
+        )
+    }
+
+    static func runs(_ segments: [TextSegment]) -> [FlowRun] {
+        var runs: [FlowRun] = []
+        let n = segments.count
+
+        for i in 0..<n {
+            let seg = segments[i]
+            if seg.isWord {
+                let leading = (i > 0 && !segments[i - 1].isWord) ? split(segments[i - 1].text).opening : ""
+                let trailing = (i + 1 < n && !segments[i + 1].isWord) ? split(segments[i + 1].text).closing : ""
+                runs.append(.chunk(id: runs.count, leading: leading, word: seg, trailing: trailing))
+            } else {
+                let parts = split(seg.text)
+                var gap = parts.gap
+                // A leading/trailing separator (no word on that side) keeps the punctuation
+                // the adjacent word didn't consume, so nothing is dropped.
+                if !(i > 0 && segments[i - 1].isWord) { gap = parts.closing + gap }
+                if !(i + 1 < n && segments[i + 1].isWord) { gap += parts.opening }
+                if !gap.isEmpty {
+                    runs.append(.gap(id: runs.count, text: gap, isWhitespace: gap.allSatisfy(\.isWhitespace)))
+                }
+            }
+        }
+        return runs
+    }
+}
+
 /// How a flow subview behaves at wrap points. Whitespace collapses when it would
 /// land at the start of a wrapped line (no leading indent); words and punctuation
 /// keep their width.
@@ -157,9 +219,9 @@ struct AlternativesDropdown: View {
         Button(action: onBack) {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                 Text("Dlaczego tak?")
-                    .font(PopupTheme.fontMeta)
+                    .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(PopupTheme.accent)
@@ -196,9 +258,9 @@ struct AlternativesDropdown: View {
         Button(action: onExplain) {
             HStack(spacing: 6) {
                 Image(systemName: "lightbulb")
-                    .font(.system(size: 10.5, weight: .semibold))
+                    .font(.system(size: 11.5, weight: .semibold))
                 Text("Dlaczego tak?")
-                    .font(PopupTheme.fontMeta)
+                    .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
             .foregroundStyle(PopupTheme.accent)
