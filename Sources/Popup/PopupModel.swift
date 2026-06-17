@@ -75,6 +75,22 @@ final class PopupModel {
         return value
     }
 
+    // Memoizes the grammar diff keyed on its two inputs so re-renders that don't
+    // change them (hover, dropdown open/close) reuse it instead of re-running the
+    // full CollectionDifference — mirrors segmentsCache for the fixGrammar pane.
+    @ObservationIgnored private var diffPartsCache: (original: String, corrected: String, value: [DiffPart])?
+
+    /// Word-level diff between the captured original and the `fixGrammar` correction
+    /// (issue #51). Derived from `capturedSource`/`text`, the single sources of truth.
+    var diffParts: [DiffPart] {
+        if let cache = diffPartsCache, cache.original == capturedSource, cache.corrected == text {
+            return cache.value
+        }
+        let value = GrammarDiff.parts(original: capturedSource, corrected: text)
+        diffPartsCache = (capturedSource, text, value)
+        return value
+    }
+
     func openDropdown(for id: Int) {
         selectedWordID = id
         alternatives = []

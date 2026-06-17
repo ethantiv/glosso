@@ -588,7 +588,7 @@ struct PopupView: View {
     // just the plain corrected text (all .same parts).
     private var grammarDiffFlow: some View {
         FlowLayout(lineSpacing: 5) {
-            ForEach(GrammarDiff.parts(original: model.capturedSource, corrected: model.text)) { part in
+            ForEach(model.diffParts) { part in
                 switch part {
                 case .same(_, let sameText):
                     ForEach(FlowComposer.runs(Tokenizer.segments(sameText))) { run in
