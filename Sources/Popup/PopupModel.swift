@@ -54,6 +54,14 @@ final class PopupModel {
     // land in a dropdown the user has since reopened on another word or closed.
     var explanationRequestToken: Int = 0
 
+    // Grammar-diff "why was this corrected?" dropdown (issue #51). Unlike #39 there
+    // is no alternatives list to peel back to: the dropdown shows only the reason,
+    // so fixReasonMode makes the dropdown skip the list (and Esc close it in one
+    // step). Reuses the explanation* fetch fields above. selectedFixChange holds the
+    // tapped change's struck error and correction, threaded to the model for the reason.
+    var fixReasonMode: Bool = false
+    var selectedFixChange: (before: String, after: String)? = nil
+
     // Memoizes the tokenization keyed on `text` so re-renders that don't change the
     // translation (hover, dropdown open/close) reuse it instead of re-tokenizing.
     @ObservationIgnored private var segmentsCache: (text: String, value: [TextSegment])?
@@ -64,6 +72,22 @@ final class PopupModel {
         if let cache = segmentsCache, cache.text == text { return cache.value }
         let value = Tokenizer.segments(text)
         segmentsCache = (text, value)
+        return value
+    }
+
+    // Memoizes the grammar diff keyed on its two inputs so re-renders that don't
+    // change them (hover, dropdown open/close) reuse it instead of re-running the
+    // full CollectionDifference — mirrors segmentsCache for the fixGrammar pane.
+    @ObservationIgnored private var diffPartsCache: (original: String, corrected: String, value: [DiffPart])?
+
+    /// Word-level diff between the captured original and the `fixGrammar` correction
+    /// (issue #51). Derived from `capturedSource`/`text`, the single sources of truth.
+    var diffParts: [DiffPart] {
+        if let cache = diffPartsCache, cache.original == capturedSource, cache.corrected == text {
+            return cache.value
+        }
+        let value = GrammarDiff.parts(original: capturedSource, corrected: text)
+        diffPartsCache = (capturedSource, text, value)
         return value
     }
 
@@ -81,7 +105,22 @@ final class PopupModel {
         selectedWordID = nil
         altsLoading = false
         alternatives = []
+        fixReasonMode = false
+        selectedFixChange = nil
         closeExplanation()
+    }
+
+    // Opens the dropdown straight into the grammar-diff reason view for the tapped
+    // change (issue #51) — no alternatives list, so it skips #39's two-step path.
+    // Reuses the explanation* fetch fields (token, loading, text).
+    func openFixReason(id: Int, before: String, after: String) {
+        selectedWordID = id
+        fixReasonMode = true
+        selectedFixChange = (before, after)
+        showingExplanation = true
+        explanationText = ""
+        explanationLoading = true
+        explanationRequestToken &+= 1
     }
 
     // Switches the open dropdown into its "Dlaczego tak?" view and arms a fresh fetch

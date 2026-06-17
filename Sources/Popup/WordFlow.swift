@@ -196,7 +196,9 @@ struct AlternativesDropdown: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            if model.showingExplanation {
+            if model.fixReasonMode {
+                fixReasonContent
+            } else if model.showingExplanation {
                 explanationContent
             } else {
                 alternativesContent
@@ -210,6 +212,42 @@ struct AlternativesDropdown: View {
                 .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+    }
+
+    // The grammar-diff reason view (issue #51): a non-interactive header (there is
+    // no alternatives list to go back to), then the spinner or the one-line Polish
+    // reason for the tapped correction (or a fallback when the fetch failed).
+    @ViewBuilder
+    private var fixReasonContent: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle")
+                .font(.system(size: 11.5, weight: .semibold))
+            Text("Dlaczego poprawiono?")
+                .font(PopupTheme.fontControl)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(PopupTheme.accent)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        Divider()
+        if model.explanationLoading {
+            HStack(spacing: 8) {
+                ProgressView().controlSize(.small)
+                Text("Szukam powodu…")
+                    .font(PopupTheme.fontMeta)
+                    .foregroundStyle(.secondary)
+            }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 9)
+        } else {
+            Text(model.explanationText.isEmpty ? "Nie udało się pobrać powodu." : model.explanationText)
+                .font(PopupTheme.fontLead)
+                .foregroundStyle(model.explanationText.isEmpty ? Color.secondary : .primary)
+                .fixedSize(horizontal: false, vertical: true)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 9)
+        }
     }
 
     // The learner-facing "Dlaczego tak?" view (issue #39): a back row, then the

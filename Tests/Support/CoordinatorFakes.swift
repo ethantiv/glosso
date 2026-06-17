@@ -40,6 +40,13 @@ struct FakeLLMClient: LLMClient {
         var explainSource: String?
         var explainSecond: SecondLanguage?
         var explainModel: String?
+        // explainFix(...)
+        var fixError: String?
+        var fixCorrection: String?
+        var fixOriginal: String?
+        var fixCorrected: String?
+        var fixSecond: SecondLanguage?
+        var fixModel: String?
         // reword(...)
         var rewordOriginal: String?
         var rewordChosen: String?
@@ -60,6 +67,8 @@ struct FakeLLMClient: LLMClient {
     let alternativesError: TranslationError?
     let explanationResult: String
     let explanationError: TranslationError?
+    let fixReasonResult: String
+    let fixReasonError: TranslationError?
 
     init(
         events: [TranslationEvent] = [.token("ok"), .finished(doneReason: "stop")],
@@ -68,7 +77,9 @@ struct FakeLLMClient: LLMClient {
         alternatives: [String] = ["alt-one", "alt-two"],
         alternativesError: TranslationError? = nil,
         explanation: String = "bo tak każe gramatyka",
-        explanationError: TranslationError? = nil
+        explanationError: TranslationError? = nil,
+        fixReason: String = "zła forma czasu przeszłego",
+        fixReasonError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
@@ -77,6 +88,8 @@ struct FakeLLMClient: LLMClient {
         self.alternativesError = alternativesError
         self.explanationResult = explanation
         self.explanationError = explanationError
+        self.fixReasonResult = fixReason
+        self.fixReasonError = fixReasonError
     }
 
     func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -118,6 +131,17 @@ struct FakeLLMClient: LLMClient {
         recorder.explainModel = model
         if let explanationError { throw explanationError }
         return explanationResult
+    }
+
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, model: String) async throws -> String {
+        recorder.fixError = error
+        recorder.fixCorrection = correction
+        recorder.fixOriginal = original
+        recorder.fixCorrected = corrected
+        recorder.fixSecond = second
+        recorder.fixModel = model
+        if let fixReasonError { throw fixReasonError }
+        return fixReasonResult
     }
 
     private func makeStream() -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -199,6 +223,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
+    var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
     private(set) var presented = false

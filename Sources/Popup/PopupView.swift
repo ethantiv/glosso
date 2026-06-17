@@ -10,6 +10,7 @@ struct PopupView: View {
     let selectAction: (Action) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
     let fetchExplanation: (_ word: String, _ translation: String) async -> String
+    let fetchFixReason: (_ before: String, _ after: String, _ corrected: String) async -> String
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
@@ -485,6 +486,8 @@ struct PopupView: View {
                 // drag-to-select); the other verbs render plain selectable text.
                 if model.action == .translate {
                     wordFlow
+                } else if model.action == .fixGrammar {
+                    grammarDiffFlow
                 } else {
                     Text(model.text)
                         .font(PopupTheme.fontLead)
@@ -578,6 +581,87 @@ struct PopupView: View {
         }
     }
 
+    // Grammar-diff for fixGrammar results (issue #51): the corrected text rendered
+    // word-by-word with each change shown as a struck error → correction, tappable
+    // for a one-line Polish reason. Unchanged spans tokenize into the same wrapping
+    // flow as wordFlow; only the changes are clickable. When nothing changed it is
+    // just the plain corrected text (all .same parts).
+    private var grammarDiffFlow: some View {
+        FlowLayout(lineSpacing: 5) {
+            ForEach(model.diffParts) { part in
+                switch part {
+                case .same(_, let sameText):
+                    ForEach(FlowComposer.runs(Tokenizer.segments(sameText))) { run in
+                        switch run {
+                        case .chunk(_, let leading, let word, let trailing):
+                            Text(leading + word.text + trailing)
+                                .font(PopupTheme.fontLead)
+                                .foregroundStyle(.primary)
+                                .layoutValue(key: FlowItemKindKey.self, value: .word)
+                        case .gap(_, let gapText, let isWhitespace):
+                            Text(isWhitespace ? " " : gapText)
+                                .font(PopupTheme.fontLead)
+                                .foregroundStyle(.primary)
+                                .layoutValue(key: FlowItemKindKey.self, value: isWhitespace ? .space : .other)
+                        }
+                    }
+                case .change(let id, let removed, let added):
+                    changeChunk(id: id, removed: removed, added: added)
+                }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    // One clickable diff change: the struck error and its correction side by side,
+    // anchored (like wordView) so the reason dropdown can sit below it. removed or
+    // added may be empty for a pure deletion or insertion.
+    private func changeChunk(id: Int, removed: String, added: String) -> some View {
+        let selected = model.dropdownVisible && model.selectedWordID == id
+        let hasBoth = !removed.isEmpty && !added.isEmpty
+        return HStack(spacing: hasBoth ? 3 : 0) {
+            if !removed.isEmpty {
+                Text(removed)
+                    .strikethrough(true, color: PopupTheme.warn)
+                    .foregroundStyle(PopupTheme.warn)
+            }
+            if !added.isEmpty {
+                Text(added)
+                    .foregroundStyle(PopupTheme.accent)
+            }
+        }
+        .font(PopupTheme.fontLead)
+        .padding(.horizontal, 2)
+        .background(
+            RoundedRectangle(cornerRadius: 4)
+                .fill(selected ? PopupTheme.accentTintStrong
+                      : (hoverWordID == id ? PopupTheme.chipNeutralBg : .clear))
+        )
+        .contentShape(Rectangle())
+        .layoutValue(key: FlowItemKindKey.self, value: .word)
+        .anchorPreference(key: WordAnchorKey.self, value: .bounds) { [id: $0] }
+        .onHover { hovering in
+            if hovering { hoverWordID = id }
+            else if hoverWordID == id { hoverWordID = nil }
+        }
+        .onTapGesture { onTapFixChange(id: id, before: removed, after: added) }
+    }
+
+    private func onTapFixChange(id: Int, before: String, after: String) {
+        model.openFixReason(id: id, before: before, after: after)
+        let token = model.explanationRequestToken
+        let corrected = model.text
+        Task { @MainActor in
+            let reason = await fetchFixReason(before, after, corrected)
+            // The dropdown may have closed or reopened on another change while the
+            // fetch ran; only land if this is still the request the user awaits.
+            guard model.explanationRequestToken == token,
+                  model.dropdownVisible, model.fixReasonMode else { return }
+            model.explanationText = reason
+            model.explanationLoading = false
+        }
+    }
+
     @ViewBuilder
     private func dropdownOverlay(anchors: [Int: Anchor<CGRect>]) -> some View {
         GeometryReader { proxy in
@@ -626,6 +710,11 @@ struct PopupView: View {
     private var estimatedDropdownHeight: CGFloat {
         // The "Dlaczego tak?" header row (issue #39) adds one row above either view.
         let explainRow: CGFloat = 36
+        // The grammar-diff reason (issue #51) is a header row plus the one-line
+        // reason, sized like the explanation view below.
+        if model.fixReasonMode {
+            return explainRow + (model.explanationLoading ? 40 : 132)
+        }
         if model.showingExplanation {
             // A one-sentence explanation wraps to a few lines in the 200pt dropdown;
             // reserve generously so the grown window doesn't clip it (estimate, not a

@@ -32,6 +32,14 @@ import Testing
         #expect(EscKeyHandling.action(keyCode: esc, modifiers: modifier, dropdownVisible: true, explanationVisible: true) == .passThrough)
     }
 
+    // The grammar-diff reason dropdown (issue #51) has no alternatives list to peel
+    // back to, so a bare Esc closes the whole dropdown in one step — ignoring
+    // explanationVisible — and a bare Esc with it already closed dismisses the panel.
+    @Test func fixReasonModeEscClosesDropdownInOneStep() {
+        #expect(EscKeyHandling.action(keyCode: esc, modifiers: [], dropdownVisible: true, explanationVisible: true, fixReasonMode: true) == .closeDropdown)
+        #expect(EscKeyHandling.action(keyCode: esc, modifiers: [], dropdownVisible: false, explanationVisible: false, fixReasonMode: true) == .dismiss)
+    }
+
     @Test func nonEscKeyPassesThrough() {
         #expect(EscKeyHandling.action(keyCode: 0, modifiers: [], dropdownVisible: true, explanationVisible: true) == .passThrough)
     }

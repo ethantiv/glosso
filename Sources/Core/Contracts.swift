@@ -197,6 +197,13 @@ protocol LLMClient: Sendable {
     /// the learner-facing "Dlaczego tak?" row in the per-word dropdown (issue #39).
     /// Non-streaming like `alternatives`; the source and full translation give context.
     func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String
+    /// A single short Polish sentence naming why the learner's text was corrected
+    /// from `error` to `correction` (issue #51) — the grammar, spelling or
+    /// punctuation rule behind the fix ("brak rodzajnika", "zła forma czasu
+    /// przeszłego"). Non-streaming like `explain`; the full original and corrected
+    /// texts give context. `error` or `correction` may be empty (a pure insertion
+    /// or deletion).
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, model: String) async throws -> String
 }
 
 /// Lists the models actually installed in Ollama, so Settings can offer a live
@@ -270,6 +277,12 @@ protocol TranslationPopupPresenting: AnyObject {
     /// coordinator fills in the source and second language. Returns an empty string
     /// on any failure, which the dropdown shows as a fallback message.
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)? { get set }
+    /// Fires when the user taps a grammar-diff change in a `fixGrammar` result,
+    /// asking the coordinator for a one-sentence Polish reason for that correction
+    /// (issue #51). Carries the struck error text, its correction and the full
+    /// corrected text; the coordinator fills in the original source and second
+    /// language. Returns an empty string on any failure, shown as a fallback.
+    var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)? { get set }
     /// Fires when the user clicks Replace, carrying the finished translation so the
     /// coordinator can paste it over the source selection (issue #22).
     var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }

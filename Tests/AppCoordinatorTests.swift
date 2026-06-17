@@ -646,6 +646,63 @@ import Testing
         #expect(result == "")
     }
 
+    // MARK: Grammar-diff reason — "Dlaczego poprawiono?" (issue #51)
+
+    // Tapping a diff change asks the model for the reason, threading the struck
+    // error, its correction, the corrected text and the captured original alongside
+    // the persisted second language.
+    @Test func fetchFixReasonThreadsChangeOriginalAndSecondLanguage() async {
+        let llm = FakeLLMClient(fixReason: "brak rodzajnika")
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "i has went to school"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .english)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        let result = await popup.onFetchFixReason?("has went", "have gone", "I have gone to school")
+        #expect(result == "brak rodzajnika")
+        #expect(llm.recorder.fixError == "has went")
+        #expect(llm.recorder.fixCorrection == "have gone")
+        #expect(llm.recorder.fixCorrected == "I have gone to school")
+        #expect(llm.recorder.fixOriginal == "i has went to school")   // the captured original
+        #expect(llm.recorder.fixSecond == .english)
+    }
+
+    // Before any capture there is no original context, so a fetch returns empty
+    // rather than calling the model with an empty original.
+    @Test func fetchFixReasonBeforeCaptureReturnsEmpty() async {
+        let llm = FakeLLMClient(fixReason: "x")
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+
+        coordinator.start()
+        let result = await popup.onFetchFixReason?("a", "b", "c")
+
+        #expect(result == "")
+        #expect(llm.recorder.fixError == nil)
+    }
+
+    // A failed fix-reason fetch collapses to an empty string (the dropdown shows a
+    // fallback message), never surfacing as an error in the pane.
+    @Test func fetchFixReasonSwallowsErrorsIntoEmptyString() async {
+        let llm = FakeLLMClient(fixReason: "", fixReasonError: .ollamaUnreachable)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "great"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        let result = await popup.onFetchFixReason?("teh", "the", "the")
+
+        #expect(result == "")
+    }
+
     // Picking an alternative resets the result pane and re-translates the clause via
     // reword, threading the chosen word, the captured source and the persisted tone.
     @Test func pickingAlternativeRewordsTheClause() async {
