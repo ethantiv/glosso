@@ -9,6 +9,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
+    var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
 
@@ -73,6 +74,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
             },
             fetchExplanation: { [weak self] word, translation in
                 await self?.onFetchExplanation?(word, translation) ?? ""
+            },
+            fetchFixReason: { [weak self] before, after, corrected in
+                await self?.onFetchFixReason?(before, after, corrected) ?? ""
             },
             pickAlternative: { [weak self] original, chosen, translation in
                 self?.onPickAlternative?(original, chosen, translation)
@@ -375,7 +379,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
             keyCode: keyCode,
             modifiers: NSEvent.ModifierFlags(rawValue: modifiersRawValue),
             dropdownVisible: model.dropdownVisible,
-            explanationVisible: model.showingExplanation
+            explanationVisible: model.showingExplanation,
+            fixReasonMode: model.fixReasonMode
         ) {
         case .passThrough:
             return false
@@ -407,7 +412,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
                     keyCode: event.keyCode,
                     modifiers: event.modifierFlags,
                     dropdownVisible: self.model.dropdownVisible,
-                    explanationVisible: self.model.showingExplanation
+                    explanationVisible: self.model.showingExplanation,
+                    fixReasonMode: self.model.fixReasonMode
                 ) {
                 case .passThrough: break
                 case .closeExplanation: self.model.closeExplanation()
