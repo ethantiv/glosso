@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import CoreGraphics
 import Testing
 @testable import Glosso
@@ -226,6 +227,134 @@ import Testing
         coordinator.stop()
 
         #expect(monitor.stopCount == 1)
+    }
+
+    // The headless fix-grammar chord (issue #46) reads the selection via AX, runs
+    // fixGrammar, and pastes the corrected text straight back — no popup involved.
+    @Test func fixGrammarReplacesSelectionInPlace() async {
+        let llm = FakeLLMClient(events: [.token("the "), .token("cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(model: "test-model"), replacer: replacer,
+            frontmostPID: { 42 }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(llm.recorder.receivedAction == .fixGrammar)
+        #expect(llm.recorder.receivedText == "teh cat")
+        #expect(llm.recorder.receivedModel == "test-model")
+        #expect(replacer.replacedText == "the cat")
+    }
+
+    // With nothing selected — AX empty and the synthetic-copy fallback landing
+    // nothing — there's nothing to correct: notify instead of silently doing
+    // nothing, and never touch the LLM or the replacer's paste.
+    @Test func fixGrammarNotifiesWhenNothingSelected() async {
+        let llm = FakeLLMClient()
+        let axReader = FakeAXSelectionReader()
+        axReader.text = nil
+        let reader = FakePasteboardReader()    // readyAfterAttempts nil → never lands
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: reader, axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            pollStepMs: 1, pollMaxAttempts: 5,
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(replacer.copyCount == 1)        // the fallback was attempted
+        #expect(replacer.replacedText == nil)
+        #expect(llm.recorder.receivedText == nil)
+        #expect(messages.count == 1)
+    }
+
+    // Terminals and some web/Electron fields expose no AXSelectedText for reading,
+    // so fix-grammar falls back to firing the app's Cmd+C to capture. But such a
+    // selection may be a non-replaceable mouse highlight (terminals), where a paste
+    // would append — so the correction goes to the clipboard with a notice, not a paste.
+    @Test func fixGrammarFallbackCopiesToClipboardInsteadOfPasting() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = nil                     // AX read yields nothing
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0           // the synthetic copy lands immediately
+        reader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: reader, axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(replacer.copyCount == 1)
+        #expect(llm.recorder.receivedAction == .fixGrammar)
+        #expect(llm.recorder.receivedText == "teh cat")
+        #expect(replacer.replacedText == nil)   // no paste — would append in a terminal
+        #expect(messages.count == 1)
+        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+    }
+
+    // The selection can collapse to an insertion point while the model streams (a
+    // click back into the source). A non-nil but empty AXSelectedText at paste time
+    // proves it; pasting would insert at the cursor, so the correction goes to the
+    // clipboard with a notice instead — mirroring handleReplace.
+    @Test func fixGrammarCopiesToClipboardWhenSelectionCollapsed() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.texts = ["teh cat", ""]    // read for capture, then collapsed at paste
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            frontmostPID: { 42 },
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(llm.recorder.receivedText == "teh cat")
+        #expect(replacer.replacedText == nil)   // no paste — would insert at cursor
+        #expect(messages.count == 1)
+        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+    }
+
+    // If the user switched apps while the model streamed, pasting would land in the
+    // wrong app — fall back to the clipboard plus a notification instead.
+    @Test func fixGrammarFallsBackToClipboardWhenAppChanged() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            frontmostPID: { 99 },           // now a different app than the captured PID
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(replacer.replacedText == nil)
+        #expect(messages.count == 1)
+        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
     }
 
     // An AX revocation calls stop() while a popup may be on screen; its Esc

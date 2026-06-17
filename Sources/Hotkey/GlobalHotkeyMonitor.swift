@@ -9,6 +9,7 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
     }
 
     var onDoubleCopy: (@MainActor (Int) -> Void)?
+    var onFixGrammar: (@MainActor () -> Void)?
 
     private var monitor: Any?
     private var detector: any DoubleKeyDetecting
@@ -47,6 +48,12 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
         let isC = event.charactersIgnoringModifiers?.lowercased() == "c"
         let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
         let mods = event.modifierFlags.intersection(chordModifiers)
+        // ponytail: char match like Cmd+C; if Control mangles it, switch to keyCode 5
+        if event.charactersIgnoringModifiers?.lowercased() == "g",
+           mods == [.command, .control], !event.isARepeat {
+            onFixGrammar?()
+            return
+        }
         guard isC, mods == .command, !event.isARepeat else { return }
         if let baseline = registerPress(changeCount: changeCountProvider(), at: clock.now()) {
             onDoubleCopy?(baseline)

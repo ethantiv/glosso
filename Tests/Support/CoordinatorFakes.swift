@@ -172,8 +172,15 @@ final class FakePasteboardReader: PasteboardReading {
 @MainActor
 final class FakeAXSelectionReader: AXSelectionReading {
     var text: String?
+    /// When non-empty, successive selectedText() calls return these in order so a
+    /// test can model a selection that collapses between the capture read and the
+    /// pre-paste re-check; falls back to `text` once drained.
+    var texts: [String?] = []
     private(set) var callCount = 0
-    func selectedText() -> String? { callCount += 1; return text }
+    func selectedText() -> String? {
+        callCount += 1
+        return texts.isEmpty ? text : texts.removeFirst()
+    }
 }
 
 @MainActor
@@ -236,7 +243,9 @@ final class FakePopup: TranslationPopupPresenting {
 @MainActor
 final class FakeSelectionReplacer: SelectionReplacing {
     private(set) var replacedText: String?
+    private(set) var copyCount = 0
     func replace(with text: String) { replacedText = text }
+    func synthesizeCopy() { copyCount += 1 }
 }
 
 @MainActor
@@ -254,6 +263,7 @@ final class FakeAccessibilityAuthorizing: AccessibilityAuthorizing {
 @MainActor
 final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
+    var onFixGrammar: (@MainActor () -> Void)?
     private(set) var stopCount = 0
     /// When set, `start()` throws it — so a test can assert the coordinator
     /// surfaces a failed monitor start as `start() == false`.

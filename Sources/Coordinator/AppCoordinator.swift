@@ -14,8 +14,10 @@ final class AppCoordinator {
     private let pollStepMs: Int
     private let pollMaxAttempts: Int
     private let frontmostPID: @MainActor () -> pid_t?
+    private let notify: @MainActor (String) -> Void
 
     private var captureTask: Task<Void, Never>?
+    private var fixTask: Task<Void, Never>?
 
     // Retained so the popup's tone pill and verb strip can re-run over the same
     // selection without the user copying again. nil until a capture lands; text,
@@ -38,7 +40,8 @@ final class AppCoordinator {
         replacer: any SelectionReplacing = SystemSelectionReplacer(),
         pollStepMs: Int = 12,
         pollMaxAttempts: Int = 40,
-        frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier }
+        frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier },
+        notify: @escaping @MainActor (String) -> Void = { SystemUserNotifier.post($0) }
     ) {
         self.llm = llm
         self.monitor = monitor
@@ -50,6 +53,7 @@ final class AppCoordinator {
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
         self.frontmostPID = frontmostPID
+        self.notify = notify
     }
 
     /// Starts pre-warm and the hotkey monitor. Returns whether the monitor
@@ -59,6 +63,7 @@ final class AppCoordinator {
         Task { try? await llm.prewarm(model: settings.modelName) }
 
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
+        monitor.onFixGrammar = { [weak self] in self?.handleFixGrammar() }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
@@ -87,6 +92,7 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         captureTask?.cancel()
+        fixTask?.cancel()
         // The popup's Esc dismisser is an AX-gated global monitor too, so an AX
         // revocation silences it — dismiss it here or a popup mid-translation
         // orphans on screen with a stuck spinner.
@@ -182,6 +188,108 @@ final class AppCoordinator {
         }
         replacer.replace(with: translation)
         popup.dismiss()
+    }
+
+    /// Headless "just fix it" path (issue #46): the dedicated chord fires this with
+    /// no popup at all. Snapshot the source app's PID up front so a late paste can't
+    /// land in a different app the user switched to while the model streamed.
+    func handleFixGrammar() {
+        let source = frontmostPID()
+        fixTask?.cancel()
+        fixTask = Task { @MainActor [weak self] in await self?.fixGrammarInPlace(sourcePID: source) }
+    }
+
+    /// Reads the focused element's selection via AX (no copy — the chord doesn't
+    /// trigger one), runs `fixGrammar` silently into a buffer, then pastes the
+    /// corrected text over the selection. On a missing selection or an app switch
+    /// mid-stream it notifies instead of pasting; a successful fix is its own
+    /// confirmation (the text changes in place).
+    func fixGrammarInPlace(sourcePID: pid_t?) async {
+        // AX is the fast path (no clipboard touch). Terminals and some web/Electron
+        // fields expose no AXSelectedText for reading, so fall back to firing the
+        // app's own Cmd+C and reading the pasteboard, restoring the clipboard around it.
+        var captured = try? SelectionGuard.nonEmptyText(axReader.selectedText())
+        // A successful AX read proves the selection is a real, editable one that
+        // Cmd+V will overwrite. When AX reads nothing we copy via Cmd+C instead, but
+        // then the selection's replaceability is unknown — in terminals it's a mere
+        // mouse highlight the shell won't replace, so a paste would append. Remember
+        // that so we hand the result back via the clipboard rather than risk it.
+        let usedFallback = captured == nil
+        if captured == nil {
+            captured = try? SelectionGuard.nonEmptyText(await captureViaSyntheticCopy())
+        }
+        if Task.isCancelled { return }
+        guard let text = captured else {
+            notify("Nie udało się odczytać zaznaczenia do poprawy.")
+            return
+        }
+        var buffer = ""
+        do {
+            for try await event in llm.run(
+                text, action: .fixGrammar, model: settings.modelName,
+                second: settings.secondLanguage, formality: settings.formality,
+                humanize: settings.humanize) {
+                if Task.isCancelled { return }
+                if case .token(let token) = event { buffer += token }
+            }
+        } catch {
+            if Task.isCancelled { return }
+            notify("Nie udało się poprawić tekstu.")
+            return
+        }
+        if Task.isCancelled { return }
+        let corrected = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !corrected.isEmpty else { return }
+        guard !usedFallback else {
+            copyToClipboard(corrected)
+            notify("Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).")
+            return
+        }
+        // ponytail: best-effort paste; no read-only detection — add an AX writability probe if it bites
+        guard let sourcePID, sourcePID == frontmostPID() else {
+            copyToClipboard(corrected)
+            notify("Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.")
+            return
+        }
+        // The selection can collapse to an insertion point while the model streams
+        // (a click back into the source); a non-nil but empty AXSelectedText proves
+        // it, and Cmd+V would then *insert* the correction at the cursor instead of
+        // replacing. Mirror handleReplace: hand it back via the clipboard, don't paste.
+        if let selection = axReader.selectedText(),
+           selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+            copyToClipboard(corrected)
+            notify("Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.")
+            return
+        }
+        replacer.replace(with: corrected)
+    }
+
+    private func copyToClipboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    /// AX-nil fallback for fix-grammar (issue #46): preserve the user's clipboard,
+    /// fire the app's Cmd+C, poll the pasteboard until the copy lands, then restore
+    /// the clipboard so the subsequent replace() sees the user's original — not the
+    /// copied selection — to save and put back after pasting.
+    private func captureViaSyntheticCopy() async -> String? {
+        let pasteboard = NSPasteboard.general
+        let original = pasteboard.string(forType: .string)
+        let baseline = reader.currentChangeCount
+        replacer.synthesizeCopy()
+        var captured: String?
+        for _ in 0..<pollMaxAttempts {
+            if Task.isCancelled { break }
+            if let text = try? reader.readSelection(baselineChangeCount: baseline) {
+                captured = text
+                break
+            }
+            try? await Task.sleep(for: .milliseconds(pollStepMs))
+        }
+        pasteboard.clearContents()
+        if let original { pasteboard.setString(original, forType: .string) }
+        return captured
     }
 
     func handleFormalityChange(_ formality: Formality) {
