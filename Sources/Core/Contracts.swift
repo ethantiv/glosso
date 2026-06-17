@@ -225,6 +225,9 @@ protocol HotkeyMonitor: AnyObject {
     /// the *first* press of the pair — a baseline that always precedes the
     /// second copy even when the foreground app copies synchronously.
     var onDoubleCopy: (@MainActor (_ baselineChangeCount: Int) -> Void)? { get set }
+    /// Fires on the dedicated headless "fix grammar in place" chord (Cmd+Ctrl+G,
+    /// issue #46) — distinct from the double Cmd+C translate trigger.
+    var onFixGrammar: (@MainActor () -> Void)? { get set }
     func start() throws
     func stop()
 }
@@ -298,4 +301,9 @@ protocol SelectionReplacing {
     /// Pastes `text` over the current selection in the frontmost app via a
     /// synthesized Cmd+V, preserving and restoring the clipboard (issue #22).
     func replace(with text: String)
+    /// Fires the focused app's Cmd+C so the selection lands on the pasteboard —
+    /// the headless fix-grammar fallback when AXSelectedText reads empty, e.g. in
+    /// terminals and some web/Electron fields (issue #46). The caller polls the
+    /// pasteboard for the copy and preserves the user's clipboard around it.
+    func synthesizeCopy()
 }

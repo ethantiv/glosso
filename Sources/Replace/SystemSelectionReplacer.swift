@@ -10,6 +10,7 @@ import CoreGraphics
 @MainActor
 final class SystemSelectionReplacer: SelectionReplacing {
     private let vKeyCode: CGKeyCode = 9  // kVK_ANSI_V
+    private let cKeyCode: CGKeyCode = 8  // kVK_ANSI_C
 
     // The paste is consumed asynchronously by the target app on its next run loop;
     // restoring the clipboard before that lands would paste the old contents over the
@@ -27,7 +28,7 @@ final class SystemSelectionReplacer: SelectionReplacing {
         pasteboard.clearContents()
         pasteboard.setString(text, forType: .string)
 
-        synthesizeCommandV()
+        synthesize(keyCode: vKeyCode)
 
         guard let saved else { return }
         Task { @MainActor in
@@ -42,7 +43,9 @@ final class SystemSelectionReplacer: SelectionReplacing {
         }
     }
 
-    private func synthesizeCommandV() {
+    func synthesizeCopy() { synthesize(keyCode: cKeyCode) }
+
+    private func synthesize(keyCode: CGKeyCode) {
         let source = CGEventSource(stateID: .combinedSessionState)
         // Suppress the user's physical keyboard during the synthetic burst so a stray
         // real keypress can't merge with it; mouse/system events stay live.
@@ -50,15 +53,15 @@ final class SystemSelectionReplacer: SelectionReplacing {
             [.permitLocalMouseEvents, .permitSystemDefinedEvents],
             state: .eventSuppressionStateSuppressionInterval
         )
-        guard let vDown = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: true),
-              let vUp = CGEvent(keyboardEventSource: source, virtualKey: vKeyCode, keyDown: false)
+        guard let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
+              let up = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: false)
         else { return }
-        vDown.flags = .maskCommand
-        vUp.flags = .maskCommand
+        down.flags = .maskCommand
+        up.flags = .maskCommand
         // The annotated session tap is closest to the app, so it bypasses our own Esc
         // CGEventTap (on the session tap), which would otherwise sit in the path and
-        // stop the synthetic Cmd+V from reaching the source app.
-        vDown.post(tap: .cgAnnotatedSessionEventTap)
-        vUp.post(tap: .cgAnnotatedSessionEventTap)
+        // stop the synthetic keystroke from reaching the source app.
+        down.post(tap: .cgAnnotatedSessionEventTap)
+        up.post(tap: .cgAnnotatedSessionEventTap)
     }
 }

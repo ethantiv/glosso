@@ -236,7 +236,9 @@ final class FakePopup: TranslationPopupPresenting {
 @MainActor
 final class FakeSelectionReplacer: SelectionReplacing {
     private(set) var replacedText: String?
+    private(set) var copyCount = 0
     func replace(with text: String) { replacedText = text }
+    func synthesizeCopy() { copyCount += 1 }
 }
 
 @MainActor
@@ -254,6 +256,7 @@ final class FakeAccessibilityAuthorizing: AccessibilityAuthorizing {
 @MainActor
 final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
+    var onFixGrammar: (@MainActor () -> Void)?
     private(set) var stopCount = 0
     /// When set, `start()` throws it — so a test can assert the coordinator
     /// surfaces a failed monitor start as `start() == false`.
