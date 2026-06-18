@@ -413,7 +413,7 @@ struct PopupView: View {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.trianglehead.clockwise")
                     .font(.system(size: 10.5, weight: .semibold))
-                Text("Przetłumacz")
+                Text(model.action.displayName)
                     .font(PopupTheme.fontControl)
             }
             .padding(.horizontal, 8)
@@ -425,8 +425,8 @@ struct PopupView: View {
         .buttonStyle(.plain)
         .disabled(!canRetranslate)
         .opacity(canRetranslate ? 1 : 0)
-        .help("Przetłumacz poprawiony tekst ponownie (⌘↩)")
-        .accessibilityLabel("Przetłumacz poprawiony tekst ponownie")
+        .help("Uruchom ponownie na poprawionym tekście (⌘↩)")
+        .accessibilityLabel("Uruchom ponownie na poprawionym tekście")
     }
 
     // Editing re-runs from scratch, so the open word dropdown and the pre-edit undo
