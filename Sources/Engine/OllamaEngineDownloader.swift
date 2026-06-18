@@ -83,6 +83,7 @@ final class OllamaEngineDownloader: Sendable {
             }
             func urlSession(_ s: URLSession, task: URLSessionTask, didCompleteWithError error: Error?) {
                 if let error { cont?.resume(throwing: error); cont = nil }
+                s.finishTasksAndInvalidate()
             }
         }
 

@@ -267,7 +267,7 @@ struct SettingsView: View {
         Task {
             do {
                 try await engine.ensureEngine(progress: { value in
-                    Task { @MainActor in engineDownload = value }
+                    Task { @MainActor in if engineDownload != nil { engineDownload = value } }
                 })
                 engineStatus = await engine.status()
                 await loadModels()
