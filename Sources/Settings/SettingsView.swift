@@ -7,14 +7,14 @@ struct SettingsView: View {
     let modelManager: any ModelManaging
 
     @State private var models: [String] = []
-    @State private var loadState: LoadState = .idle
     @State private var loadGeneration = 0
-    @State private var engineStatus: EngineStatus?
-    @State private var engineDownload: Double?
     @State private var pulling: [String: Double] = [:]
 
-    private enum LoadState: Equatable {
-        case idle, loading, loaded, failed
+    private let recommendedModel = EmbeddedModelCatalog.recommended.id
+
+    private var otherInstalledModels: [String] {
+        let catalogIDs = Set(EmbeddedModelCatalog.models.map(\.id))
+        return models.filter { !catalogIDs.contains($0) }.sorted()
     }
 
     var body: some View {
@@ -22,7 +22,7 @@ struct SettingsView: View {
             titleBar
             settingsGroups
         }
-        .frame(width: 420, alignment: .top)
+        .frame(width: 460, alignment: .top)
         .ignoresSafeArea(.container, edges: .top)
         .tint(PopupTheme.accent)
         .toolbar(removing: .title)
@@ -33,7 +33,6 @@ struct SettingsView: View {
         .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
-            engineStatus = await engine.status()
             await loadModels()
         }
     }
@@ -55,47 +54,26 @@ struct SettingsView: View {
 
     private var settingsGroups: some View {
         VStack(spacing: 14) {
-            engineGroup
-
             group("Model") {
-                row("Model Ollama", "Lokalny model do tłumaczenia") {
-                    Picker("", selection: $store.modelName) {
-                        ForEach(modelOptions, id: \.self) { name in
-                            Text(name).tag(name)
-                        }
-                    }
-                    .labelsHidden()
-                    .accessibilityLabel("Model Ollama")
-                    .frame(maxWidth: 200)
-                }
-                rowDivider
-                row("Lista modeli", nil) {
-                    switch loadState {
-                    case .loading:
-                        ProgressView().controlSize(.small)
-                    case .failed:
-                        Text("Nie udało się pobrać")
-                            .font(PopupTheme.fontMeta)
-                            .foregroundStyle(.secondary)
-                    case .loaded:
-                        Text("\(models.count) dostępne")
-                            .font(PopupTheme.fontMeta)
-                            .foregroundStyle(.secondary)
-                    case .idle:
-                        EmptyView()
-                    }
-                    Button("Odśwież") { Task { await loadModels() } }
-                        .buttonStyle(.link)
-                }
-                rowDivider
                 ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 { rowDivider }
-                    catalogRow(entry)
+                    modelRow(
+                        id: entry.id,
+                        title: entry.displayName,
+                        icon: entry.icon,
+                        size: entry.size,
+                        isDownloaded: models.contains(entry.id),
+                        isRecommended: entry.id == recommendedModel
+                    )
+                }
+                if !otherInstalledModels.isEmpty {
+                    rowDivider
+                    otherModelsRow
                 }
             }
 
-            group("Język") {
-                row("Drugi język", "Polski ↔ wybrany język, kierunek wykrywany automatycznie") {
+            group("Ogólne") {
+                row("Drugi język") {
                     Picker("", selection: $store.secondLanguage) {
                         ForEach(SecondLanguage.allCases, id: \.self) { lang in
                             Text(lang.displayName).tag(lang)
@@ -105,17 +83,15 @@ struct SettingsView: View {
                     .accessibilityLabel("Drugi język")
                     .fixedSize()
                 }
-            }
-
-            group("Ogólne") {
-                row("Naturalny styl", "Brzmi naturalnie, nie jak z AI") {
+                rowDivider
+                row("Naturalny styl") {
                     Toggle("", isOn: $store.humanize)
                         .labelsHidden()
                         .accessibilityLabel("Naturalny styl")
                         .toggleStyle(.switch)
                 }
                 rowDivider
-                row("Uruchamiaj przy logowaniu", "Startuje cicho w menu barze po zalogowaniu") {
+                row("Uruchamiaj przy logowaniu") {
                     Toggle("", isOn: $store.launchAtLogin)
                         .labelsHidden()
                         .accessibilityLabel("Uruchamiaj przy logowaniu")
@@ -124,13 +100,13 @@ struct SettingsView: View {
             }
 
             group("Skróty") {
-                row("Popraw w miejscu", "Poprawia gramatykę zaznaczenia") {
+                row("Popraw w miejscu") {
                     KeyChordRecorder(chord: $store.fixChord, otherChord: store.translateInPlaceChord)
                         .frame(width: 96, height: 24)
                         .accessibilityLabel("Skrót: popraw w miejscu")
                 }
                 rowDivider
-                row("Tłumacz w miejscu", "Tłumaczy zaznaczenie i wkleja wynik") {
+                row("Tłumacz w miejscu") {
                     KeyChordRecorder(chord: $store.translateInPlaceChord, otherChord: store.fixChord)
                         .frame(width: 96, height: 24)
                         .accessibilityLabel("Skrót: tłumacz w miejscu")
@@ -138,6 +114,23 @@ struct SettingsView: View {
             }
         }
         .padding(16)
+    }
+
+    // The user's own non-catalog Ollama models can grow unbounded, so they collapse
+    // into one picker instead of a row each. Selecting one makes it the active model;
+    // when a catalog Gemma is active the picker shows no selection (the radios above
+    // carry it). Glosso manages only its own Gemmas, so there's no delete here.
+    private var otherModelsRow: some View {
+        row("Inne zainstalowane") {
+            Picker("", selection: $store.modelName) {
+                ForEach(otherInstalledModels, id: \.self) { name in
+                    Text(name).tag(name)
+                }
+            }
+            .labelsHidden()
+            .accessibilityLabel("Inny zainstalowany model")
+            .fixedSize()
+        }
     }
 
     private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
@@ -161,26 +154,17 @@ struct SettingsView: View {
 
     private func row<Control: View>(
         _ label: String,
-        _ sub: String?,
         @ViewBuilder control: () -> Control
     ) -> some View {
         HStack(spacing: 12) {
-            VStack(alignment: .leading, spacing: 2) {
-                Text(label)
-                    .font(PopupTheme.fontSource)
-                    .foregroundStyle(.primary)
-                if let sub {
-                    Text(sub)
-                        .font(PopupTheme.fontMeta)
-                        .foregroundStyle(.secondary)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-            }
+            Text(label)
+                .font(PopupTheme.fontSource)
+                .foregroundStyle(.primary)
             Spacer(minLength: 8)
             HStack(spacing: 8) { control() }
         }
         .padding(.horizontal, 13)
-        .padding(.vertical, 11)
+        .padding(.vertical, 8)
     }
 
     private var rowDivider: some View {
@@ -189,106 +173,129 @@ struct SettingsView: View {
             .frame(height: 0.5)
     }
 
-    /// Always include the saved model so the current selection stays visible even
-    /// when the live list omits it or the fetch failed.
-    private var modelOptions: [String] {
-        models.contains(store.modelName) ? models : [store.modelName] + models
-    }
-
     private func loadModels() async {
         // Tag this load so a slow earlier fetch (e.g. .task) can't overwrite the
-        // result of a later one (e.g. an "Odśwież" tap) once it finally resolves.
+        // result of a later one (e.g. one triggered after a pull) once it finally
+        // resolves.
         loadGeneration += 1
         let generation = loadGeneration
-        loadState = .loading
         do {
             let fetched = try await lister.availableModels()
             guard generation == loadGeneration else { return }
             models = fetched
-            loadState = .loaded
         } catch {
             guard generation == loadGeneration else { return }
             models = []
-            loadState = .failed
         }
     }
 
-    private var engineGroup: some View {
-        group("Silnik") {
-            row("Silnik Ollamy", engineStatusSub) {
-                if let progress = engineDownload {
-                    ProgressView(value: progress).controlSize(.small).frame(width: 120)
-                } else if engineStatus == .needsDownload {
-                    Button("Pobierz silnik") { downloadEngine() }
-                        .buttonStyle(.link)
-                } else {
-                    Text(engineStatusLabel)
-                        .font(PopupTheme.fontMeta)
-                        .foregroundStyle(.secondary)
-                }
+    private func modelRow(
+        id: String,
+        title: String,
+        icon: String,
+        size: String,
+        isDownloaded: Bool,
+        isRecommended: Bool
+    ) -> some View {
+        let isActive = store.modelName == id
+        return HStack(spacing: 12) {
+            Button { store.modelName = id } label: {
+                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(isActive ? PopupTheme.accent : Color.secondary)
             }
-        }
-    }
+            .buttonStyle(.plain)
+            .disabled(!isDownloaded || isActive)
+            .accessibilityLabel("Użyj modelu \(title)")
+            .accessibilityAddTraits(isActive ? .isSelected : [])
 
-    private func catalogRow(_ entry: EmbeddedModelCatalog.Entry) -> some View {
-        row(entry.name, entry.size) {
-            if let progress = pulling[entry.id] {
-                ProgressView(value: progress).controlSize(.small).frame(width: 120)
-            } else if models.contains(entry.id) {
-                Button("Usuń") { deleteModel(entry.id) }
-                    .buttonStyle(.link)
+            Image(systemName: icon)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .frame(width: 20)
+                .help(title)
+                .accessibilityLabel(title)
+            Text(id)
+                .font(PopupTheme.fontMeta)
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+                .truncationMode(.tail)
+            Spacer(minLength: 8)
+
+            // Fixed-width trailing columns so size and action line up across rows;
+            // the badge slot is reserved even when empty so the size column's left
+            // edge stays put whether or not a row is recommended.
+            Group { if isRecommended { recommendedBadge } }
+                .frame(width: 64, alignment: .trailing)
+            if let progress = pulling[id] {
+                ProgressView(value: progress)
+                    .controlSize(.small)
+                    .frame(width: 116)
             } else {
-                Button("Pobierz") { startPull(entry.id) }
-                    .buttonStyle(.link)
-                    .disabled(engineStatus == .needsDownload)
+                Text(size)
+                    .font(PopupTheme.fontMeta)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                    .frame(width: 52, alignment: .leading)
+                Group {
+                    if isDownloaded {
+                        Button("Usuń") { deleteModel(id) }
+                            .buttonStyle(.link)
+                            .disabled(isActive)
+                    } else {
+                        Button("Pobierz") { startPull(id) }
+                            .buttonStyle(.link)
+                    }
+                }
+                .lineLimit(1)
+                .frame(width: 60, alignment: .trailing)
             }
         }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
     }
 
-    private var engineStatusLabel: String {
-        switch engineStatus {
-        case .ready: "Gotowy"
-        case .installable: "Gotowy do uruchomienia"
-        case .needsDownload, nil: "Brak"
-        }
+    private var recommendedBadge: some View {
+        Text("Zalecany")
+            .font(PopupTheme.fontLabel)
+            .foregroundStyle(PopupTheme.accent)
+            .lineLimit(1)
+            .fixedSize()
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(PopupTheme.accent.opacity(0.12), in: Capsule())
     }
 
-    private var engineStatusSub: String {
-        switch engineStatus {
-        case .ready: "Tłumaczy przez wykrytą Ollamę"
-        case .installable: "Uruchomi się przy pierwszym tłumaczeniu"
-        case .needsDownload: "Pobierz, by działać bez Ollamy (177 MB)"
-        case nil: "Sprawdzanie…"
-        }
-    }
-
-    private func downloadEngine() {
-        engineDownload = 0
-        Task {
-            do {
-                try await engine.ensureEngine(progress: { value in
-                    Task { @MainActor in if engineDownload != nil { engineDownload = value } }
-                })
-                engineStatus = await engine.status()
-                await loadModels()
-            } catch {}
-            engineDownload = nil
-        }
-    }
+    private let engineProgressShare = 0.15
 
     private func startPull(_ model: String) {
         pulling[model] = 0
         Task {
             do {
+                // Provision the engine first (idempotent — a no-op when the user's
+                // Ollama is reachable or a binary is already on disk). On a fresh Mac
+                // this pulls the ~177 MB engine; the user clicked "Pobierz", so it's
+                // consented, and it's negligible beside the multi-GB model that follows.
+                // The engine pull occupies the bar's first slice so the row reflects
+                // provisioning instead of sitting frozen at 0%; the model pull fills
+                // the rest. On an existing engine ensureEngine is a no-op and the bar
+                // simply starts from the engine slice.
+                try await engine.ensureEngine(progress: { p in
+                    Task { @MainActor in
+                        pulling[model] = max(pulling[model] ?? 0, p * engineProgressShare)
+                    }
+                })
                 for try await progress in modelManager.pull(model) {
                     if progress.total > 0 {
                         // /api/pull restarts completed/total per layer; clamp so the
                         // bar can't snap backward as each new layer reports from 0.
-                        let value = Double(progress.completed) / Double(progress.total)
+                        let fraction = Double(progress.completed) / Double(progress.total)
+                        let value = engineProgressShare + fraction * (1 - engineProgressShare)
                         pulling[model] = max(pulling[model] ?? 0, value)
                     }
                 }
                 await loadModels()
+                store.modelName = model
             } catch {}
             pulling[model] = nil
         }

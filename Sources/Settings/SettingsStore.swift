@@ -62,7 +62,7 @@ final class SettingsStore {
     init(defaults: UserDefaults = .standard, loginItem: any LoginItemManaging = SMAppServiceLoginItem()) {
         self.defaults = defaults
         self.loginItem = loginItem
-        self.modelName = defaults.string(forKey: Key.model) ?? LLMConfig.default.model
+        self.modelName = defaults.string(forKey: Key.model) ?? EmbeddedModelCatalog.recommended.id
         self.secondLanguage = defaults.string(forKey: Key.secondLanguage)
             .flatMap(SecondLanguage.init(rawValue:)) ?? .english
         self.formality = defaults.string(forKey: Key.formality)
