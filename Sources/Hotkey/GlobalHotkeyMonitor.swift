@@ -10,19 +10,26 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
 
     var onDoubleCopy: (@MainActor (Int) -> Void)?
     var onFixGrammar: (@MainActor () -> Void)?
+    var onTranslateInPlace: (@MainActor () -> Void)?
+
+    enum ChordHit: Equatable { case fix, translate }
 
     private var monitor: Any?
     private var detector: any DoubleKeyDetecting
     private let clock = SystemClock()
     private let changeCountProvider: @MainActor () -> Int
+    private let chordProvider: @MainActor () -> (fix: KeyChord, translate: KeyChord)
     private var pendingBaseline: Int?
 
     init(
         detector: any DoubleKeyDetecting = DoubleCopyDetector(),
-        changeCountProvider: @escaping @MainActor () -> Int = { NSPasteboard.general.changeCount }
+        changeCountProvider: @escaping @MainActor () -> Int = { NSPasteboard.general.changeCount },
+        chordProvider: @escaping @MainActor () -> (fix: KeyChord, translate: KeyChord)
+            = { (.fixGrammarDefault, .translateInPlaceDefault) }
     ) {
         self.detector = detector
         self.changeCountProvider = changeCountProvider
+        self.chordProvider = chordProvider
     }
 
     func start() throws {
@@ -45,19 +52,29 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
     private func handle(_ event: NSEvent) {
         // Match the typed character, not the physical key position (keyCode 8),
         // so double Cmd+C also fires on Dvorak/AZERTY/Colemak layouts.
-        let isC = event.charactersIgnoringModifiers?.lowercased() == "c"
         let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
         let mods = event.modifierFlags.intersection(chordModifiers)
-        // ponytail: char match like Cmd+C; if Control mangles it, switch to keyCode 5
-        if event.charactersIgnoringModifiers?.lowercased() == "g",
-           mods == [.command, .control], !event.isARepeat {
-            onFixGrammar?()
-            return
+        let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
+        // ponytail: char match like Cmd+C; if Control mangles it, switch to keyCode
+        switch resolveChord(key: key, modifiers: mods.rawValue, isRepeat: event.isARepeat) {
+        case .fix: onFixGrammar?(); return
+        case .translate: onTranslateInPlace?(); return
+        case nil: break
         }
-        guard isC, mods == .command, !event.isARepeat else { return }
+        guard key == "c", mods == .command, !event.isARepeat else { return }
         if let baseline = registerPress(changeCount: changeCountProvider(), at: clock.now()) {
             onDoubleCopy?(baseline)
         }
+    }
+
+    // Pure chord resolution, testable without fabricating an NSEvent. The fix chord
+    // wins a tie if a user ever points both at the same combo.
+    func resolveChord(key: String, modifiers: UInt, isRepeat: Bool) -> ChordHit? {
+        guard !isRepeat else { return nil }
+        let chords = chordProvider()
+        if chords.fix.matches(key: key, modifiers: modifiers) { return .fix }
+        if chords.translate.matches(key: key, modifiers: modifiers) { return .translate }
+        return nil
     }
 
     // Returns the changeCount baseline to translate against when this press

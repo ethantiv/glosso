@@ -226,15 +226,36 @@ protocol DoubleKeyDetecting: Sendable {
     mutating func reset()
 }
 
+/// A user-configurable headless shortcut (issue #21): a base character plus the
+/// Command/Control/Option/Shift modifiers it must be held with. `modifiers` is an
+/// `NSEvent.ModifierFlags.rawValue` masked to that chord set, kept as a plain UInt
+/// so this stays a pure value type with no AppKit dependency.
+struct KeyChord: Codable, Equatable, Sendable {
+    var key: String
+    var modifiers: UInt
+
+    /// Command + Control, the modifier pair both default action chords use.
+    static let cmdCtrl: UInt = 0x100000 | 0x40000 // .command | .control rawValues
+    static let fixGrammarDefault = KeyChord(key: "g", modifiers: cmdCtrl)
+    static let translateInPlaceDefault = KeyChord(key: "t", modifiers: cmdCtrl)
+
+    func matches(key: String, modifiers: UInt) -> Bool {
+        self.key == key.lowercased() && self.modifiers == modifiers
+    }
+}
+
 @MainActor
 protocol HotkeyMonitor: AnyObject {
     /// Fires on a double Cmd+C, carrying the pasteboard `changeCount` sampled at
     /// the *first* press of the pair — a baseline that always precedes the
     /// second copy even when the foreground app copies synchronously.
     var onDoubleCopy: (@MainActor (_ baselineChangeCount: Int) -> Void)? { get set }
-    /// Fires on the dedicated headless "fix grammar in place" chord (Cmd+Ctrl+G,
-    /// issue #46) — distinct from the double Cmd+C translate trigger.
+    /// Fires on the configurable headless "fix grammar in place" chord (default
+    /// Ctrl+Cmd+G, issue #21/#46) — distinct from the double Cmd+C translate trigger.
     var onFixGrammar: (@MainActor () -> Void)? { get set }
+    /// Fires on the configurable headless "translate in place" chord (default
+    /// Ctrl+Cmd+T, issue #21): translate the selection and paste it back, no popup.
+    var onTranslateInPlace: (@MainActor () -> Void)? { get set }
     func start() throws
     func stop()
 }

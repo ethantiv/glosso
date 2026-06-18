@@ -74,7 +74,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let reader = SystemPasteboardReader()
         let coordinator = AppCoordinator(
             llm: OllamaClient(),
-            monitor: GlobalHotkeyMonitor(changeCountProvider: { reader.currentChangeCount }),
+            monitor: GlobalHotkeyMonitor(
+                changeCountProvider: { reader.currentChangeCount },
+                chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) }
+            ),
             reader: reader,
             axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
