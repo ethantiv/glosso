@@ -12,6 +12,8 @@ final class SettingsStore {
         static let secondLanguage = "translation.secondLanguage"
         static let formality = "translation.formality"
         static let humanize = "translation.humanize"
+        static let fixChord = "shortcut.fixInPlace"
+        static let translateInPlaceChord = "shortcut.translateInPlace"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -33,6 +35,16 @@ final class SettingsStore {
     /// (issue #23). Default-on; only the translate verb honors it.
     var humanize: Bool {
         didSet { defaults.set(humanize, forKey: Key.humanize) }
+    }
+
+    /// Headless "fix grammar in place" chord (issue #21), default Ctrl+Cmd+F.
+    var fixChord: KeyChord {
+        didSet { defaults.set(try? JSONEncoder().encode(fixChord), forKey: Key.fixChord) }
+    }
+
+    /// Headless "translate in place" chord (issue #21), default Ctrl+Cmd+T.
+    var translateInPlaceChord: KeyChord {
+        didSet { defaults.set(try? JSONEncoder().encode(translateInPlaceChord), forKey: Key.translateInPlaceChord) }
     }
 
     // Source of truth is the system registration, not UserDefaults: the user can
@@ -58,6 +70,10 @@ final class SettingsStore {
         // Default-on: absent key means a fresh install, where humanizing is the
         // intended default — bool(forKey:) alone would read that as false.
         self.humanize = defaults.object(forKey: Key.humanize) as? Bool ?? true
+        self.fixChord = defaults.data(forKey: Key.fixChord)
+            .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .fixGrammarDefault
+        self.translateInPlaceChord = defaults.data(forKey: Key.translateInPlaceChord)
+            .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .translateInPlaceDefault
         self.launchAtLogin = loginItem.isEnabled
     }
 

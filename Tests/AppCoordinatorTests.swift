@@ -251,6 +251,28 @@ import Testing
         #expect(replacer.replacedText == "the cat")
     }
 
+    // The headless "translate in place" chord (issue #21) reuses the same in-place
+    // pipeline as fix-grammar but with action .translate, pasting the translation
+    // straight back over the selection — the silent twin of the popup's Replace button.
+    @Test func translateInPlaceReplacesSelectionWithTranslation() async {
+        let llm = FakeLLMClient(events: [.token("kot "), .token("śpi"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "the cat sleeps"
+        let replacer = FakeSelectionReplacer()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(model: "test-model"), replacer: replacer,
+            frontmostPID: { 42 }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42, action: .translate)
+
+        #expect(llm.recorder.receivedAction == .translate)
+        #expect(llm.recorder.receivedText == "the cat sleeps")
+        #expect(replacer.replacedText == "kot śpi")
+    }
+
     // With nothing selected — AX empty and the synthetic-copy fallback landing
     // nothing — there's nothing to correct: notify instead of silently doing
     // nothing, and never touch the LLM or the replacer's paste.

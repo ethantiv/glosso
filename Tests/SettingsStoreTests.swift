@@ -1,3 +1,4 @@
+import AppKit
 import Foundation
 import Testing
 @testable import Glosso
@@ -15,6 +16,22 @@ import Testing
         #expect(store.modelName == LLMConfig.default.model)
         #expect(store.secondLanguage == .english)
         #expect(store.formality == .automatic)
+        #expect(store.fixChord == .fixGrammarDefault)
+        #expect(store.translateInPlaceChord == .translateInPlaceDefault)
+    }
+
+    // The configurable action shortcuts (issue #21) must survive a restart, or the
+    // user's rebinding is lost the moment the app relaunches.
+    @Test func persistsChordsAcrossReload() {
+        let defaults = transientDefaults()
+        let cmdOpt = NSEvent.ModifierFlags([.command, .option]).rawValue
+        let first = SettingsStore(defaults: defaults)
+        first.fixChord = KeyChord(key: "g", modifiers: cmdOpt)
+        first.translateInPlaceChord = KeyChord(key: "r", modifiers: cmdOpt)
+
+        let reloaded = SettingsStore(defaults: defaults)
+        #expect(reloaded.fixChord == KeyChord(key: "g", modifiers: cmdOpt))
+        #expect(reloaded.translateInPlaceChord == KeyChord(key: "r", modifiers: cmdOpt))
     }
 
     // A reload (app restart) must see the previously chosen values, proving they

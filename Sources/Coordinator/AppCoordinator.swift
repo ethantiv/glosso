@@ -64,6 +64,7 @@ final class AppCoordinator {
 
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         monitor.onFixGrammar = { [weak self] in self?.handleFixGrammar() }
+        monitor.onTranslateInPlace = { [weak self] in self?.handleTranslateInPlace() }
         popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
@@ -202,12 +203,22 @@ final class AppCoordinator {
         fixTask = Task { @MainActor [weak self] in await self?.fixGrammarInPlace(sourcePID: source) }
     }
 
+    /// Headless "translate in place" chord (issue #21): the silent twin of the
+    /// popup's Replace button — translate the selection and paste it back, no popup.
+    /// Reuses the same in-place pipeline with `action: .translate`.
+    func handleTranslateInPlace() {
+        let source = frontmostPID()
+        fixTask?.cancel()
+        fixTask = Task { @MainActor [weak self] in await self?.fixGrammarInPlace(sourcePID: source, action: .translate) }
+    }
+
     /// Reads the focused element's selection via AX (no copy — the chord doesn't
     /// trigger one), runs `fixGrammar` silently into a buffer, then pastes the
     /// corrected text over the selection. On a missing selection or an app switch
     /// mid-stream it notifies instead of pasting; a successful fix is its own
     /// confirmation (the text changes in place).
-    func fixGrammarInPlace(sourcePID: pid_t?) async {
+    func fixGrammarInPlace(sourcePID: pid_t?, action: Action = .fixGrammar) async {
+        let isTranslate = action == .translate
         // AX is the fast path (no clipboard touch). Terminals and some web/Electron
         // fields expose no AXSelectedText for reading, so fall back to firing the
         // app's own Cmd+C and reading the pasteboard, restoring the clipboard around it.
@@ -223,13 +234,15 @@ final class AppCoordinator {
         }
         if Task.isCancelled { return }
         guard let text = captured else {
-            notify("Nie udało się odczytać zaznaczenia do poprawy.")
+            notify(isTranslate
+                ? "Nie udało się odczytać zaznaczenia do tłumaczenia."
+                : "Nie udało się odczytać zaznaczenia do poprawy.")
             return
         }
         var buffer = ""
         do {
             for try await event in llm.run(
-                text, action: .fixGrammar, model: settings.modelName,
+                text, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
                 humanize: settings.humanize) {
                 if Task.isCancelled { return }
@@ -237,7 +250,7 @@ final class AppCoordinator {
             }
         } catch {
             if Task.isCancelled { return }
-            notify("Nie udało się poprawić tekstu.")
+            notify(isTranslate ? "Nie udało się przetłumaczyć tekstu." : "Nie udało się poprawić tekstu.")
             return
         }
         if Task.isCancelled { return }
@@ -245,13 +258,17 @@ final class AppCoordinator {
         guard !corrected.isEmpty else { return }
         guard !usedFallback else {
             copyToClipboard(corrected)
-            notify("Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).")
+            notify(isTranslate
+                ? "Przetłumaczono. To zaznaczenie nie pozwala wkleić w miejscu — tłumaczenie jest w schowku (Cmd+V)."
+                : "Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).")
             return
         }
         // ponytail: best-effort paste; no read-only detection — add an AX writability probe if it bites
         guard let sourcePID, sourcePID == frontmostPID() else {
             copyToClipboard(corrected)
-            notify("Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.")
+            notify(isTranslate
+                ? "Aplikacja się zmieniła — tłumaczenie skopiowano do schowka."
+                : "Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.")
             return
         }
         // The selection can collapse to an insertion point while the model streams
@@ -261,7 +278,9 @@ final class AppCoordinator {
         if let selection = axReader.selectedText(),
            selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             copyToClipboard(corrected)
-            notify("Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.")
+            notify(isTranslate
+                ? "Zaznaczenie zniknęło — tłumaczenie skopiowano do schowka."
+                : "Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.")
             return
         }
         replacer.replace(with: corrected)

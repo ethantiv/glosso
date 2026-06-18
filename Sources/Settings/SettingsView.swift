@@ -50,7 +50,7 @@ struct SettingsView: View {
     private var settingsGroups: some View {
         VStack(spacing: 14) {
             group("Model") {
-                row("Model Ollama", "Lokalny model używany do tłumaczenia") {
+                row("Model Ollama", "Lokalny model do tłumaczenia") {
                     Picker("", selection: $store.modelName) {
                         ForEach(modelOptions, id: \.self) { name in
                             Text(name).tag(name)
@@ -95,10 +95,10 @@ struct SettingsView: View {
             }
 
             group("Ogólne") {
-                row("Uczłowiecz tłumaczenia", "Wynik brzmi naturalnie, bez znamion pisma AI") {
+                row("Naturalny styl", "Brzmi naturalnie, nie jak z AI") {
                     Toggle("", isOn: $store.humanize)
                         .labelsHidden()
-                        .accessibilityLabel("Uczłowiecz tłumaczenia")
+                        .accessibilityLabel("Naturalny styl")
                         .toggleStyle(.switch)
                 }
                 rowDivider
@@ -107,6 +107,20 @@ struct SettingsView: View {
                         .labelsHidden()
                         .accessibilityLabel("Uruchamiaj przy logowaniu")
                         .toggleStyle(.switch)
+                }
+            }
+
+            group("Skróty") {
+                row("Popraw w miejscu", "Poprawia gramatykę zaznaczenia") {
+                    KeyChordRecorder(chord: $store.fixChord, otherChord: store.translateInPlaceChord)
+                        .frame(width: 96, height: 24)
+                        .accessibilityLabel("Skrót: popraw w miejscu")
+                }
+                rowDivider
+                row("Tłumacz w miejscu", "Tłumaczy zaznaczenie i wkleja wynik") {
+                    KeyChordRecorder(chord: $store.translateInPlaceChord, otherChord: store.fixChord)
+                        .frame(width: 96, height: 24)
+                        .accessibilityLabel("Skrót: tłumacz w miejscu")
                 }
             }
         }
@@ -146,6 +160,7 @@ struct SettingsView: View {
                     Text(sub)
                         .font(PopupTheme.fontMeta)
                         .foregroundStyle(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
                 }
             }
             Spacer(minLength: 8)

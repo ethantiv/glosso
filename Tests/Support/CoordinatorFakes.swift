@@ -289,6 +289,7 @@ final class FakeAccessibilityAuthorizing: AccessibilityAuthorizing {
 final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
     var onFixGrammar: (@MainActor () -> Void)?
+    var onTranslateInPlace: (@MainActor () -> Void)?
     private(set) var stopCount = 0
     /// When set, `start()` throws it — so a test can assert the coordinator
     /// surfaces a failed monitor start as `start() == false`.
