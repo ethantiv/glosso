@@ -9,11 +9,12 @@ import Testing
         UserDefaults(suiteName: "SettingsStoreTests-\(UUID().uuidString)")!
     }
 
-    // A fresh install must start on exactly the hardcoded MVP defaults, so the
-    // app behaves identically until the user changes anything.
+    // A fresh install must start on the model recommended for this Mac's RAM (not a
+    // hardcoded tag), and on the hardcoded MVP defaults for everything else, so the
+    // app behaves predictably until the user changes anything.
     @Test func defaultsMatchTheHardcodedConfig() {
         let store = SettingsStore(defaults: transientDefaults())
-        #expect(store.modelName == LLMConfig.default.model)
+        #expect(store.modelName == EmbeddedModelCatalog.recommended.id)
         #expect(store.secondLanguage == .english)
         #expect(store.formality == .automatic)
         #expect(store.fixChord == .fixGrammarDefault)
