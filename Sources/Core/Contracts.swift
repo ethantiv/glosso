@@ -251,7 +251,7 @@ protocol HotkeyMonitor: AnyObject {
     /// second copy even when the foreground app copies synchronously.
     var onDoubleCopy: (@MainActor (_ baselineChangeCount: Int) -> Void)? { get set }
     /// Fires on the configurable headless "fix grammar in place" chord (default
-    /// Ctrl+Cmd+F, issue #21/#46) — distinct from the double Cmd+C translate trigger.
+    /// Ctrl+Cmd+G, issue #21/#46) — distinct from the double Cmd+C translate trigger.
     var onFixGrammar: (@MainActor () -> Void)? { get set }
     /// Fires on the configurable headless "translate in place" chord (default
     /// Ctrl+Cmd+T, issue #21): translate the selection and paste it back, no popup.

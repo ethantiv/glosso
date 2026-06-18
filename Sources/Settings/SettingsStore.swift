@@ -37,7 +37,7 @@ final class SettingsStore {
         didSet { defaults.set(humanize, forKey: Key.humanize) }
     }
 
-    /// Headless "fix grammar in place" chord (issue #21), default Ctrl+Cmd+F.
+    /// Headless "fix grammar in place" chord (issue #21), default Ctrl+Cmd+G.
     var fixChord: KeyChord {
         didSet { defaults.set(try? JSONEncoder().encode(fixChord), forKey: Key.fixChord) }
     }
