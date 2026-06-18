@@ -134,11 +134,14 @@ enum TranslationError: Error, Sendable, Equatable {
     case malformedStream
     case emptyInput
     case cancelled
+    case engineUnavailable
 
     var userMessage: String {
         switch self {
         case .ollamaUnreachable:
             "Nie mogę połączyć się z Ollamą (localhost:11434). Sprawdź, czy działa."
+        case .engineUnavailable:
+            "Brak silnika tłumaczenia. Pobierz go w Ustawieniach Glosso."
         case .httpStatus(let code):
             "Ollama zwróciła błąd HTTP \(code)."
         case .ollamaError(let message):
@@ -210,6 +213,45 @@ protocol LLMClient: Sendable {
 /// picker instead of a hardcoded name.
 protocol ModelListing: Sendable {
     func availableModels() async throws -> [String]
+}
+
+/// Resolves the base `/api/generate` URL of the active Ollama engine: the user's
+/// own daemon on 11434 when reachable, otherwise a private `ollama serve` that
+/// Glosso spawns on a free port (from an installed Ollama.app or a downloaded
+/// engine). `ensureEngine` forces provisioning — downloading the ~177 MB engine
+/// when none is present — for the explicit "download engine" action in Settings,
+/// reporting download progress (0…1). `activeBaseURL` never downloads on its own:
+/// it throws `TranslationError.engineUnavailable` when only a download would help,
+/// so a translation surfaces an actionable message instead of a silent 177 MB pull.
+protocol EngineProviding: Sendable {
+    func activeBaseURL() async throws -> URL
+    func ensureEngine(progress: @escaping @Sendable (Double) -> Void) async throws
+    /// Non-spawning, non-downloading probe for the Settings UI: whether an engine
+    /// is already usable (`ready`), spawnable from a local binary without a
+    /// download (`installable`), or only obtainable by downloading (`needsDownload`).
+    func status() async -> EngineStatus
+}
+
+enum EngineStatus: Sendable, Equatable {
+    case ready          // the user's Ollama is up, or we already spawned one
+    case installable    // a local binary exists (installed Ollama.app or a prior download)
+    case needsDownload  // nothing local — only `ensureEngine` (a 177 MB pull) helps
+}
+
+/// Progress of a `POST /api/pull` model download — one Ollama status line
+/// (`completed`/`total` are bytes of the current layer, 0 until known).
+struct PullProgress: Sendable, Equatable {
+    var status: String
+    var completed: Int64
+    var total: Int64
+}
+
+/// Pulls (`POST /api/pull`, streaming progress) and deletes (`DELETE /api/delete`)
+/// models on the active engine, backing the Settings model catalog's
+/// Download/Delete affordances.
+protocol ModelManaging: Sendable {
+    func pull(_ model: String) -> AsyncThrowingStream<PullProgress, Error>
+    func delete(_ model: String) async throws
 }
 
 /// Controls whether the app launches at login. `isEnabled` reflects the *actual*

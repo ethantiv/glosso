@@ -3,10 +3,15 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var store: SettingsStore
     let lister: any ModelListing
+    let engine: any EngineProviding
+    let modelManager: any ModelManaging
 
     @State private var models: [String] = []
     @State private var loadState: LoadState = .idle
     @State private var loadGeneration = 0
+    @State private var engineStatus: EngineStatus?
+    @State private var engineDownload: Double?
+    @State private var pulling: [String: Double] = [:]
 
     private enum LoadState: Equatable {
         case idle, loading, loaded, failed
@@ -28,6 +33,7 @@ struct SettingsView: View {
         .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
+            engineStatus = await engine.status()
             await loadModels()
         }
     }
@@ -49,6 +55,8 @@ struct SettingsView: View {
 
     private var settingsGroups: some View {
         VStack(spacing: 14) {
+            engineGroup
+
             group("Model") {
                 row("Model Ollama", "Lokalny model do tłumaczenia") {
                     Picker("", selection: $store.modelName) {
@@ -78,6 +86,11 @@ struct SettingsView: View {
                     }
                     Button("Odśwież") { Task { await loadModels() } }
                         .buttonStyle(.link)
+                }
+                rowDivider
+                ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 { rowDivider }
+                    catalogRow(entry)
                 }
             }
 
@@ -197,6 +210,91 @@ struct SettingsView: View {
             guard generation == loadGeneration else { return }
             models = []
             loadState = .failed
+        }
+    }
+
+    private var engineGroup: some View {
+        group("Silnik") {
+            row("Silnik Ollamy", engineStatusSub) {
+                if let progress = engineDownload {
+                    ProgressView(value: progress).controlSize(.small).frame(width: 120)
+                } else if engineStatus == .needsDownload {
+                    Button("Pobierz silnik") { downloadEngine() }
+                        .buttonStyle(.link)
+                } else {
+                    Text(engineStatusLabel)
+                        .font(PopupTheme.fontMeta)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
+    private func catalogRow(_ entry: EmbeddedModelCatalog.Entry) -> some View {
+        row(entry.name, entry.size) {
+            if let progress = pulling[entry.id] {
+                ProgressView(value: progress).controlSize(.small).frame(width: 120)
+            } else if models.contains(entry.id) {
+                Button("Usuń") { deleteModel(entry.id) }
+                    .buttonStyle(.link)
+            } else {
+                Button("Pobierz") { startPull(entry.id) }
+                    .buttonStyle(.link)
+                    .disabled(engineStatus == .needsDownload)
+            }
+        }
+    }
+
+    private var engineStatusLabel: String {
+        switch engineStatus {
+        case .ready: "Gotowy"
+        case .installable: "Gotowy do uruchomienia"
+        case .needsDownload, nil: "Brak"
+        }
+    }
+
+    private var engineStatusSub: String {
+        switch engineStatus {
+        case .ready: "Tłumaczy przez wykrytą Ollamę"
+        case .installable: "Uruchomi się przy pierwszym tłumaczeniu"
+        case .needsDownload: "Pobierz, by działać bez Ollamy (177 MB)"
+        case nil: "Sprawdzanie…"
+        }
+    }
+
+    private func downloadEngine() {
+        engineDownload = 0
+        Task {
+            do {
+                try await engine.ensureEngine(progress: { value in
+                    Task { @MainActor in engineDownload = value }
+                })
+                engineStatus = await engine.status()
+                await loadModels()
+            } catch {}
+            engineDownload = nil
+        }
+    }
+
+    private func startPull(_ model: String) {
+        pulling[model] = 0
+        Task {
+            do {
+                for try await progress in modelManager.pull(model) {
+                    if progress.total > 0 {
+                        pulling[model] = Double(progress.completed) / Double(progress.total)
+                    }
+                }
+                await loadModels()
+            } catch {}
+            pulling[model] = nil
+        }
+    }
+
+    private func deleteModel(_ model: String) {
+        Task {
+            try? await modelManager.delete(model)
+            await loadModels()
         }
     }
 }
