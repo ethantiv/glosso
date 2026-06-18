@@ -3,10 +3,15 @@ import Foundation
 final class OllamaClient: LLMClient {
     private let session: URLSession
     private let config: LLMConfig
+    // Resolved per call so the active engine's host:port (the user's Ollama on
+    // 11434, or a private engine we spawned on a free port) can change at runtime
+    // without rebuilding the client. The empirical invariants stay in `config`.
+    private let endpointProvider: @Sendable () async throws -> URL
 
-    init(session: URLSession = .shared, config: LLMConfig = .default) {
+    init(session: URLSession = .shared, config: LLMConfig = .default, endpointProvider: @escaping @Sendable () async throws -> URL = { LLMConfig.default.endpoint }) {
         self.session = session
         self.config = config
+        self.endpointProvider = endpointProvider
     }
 
     func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -37,7 +42,8 @@ final class OllamaClient: LLMClient {
     // user-selectable per call. Returns the model's raw `response` body; each
     // caller parses it (AlternativesParser / ExplanationParser).
     private func generate(prompt: String, model: String) async throws -> String {
-        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false)
+        let endpoint = try await endpointProvider()
+        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint)
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
@@ -62,11 +68,13 @@ final class OllamaClient: LLMClient {
     private func stream(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         let session = self.session
         let baseConfig = self.config
+        let endpointProvider = self.endpointProvider
 
         return AsyncThrowingStream { continuation in
             let task = Task {
                 do {
-                    let request = try Self.makeRequest(config: baseConfig, model: model, prompt: prompt, stream: true)
+                    let endpoint = try await endpointProvider()
+                    let request = try Self.makeRequest(config: baseConfig, model: model, prompt: prompt, stream: true, endpoint: endpoint)
                     let (bytes, response) = try await session.bytes(for: request)
 
                     guard let http = response as? HTTPURLResponse else {
@@ -142,7 +150,8 @@ final class OllamaClient: LLMClient {
             // Empty prompt = load-only: Ollama loads the model and primes
             // keep_alive without running an inference pass, so a real translation
             // never has to queue behind the prewarm's own generation.
-            let request = try Self.makeRequest(config: config, model: model, prompt: "", stream: false)
+            let endpoint = try await endpointProvider()
+            let request = try Self.makeRequest(config: config, model: model, prompt: "", stream: false, endpoint: endpoint)
             _ = try await session.data(for: request)
         } catch {
             // best-effort: prewarm failures must not surface
@@ -150,12 +159,13 @@ final class OllamaClient: LLMClient {
     }
 
     // Applies the per-call model over the base config (whose empirical invariants
-    // — think:false, temperature:0, keep_alive, endpoint — stay locked) in one
-    // place, so no caller hand-copies the config to swap the model.
-    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool) throws -> URLRequest {
+    // — think:false, temperature:0, keep_alive — stay locked) in one place, so no
+    // caller hand-copies the config to swap the model. The endpoint is resolved by
+    // the caller via `endpointProvider`, not taken from the config.
+    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool, endpoint: URL) throws -> URLRequest {
         var config = baseConfig
         config.model = model
-        var request = URLRequest(url: config.endpoint)
+        var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(GenerateRequest(config: config, prompt: prompt, stream: stream))

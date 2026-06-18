@@ -29,7 +29,12 @@ struct GlossoApp: App {
         }
 
         Settings {
-            SettingsView(store: appDelegate.settings, lister: appDelegate.modelLister)
+            SettingsView(
+                store: appDelegate.settings,
+                lister: appDelegate.modelLister,
+                engine: appDelegate.engine,
+                modelManager: appDelegate.modelManager
+            )
         }
     }
 }
@@ -54,7 +59,18 @@ private struct OpenSettingsButton: View {
 final class AppDelegate: NSObject, NSApplicationDelegate {
     let appState = AppState()
     let settings = SettingsStore()
-    let modelLister = OllamaModelLister()
+    // Shared with EngineManager so a spawned `ollama serve` can be killed
+    // synchronously on quit (applicationWillTerminate can't await the actor).
+    let engineBox = EngineProcessBox()
+    lazy var engine = EngineManager(box: engineBox)
+    lazy var modelLister: OllamaModelLister = OllamaModelLister(endpointProvider: Self.endpointProvider(engine))
+    lazy var modelManager: OllamaModelManager = OllamaModelManager(endpointProvider: Self.endpointProvider(engine))
+
+    // Builds the `@Sendable` endpoint resolver off the MainActor so its closure
+    // isn't inferred as main-actor-isolated (which can't also be Sendable).
+    nonisolated static func endpointProvider(_ engine: EngineManager) -> @Sendable () async throws -> URL {
+        { try await engine.activeBaseURL() }
+    }
     // Injectable so tests can drive the granted↔revoked transitions in
     // recheckAccessibility() with a fake; production keeps the real AXChecker.
     var ax: any AccessibilityAuthorizing = AXChecker()
@@ -73,7 +89,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let reader = SystemPasteboardReader()
         let coordinator = AppCoordinator(
-            llm: OllamaClient(),
+            llm: OllamaClient(endpointProvider: Self.endpointProvider(engine)),
             monitor: GlobalHotkeyMonitor(
                 changeCountProvider: { reader.currentChangeCount },
                 chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) }
@@ -93,6 +109,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.recheckAccessibility() }
         }
+    }
+
+    func applicationWillTerminate(_ notification: Notification) {
+        engineBox.terminate()
     }
 
     func openAccessibilitySettings() {

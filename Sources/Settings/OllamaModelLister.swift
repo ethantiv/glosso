@@ -8,15 +8,17 @@ enum ModelListingError: Error, Equatable {
 /// from the generate endpoint so both stay pinned to the same host.
 final class OllamaModelLister: ModelListing {
     private let session: URLSession
-    private let tagsURL: URL
+    private let endpointProvider: @Sendable () async throws -> URL
 
-    init(session: URLSession = .shared, generateEndpoint: URL = LLMConfig.default.endpoint) {
+    init(session: URLSession = .shared, endpointProvider: @escaping @Sendable () async throws -> URL = { LLMConfig.default.endpoint }) {
         self.session = session
-        // .../api/generate -> .../api/tags
-        self.tagsURL = generateEndpoint.deletingLastPathComponent().appendingPathComponent("tags")
+        self.endpointProvider = endpointProvider
     }
 
     func availableModels() async throws -> [String] {
+        // .../api/generate -> .../api/tags, resolved per call so it tracks the
+        // active engine (the user's Ollama or a private one we spawned).
+        let tagsURL = try await endpointProvider().deletingLastPathComponent().appendingPathComponent("tags")
         // Bypass the URL cache so "Odśwież" reflects models pulled/removed since
         // the last fetch instead of replaying a cached /api/tags body.
         let request = URLRequest(url: tagsURL, cachePolicy: .reloadIgnoringLocalCacheData)
