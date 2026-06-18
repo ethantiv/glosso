@@ -72,6 +72,13 @@ final class OllamaEngineDownloader: Sendable {
                 }
             }
             func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
+                // didFinishDownloadingTo fires for any completed transfer, including
+                // non-2xx responses whose error-page body lands in the temp file.
+                if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 {
+                    cont?.resume(throwing: TranslationError.engineUnavailable)
+                    cont = nil
+                    return
+                }
                 do {
                     try? FileManager.default.removeItem(at: dest)
                     try FileManager.default.moveItem(at: location, to: dest)

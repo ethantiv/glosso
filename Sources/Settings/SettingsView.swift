@@ -282,7 +282,10 @@ struct SettingsView: View {
             do {
                 for try await progress in modelManager.pull(model) {
                     if progress.total > 0 {
-                        pulling[model] = Double(progress.completed) / Double(progress.total)
+                        // /api/pull restarts completed/total per layer; clamp so the
+                        // bar can't snap backward as each new layer reports from 0.
+                        let value = Double(progress.completed) / Double(progress.total)
+                        pulling[model] = max(pulling[model] ?? 0, value)
                     }
                 }
                 await loadModels()

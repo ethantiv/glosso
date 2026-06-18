@@ -7,7 +7,13 @@ final class EngineProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
 
-    func set(_ p: Process?) { lock.lock(); defer { lock.unlock() }; process = p }
+    func set(_ p: Process?) {
+        lock.lock(); defer { lock.unlock() }
+        // Two independent spawn paths (resolve / ensureEngine) can race; kill the
+        // prior process before reassigning so it can't be orphaned holding a port.
+        if process !== p { process?.terminate() }
+        process = p
+    }
     func terminate() {
         lock.lock(); defer { lock.unlock() }
         process?.terminate()
