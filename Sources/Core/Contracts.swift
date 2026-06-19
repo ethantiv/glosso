@@ -86,6 +86,11 @@ enum Action: String, CaseIterable, Sendable {
     case translate
     case summarize
     case fixGrammar
+    // Unlike the others, Reply doesn't transform the selection — it generates a
+    // reply to it, returning several drafts to pick from (issue #60). It rides the
+    // same capture→LLM→popup pipeline but takes the non-streaming list path
+    // (LLMClient.reply), not run().
+    case reply
 
     /// Polish label for the verb strip pill.
     var displayName: String {
@@ -93,6 +98,7 @@ enum Action: String, CaseIterable, Sendable {
         case .translate: "Tłumacz"
         case .summarize: "Streść"
         case .fixGrammar: "Popraw"
+        case .reply: "Odpowiedz"
         }
     }
 
@@ -104,6 +110,7 @@ enum Action: String, CaseIterable, Sendable {
         case .translate: "character.book.closed"
         case .summarize: "list.bullet"
         case .fixGrammar: "checkmark.circle"
+        case .reply: "arrowshape.turn.up.left"
         }
     }
 }
@@ -207,6 +214,11 @@ protocol LLMClient: Sendable {
     /// texts give context. `error` or `correction` may be empty (a pure insertion
     /// or deletion).
     func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, model: String) async throws -> String
+    /// Generates several distinct reply drafts to `text` (issue #60) — a reply, not
+    /// a transformation, so there's no single "right" answer and the popup offers a
+    /// few to choose from. Replies in the language `text` is written in. Non-streaming
+    /// like `alternatives` (all drafts arrive together); parsed by `ReplyParser`.
+    func reply(to text: String, model: String) async throws -> [String]
 }
 
 /// Lists the models actually installed in Ollama, so Settings can offer a live
@@ -358,6 +370,9 @@ protocol TranslationPopupPresenting: AnyObject {
     func append(token: String)
     func showError(_ message: String)
     func finish(truncated: Bool)
+    /// Shows the generated reply drafts (issue #60) and moves to the done phase,
+    /// selecting the first so the Copy button has something to copy immediately.
+    func showReplies(_ drafts: [String])
     /// Resets the translation pane to its loading skeleton for a re-translation,
     /// keeping the window in place along with the source text, direction and the
     /// selected tone.

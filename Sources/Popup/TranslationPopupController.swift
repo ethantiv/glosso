@@ -208,6 +208,15 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.phase = .done
     }
 
+    func showReplies(_ drafts: [String]) {
+        model.replyDrafts = drafts
+        // Select the first so Copy has something to copy without a click; text
+        // mirrors the selection so the existing Copy path (copies model.text) works.
+        model.selectedDraftIndex = drafts.isEmpty ? nil : 0
+        model.text = drafts.first ?? ""
+        model.phase = .done
+    }
+
     func restartTranslation() {
         resetTranslationPane()
     }
@@ -220,6 +229,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // drop any open word dropdown; otherwise it reappears over the new result.
         model.closeDropdown()
         model.text = ""
+        model.replyDrafts = []
+        model.selectedDraftIndex = nil
         model.errorMessage = nil
         model.truncated = false
         model.phase = .capturing
