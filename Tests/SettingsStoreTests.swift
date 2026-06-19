@@ -21,6 +21,17 @@ import Testing
         #expect(store.translateInPlaceChord == .translateInPlaceDefault)
     }
 
+    // The first-run wizard must show exactly once: a fresh install starts
+    // not-onboarded, and once finished the flag must survive a restart so the wizard
+    // never reappears.
+    @Test func onboardingFlagDefaultsFalseAndPersists() {
+        let defaults = transientDefaults()
+        #expect(SettingsStore(defaults: defaults).hasCompletedOnboarding == false)
+
+        SettingsStore(defaults: defaults).hasCompletedOnboarding = true
+        #expect(SettingsStore(defaults: defaults).hasCompletedOnboarding == true)
+    }
+
     // The configurable action shortcuts (issue #21) must survive a restart, or the
     // user's rebinding is lost the moment the app relaunches.
     @Test func persistsChordsAcrossReload() {

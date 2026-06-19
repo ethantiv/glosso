@@ -1,0 +1,63 @@
+name: Release
+
+# Push a tag like v0.2.0 (matching MARKETING_VERSION in project.yml) to build a
+# signed .zip and publish it as a GitHub Release. The in-app update check reads the
+# latest release here; friends download the .zip from the release page.
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write # gh release create needs to write Releases
+
+jobs:
+  release:
+    # Needs an Xcode that ships the macOS 26 SDK (project deployment target is 26.0).
+    # If the runner image lacks it, bump this to the newest macos-* label available.
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Import signing certificate
+        env:
+          CERT_B64: ${{ secrets.SIGNING_CERT_P12_BASE64 }}
+          CERT_PW: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KPW="$(uuidgen)"
+
+          echo "$CERT_B64" | base64 --decode > "$CERT"
+          security create-keychain -p "$KPW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPW" "$KEYCHAIN"
+          security import "$CERT" -P "$CERT_PW" -A -t cert -f pkcs12 -k "$KEYCHAIN" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KPW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+          # Trust the self-signed root for code signing so xcodebuild treats it as a
+          # valid identity. Export the cert via `security` (the runner's LibreSSL has
+          # no `openssl pkcs12 -legacy`).
+          security find-certificate -c "Glosso Self-Signed" -p "$KEYCHAIN" > "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          security find-identity -v -p codesigning
+
+      - name: Build & package
+        run: |
+          brew install xcodegen
+          scripts/package.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            .build/release/Glosso.zip \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes

@@ -9,10 +9,24 @@ settings:
     SWIFT_VERSION: "6.0"
     MARKETING_VERSION: "0.1.0"
     CURRENT_PROJECT_VERSION: "1"
-    DEVELOPMENT_TEAM: "F266Z8F83B"
-    CODE_SIGN_STYLE: Automatic
-    CODE_SIGN_IDENTITY: "Apple Development"
-    ENABLE_HARDENED_RUNTIME: YES
+    # Stable self-signed identity (created once in Keychain): keeps the app's code
+    # signing identity constant across releases so the Accessibility (TCC) grant
+    # survives manual updates. Not notarized — fine for personal/free distribution.
+    CODE_SIGN_STYLE: Manual
+    CODE_SIGN_IDENTITY: "Glosso Self-Signed"
+    CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
+    # Xcode's Debug "debug dylib" is signed without a Team ID; the xctest runner
+    # refuses to load it under library validation, crashing the test host. Disabling
+    # the split puts everything back in the main binary. Debug-only mechanism.
+    ENABLE_DEBUG_DYLIB: NO
+  configs:
+    Debug:
+      # Hardened runtime turns on Library Validation, which rejects our self-signed
+      # (no Team ID) test bundle. We don't notarize, so it's only needed on the
+      # shipped Release build — off in Debug so the unit-test bundle loads.
+      ENABLE_HARDENED_RUNTIME: NO
+    Release:
+      ENABLE_HARDENED_RUNTIME: YES
 targets:
   Glosso:
     type: application
@@ -24,6 +38,7 @@ targets:
       properties:
         LSUIElement: true
         CFBundleDisplayName: Glosso
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
     entitlements:
       path: Generated/Glosso.entitlements
       properties:

@@ -14,6 +14,7 @@ final class SettingsStore {
         static let humanize = "translation.humanize"
         static let fixChord = "shortcut.fixInPlace"
         static let translateInPlaceChord = "shortcut.translateInPlace"
+        static let hasCompletedOnboarding = "app.hasCompletedOnboarding"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -47,6 +48,12 @@ final class SettingsStore {
         didSet { defaults.set(try? JSONEncoder().encode(translateInPlaceChord), forKey: Key.translateInPlaceChord) }
     }
 
+    /// False on a fresh install (absent key) — drives the first-run wizard. Set
+    /// true once the user finishes (or skips) onboarding.
+    var hasCompletedOnboarding: Bool {
+        didSet { defaults.set(hasCompletedOnboarding, forKey: Key.hasCompletedOnboarding) }
+    }
+
     // Source of truth is the system registration, not UserDefaults: the user can
     // revoke it in System Settings, so a mirrored flag would drift.
     var launchAtLogin: Bool {
@@ -74,6 +81,7 @@ final class SettingsStore {
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .fixGrammarDefault
         self.translateInPlaceChord = defaults.data(forKey: Key.translateInPlaceChord)
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .translateInPlaceDefault
+        self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)
         self.launchAtLogin = loginItem.isEnabled
     }
 

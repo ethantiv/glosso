@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build a Release .app, zip it, and install it into /Applications.
-# Free-team signed (Apple Development) — for your own Mac, not notarized.
+# Signed with the stable self-signed "Glosso Self-Signed" identity (see project.yml) —
+# not notarized; first launch on another Mac needs a one-time "Open Anyway".
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -27,6 +28,13 @@ rm -f "$ZIP"
 # ditto (not zip) preserves the code signature and resource forks.
 ditto -c -k --keepParent "$APP" "$ZIP"
 echo "✅ Spakowano → $ZIP"
+
+# CI only needs the signed .zip; the local install/launch below is headless-hostile
+# (`open` fails with LSOpenURLs -10825 and /Applications isn't writable on the runner).
+if [ -n "${CI:-}" ]; then
+  echo "CI: pomijam instalację do /Applications."
+  exit 0
+fi
 
 APP_DEST="/Applications/$SCHEME.app"
 if pgrep -xq "$SCHEME"; then

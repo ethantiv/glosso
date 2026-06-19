@@ -266,33 +266,12 @@ struct SettingsView: View {
             .background(PopupTheme.accent.opacity(0.12), in: Capsule())
     }
 
-    private let engineProgressShare = 0.15
-
     private func startPull(_ model: String) {
         pulling[model] = 0
         Task {
             do {
-                // Provision the engine first (idempotent — a no-op when the user's
-                // Ollama is reachable or a binary is already on disk). On a fresh Mac
-                // this pulls the ~177 MB engine; the user clicked "Pobierz", so it's
-                // consented, and it's negligible beside the multi-GB model that follows.
-                // The engine pull occupies the bar's first slice so the row reflects
-                // provisioning instead of sitting frozen at 0%; the model pull fills
-                // the rest. On an existing engine ensureEngine is a no-op and the bar
-                // simply starts from the engine slice.
-                try await engine.ensureEngine(progress: { p in
-                    Task { @MainActor in
-                        pulling[model] = max(pulling[model] ?? 0, p * engineProgressShare)
-                    }
-                })
-                for try await progress in modelManager.pull(model) {
-                    if progress.total > 0 {
-                        // /api/pull restarts completed/total per layer; clamp so the
-                        // bar can't snap backward as each new layer reports from 0.
-                        let fraction = Double(progress.completed) / Double(progress.total)
-                        let value = engineProgressShare + fraction * (1 - engineProgressShare)
-                        pulling[model] = max(pulling[model] ?? 0, value)
-                    }
+                try await downloadModel(model, engine: engine, modelManager: modelManager) { value in
+                    pulling[model] = value
                 }
                 await loadModels()
                 store.modelName = model
