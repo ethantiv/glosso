@@ -63,3 +63,7 @@ Two toggles: **Naturalny styl** (default on) makes translations read like natura
 ## How it works
 
 The app is split into small modules — hotkey, capture, LLM, popup, settings — each behind a protocol so the pieces stay swappable and testable. For the details, including the design decisions and the reasoning behind them, see [`CLAUDE.md`](CLAUDE.md).
+
+## License
+
+[MIT](LICENSE)
