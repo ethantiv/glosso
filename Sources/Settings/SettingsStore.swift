@@ -15,6 +15,7 @@ final class SettingsStore {
         static let fixChord = "shortcut.fixInPlace"
         static let translateInPlaceChord = "shortcut.translateInPlace"
         static let hasCompletedOnboarding = "app.hasCompletedOnboarding"
+        static let lastNotifiedVersion = "update.lastNotifiedVersion"
     }
 
     @ObservationIgnored private let defaults: UserDefaults
@@ -54,6 +55,12 @@ final class SettingsStore {
         didSet { defaults.set(hasCompletedOnboarding, forKey: Key.hasCompletedOnboarding) }
     }
 
+    /// The release version we have already shown a notification for, so the update
+    /// dymek fires exactly once per version (empty until the first one fires).
+    var lastNotifiedVersion: String {
+        didSet { defaults.set(lastNotifiedVersion, forKey: Key.lastNotifiedVersion) }
+    }
+
     // Source of truth is the system registration, not UserDefaults: the user can
     // revoke it in System Settings, so a mirrored flag would drift.
     var launchAtLogin: Bool {
@@ -82,6 +89,7 @@ final class SettingsStore {
         self.translateInPlaceChord = defaults.data(forKey: Key.translateInPlaceChord)
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .translateInPlaceDefault
         self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)
+        self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
         self.launchAtLogin = loginItem.isEnabled
     }
 

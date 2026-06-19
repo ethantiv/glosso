@@ -13,21 +13,28 @@ import Testing
         )
     }
 
-    private func respond(tag: String, page: String = "https://example.invalid/r") {
+    private func respond(tag: String, asset: String = "https://example.invalid/Glosso.zip", assetName: String = "Glosso.zip") {
         MockURLProtocol.handler = { request in
-            let json = #"{"tag_name":"\#(tag)","html_url":"\#(page)"}"#.data(using: .utf8)!
+            let json = #"{"tag_name":"\#(tag)","assets":[{"name":"\#(assetName)","browser_download_url":"\#(asset)"}]}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, json)
         }
     }
 
     // A newer tag surfaces as an available update, with the leading "v" stripped for
-    // display and the release page carried through for the menu's download link.
+    // display and the .zip asset's direct download URL carried through for fetching.
     @Test func detectsNewerRelease() async {
-        respond(tag: "v0.2.0", page: "https://example.invalid/v0.2.0")
+        respond(tag: "v0.2.0", asset: "https://example.invalid/Glosso-0.2.0.zip")
         let update = await makeChecker().availableUpdate(currentVersion: "0.1.0")
         #expect(update?.version == "0.2.0")
-        #expect(update?.page.absoluteString == "https://example.invalid/v0.2.0")
+        #expect(update?.asset.absoluteString == "https://example.invalid/Glosso-0.2.0.zip")
+    }
+
+    // A newer release with no .zip asset has nothing to download, so it must not
+    // surface as an update (it would otherwise drive a dead menu item and badge).
+    @Test func ignoresReleaseWithoutZipAsset() async {
+        respond(tag: "v0.2.0", asset: "https://example.invalid/notes.txt", assetName: "notes.txt")
+        #expect(await makeChecker().availableUpdate(currentVersion: "0.1.0") == nil)
     }
 
     // Same or older must not nag — and the compare must be numeric, so 1.9 is NOT

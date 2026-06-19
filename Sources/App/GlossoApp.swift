@@ -1,12 +1,13 @@
 import SwiftUI
 import AppKit
+import UserNotifications
 
 @main
 struct GlossoApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        MenuBarExtra("Glosso", image: "MenuBarIcon") {
+        MenuBarExtra {
             if appDelegate.appState.listening {
                 Text("Glosso · aktywny")
             } else if appDelegate.appState.accessibilityGranted {
@@ -25,12 +26,19 @@ struct GlossoApp: App {
             }
             Divider()
             if let update = appDelegate.appState.updateAvailable {
-                Button("Dostępna nowa wersja \(update.version) — Pobierz") {
-                    NSWorkspace.shared.open(update.page)
+                Button("Dostępna nowa wersja \(update.version) — Pobierz do Downloads") {
+                    appDelegate.downloadUpdate()
                 }
             }
             OpenSettingsButton()
             Button("Zakończ") { NSApplication.shared.terminate(nil) }
+        } label: {
+            // While an update waits, swap in a glyph variant with a download arrow
+            // baked into the same template artwork — a SwiftUI overlay can't keep a
+            // distinct colour through the menu bar's monochrome tint, and the menu
+            // bar adapts this template image to light/dark on its own.
+            Image(appDelegate.appState.updateAvailable != nil ? "MenuBarIconUpdate" : "MenuBarIcon")
+                .accessibilityLabel("Glosso")
         }
 
         Settings {
@@ -61,7 +69,8 @@ private struct OpenSettingsButton: View {
 }
 
 @MainActor
-final class AppDelegate: NSObject, NSApplicationDelegate {
+final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
+    nonisolated static let updateNotificationID = "glosso.update"
     let appState = AppState()
     let settings = SettingsStore()
     // Shared with EngineManager so a spawned `ollama serve` can be killed
@@ -116,12 +125,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.listening = coordinator.start()
         self.coordinator = coordinator
 
-        // Best-effort, silent: surfaces a "download" item in the menu when a newer
-        // release exists. Any failure leaves updateAvailable nil (no menu noise).
+        // Best-effort, silent: surfaces a "download" item + badge when a newer
+        // release exists, and fires one notification per new version (the menu line
+        // alone is easy to miss). Any failure leaves updateAvailable nil (no noise).
+        UNUserNotificationCenter.current().delegate = self
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-        Task { [appState] in
+        Task { [appState, settings] in
             if let update = await GitHubUpdateChecker().availableUpdate(currentVersion: currentVersion) {
                 appState.updateAvailable = update
+                if update.version != settings.lastNotifiedVersion {
+                    settings.lastNotifiedVersion = update.version
+                    SystemUserNotifier.post(
+                        "Dostępna nowa wersja \(update.version) — kliknij, aby pobrać.",
+                        identifier: Self.updateNotificationID
+                    )
+                }
             }
         }
 
@@ -144,6 +162,26 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     func openAccessibilitySettings() {
         ax.openSystemSettings()
+    }
+
+    /// Fetches the pending release `.zip` into ~/Downloads. Shared by the menu item
+    /// and the notification tap; a no-op if no update is currently known.
+    func downloadUpdate() {
+        guard let asset = appState.updateAvailable?.asset else { return }
+        Task { await UpdateDownloader.download(asset) }
+    }
+
+    // Tapping the update notification downloads straight away (the menu item's job),
+    // so the user never has to hunt for the menu-bar icon afterwards.
+    nonisolated func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        didReceive response: UNNotificationResponse,
+        withCompletionHandler completionHandler: @escaping () -> Void
+    ) {
+        let isUpdate = response.notification.request.identifier == Self.updateNotificationID
+        completionHandler()
+        guard isUpdate else { return }
+        Task { @MainActor in self.downloadUpdate() }
     }
 
     func recheckAccessibility() {
