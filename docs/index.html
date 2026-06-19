@@ -1,0 +1,264 @@
+<!doctype html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glosso: tłumacz zaznaczenie podwójnym Cmd+C</title>
+<meta name="description" content="Glosso to macOS-owa apka w pasku menu, która tłumaczy zaznaczony tekst po podwójnym Cmd+C. Lokalnie, prywatnie, bez chmury, a model Gemma działa na Twoim Macu.">
+<link rel="icon" type="image/png" href="glosso-icon-256.png">
+<meta property="og:title" content="Glosso: tłumacz zaznaczenie podwójnym Cmd+C">
+<meta property="og:description" content="Lokalne tłumaczenie na macOS. Zaznacz, naciśnij Cmd+C dwa razy, czytaj wynik przy kursorze. Nic nie wychodzi do chmury.">
+<meta property="og:image" content="glosso-icon.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Przejdź do treści</a>
+
+<header class="nav" id="top">
+  <a class="nav__brand" href="#top" aria-label="Glosso, strona główna">
+    <img src="glosso-icon-256.png" alt="" width="28" height="28">
+    <span>Glosso</span>
+  </a>
+  <nav class="nav__links" aria-label="Główna">
+    <a href="#how">Jak działa</a>
+    <a href="#panel">Panel</a>
+    <a href="#guide">Przewodnik</a>
+    <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
+  </nav>
+  <a class="btn btn--accent nav__cta" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Pobierz</a>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="hero__copy">
+    <p class="hero__eyebrow">macOS · działa lokalnie · open source</p>
+    <h1 class="hero__title">Tłumacz zaznaczenie<br><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> <span class="hero__times">×2</span></h1>
+    <p class="hero__lede">Zaznacz dowolny tekst i naciśnij <strong>Cmd+C dwa razy pod rząd</strong>. Tłumaczenie pojawia się w małym panelu przy kursorze. Bez przeglądarki, bez wklejania, bez wysyłania czegokolwiek do chmury.</p>
+    <div class="hero__actions">
+      <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">
+        Pobierz dla macOS
+        <span class="btn__sub">.zip · za darmo</span>
+      </a>
+      <a class="btn btn--ghost btn--lg" href="#how">Zobacz jak działa</a>
+    </div>
+    <p class="hero__note">macOS 26+ · model i silnik pobierają się przy pierwszym użyciu</p>
+  </div>
+
+  <div class="hero__demo" aria-hidden="false">
+    <!-- Odtworzenie pływającego panelu Glosso (zrzuty natywnych okien macOS są blokowane przez system). -->
+    <figure class="panel" role="img" aria-label="Panel Glosso tłumaczy „Dzień dobry, miło Cię poznać.” na angielski: „Good morning, nice to meet you.”">
+      <div class="panel__bar">
+        <span class="panel__dir">PL <span class="panel__arrow">→</span> EN</span>
+        <span class="panel__icon" aria-hidden="true">⧉</span>
+      </div>
+      <div class="panel__verbs">
+        <span class="verb verb--on">Tłumacz</span>
+        <span class="verb">Streść</span>
+        <span class="verb">Popraw</span>
+        <span class="pill">Auto</span>
+      </div>
+      <p class="panel__src">Dzień dobry, miło Cię poznać.</p>
+      <div class="panel__rule"></div>
+      <p class="panel__out"><span id="typed"></span><span class="caret" aria-hidden="true"></span></p>
+      <div class="panel__foot">
+        <span class="panel__btn">Zamień</span>
+        <span class="panel__btn panel__btn--primary">Kopiuj</span>
+      </div>
+    </figure>
+    <div class="hero__menubar" aria-hidden="true">
+      <span class="hero__menubar-dot"></span> w pasku menu, bez ikony w Docku
+    </div>
+  </div>
+</section>
+
+<section class="how" id="how">
+  <h2 class="section__title">Trzy ruchy. Bez okna, bez wklejania.</h2>
+  <ol class="steps">
+    <li class="step" data-reveal>
+      <span class="step__num">1</span>
+      <h3>Zaznacz tekst</h3>
+      <p>W dowolnej aplikacji: przeglądarce, mailu, edytorze, PDF-ie. Cokolwiek umiesz zaznaczyć.</p>
+    </li>
+    <li class="step" data-reveal>
+      <span class="step__num">2</span>
+      <h3>Naciśnij <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy</h3>
+      <p>Oba kopiowania działają normalnie. Glosso nasłuchuje tylko podwójnego naciśnięcia, dlatego potrzebuje jednej zgody: Dostępność.</p>
+    </li>
+    <li class="step" data-reveal>
+      <span class="step__num">3</span>
+      <h3>Czytaj przy kursorze</h3>
+      <p>Panel otwiera się od razu i streamuje tłumaczenie tak, jak produkuje je model. Zostaje pod ręką do edycji.</p>
+    </li>
+  </ol>
+</section>
+
+<section class="pillars">
+  <div class="pillar pillar--lead">
+    <h2>Tekst nie opuszcza Twojego Maca.</h2>
+    <p>Model językowy (Gemma przez Ollamę) działa lokalnie na <code>localhost</code>. Żadnego konta, żadnego API, żadnej chmury. Działa też offline, a to, co tłumaczysz, zostaje u Ciebie.</p>
+  </div>
+  <div class="pillar">
+    <h3>Błyskawicznie</h3>
+    <p>Model trzymany w pamięci między tłumaczeniami, wynik streamowany słowo po słowie. Bez rozgrzewki przy każdym użyciu.</p>
+  </div>
+  <div class="pillar">
+    <h3>Natywnie</h3>
+    <p>Mieszka w pasku menu, nie w Docku. Wygląda i zachowuje się jak część macOS, a nie jak doklejona przeglądarka.</p>
+  </div>
+  <div class="pillar">
+    <h3>Dwustronnie</h3>
+    <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki lub francuski. Kierunek wykrywany automatycznie.</p>
+  </div>
+</section>
+
+<section class="panelfeat" id="panel">
+  <div class="panelfeat__head">
+    <h2 class="section__title">Panel to nie tylko wynik.</h2>
+    <p class="section__lede">To, co dostajesz, możesz od razu poprawić, dopytać i wstawić z powrotem, bez kopiowania na nowo.</p>
+  </div>
+  <ul class="features">
+    <li class="feature" data-reveal>
+      <h3>Czasowniki</h3>
+      <p>Przełącz, co model robi z zaznaczeniem: <strong>Tłumacz</strong>, <strong>Streść</strong> (krótka lista) albo <strong>Popraw</strong> (gramatyka i interpunkcja bez zmiany języka).</p>
+    </li>
+    <li class="feature" data-reveal>
+      <h3>Ton wypowiedzi</h3>
+      <p>Przy tłumaczeniu przełączaj rejestr: automatyczny, formalny, na luzie. Tekst tłumaczy się ponownie z nowym tonem.</p>
+    </li>
+    <li class="feature" data-reveal>
+      <h3>Edytowalne źródło</h3>
+      <p>Popraw przechwycony tekst w panelu i przetłumacz ponownie. Literówkę w źródle naprawisz bez wracania do aplikacji.</p>
+    </li>
+    <li class="feature" data-reveal>
+      <h3>Alternatywy słów</h3>
+      <p>W gotowym tłumaczeniu każde słowo jest klikalne: rozwija listę kontekstowych zamienników i wyjaśnienie <em>„Dlaczego?”</em>. Wybór tłumaczy ten fragment na nowo.</p>
+    </li>
+    <li class="feature" data-reveal>
+      <h3>Diff gramatyki</h3>
+      <p><strong>Popraw</strong> podświetla, co się zmieniło. Stuknij zmianę, żeby poznać powód: jedną linijką, po polsku.</p>
+    </li>
+    <li class="feature" data-reveal>
+      <h3>Zamień i kopiuj</h3>
+      <p>Wklej wynik prosto na zaznaczony tekst, albo skopiuj całość. Panel przeciągniesz za tło i rozciągniesz za róg.</p>
+    </li>
+  </ul>
+
+  <div class="chords">
+    <div class="chords__copy">
+      <h3>Albo zupełnie bez panelu</h3>
+      <p>Dwa skróty działają na zaznaczeniu po cichu i wklejają wynik z powrotem na miejsce. Rebindowalne w Ustawieniach.</p>
+    </div>
+    <div class="chords__keys">
+      <div class="chord">
+        <span class="chord__keys"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span>
+        <span class="chord__label">Popraw w miejscu</span>
+      </div>
+      <div class="chord">
+        <span class="chord__keys"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span>
+        <span class="chord__label">Tłumacz w miejscu</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="guide" id="guide">
+  <h2 class="section__title">Krótki przewodnik</h2>
+  <div class="guide__grid">
+    <div class="guide__block" data-reveal>
+      <h3>1 · Instalacja</h3>
+      <ol class="guide__list">
+        <li>Pobierz <code>Glosso.zip</code> z <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, rozpakuj i przeciągnij <strong>Glosso.app</strong> do Aplikacji.</li>
+        <li>Kliknij prawym → <strong>Otwórz</strong> → potwierdź. Robisz to raz: apka jest podpisana, ale nie notaryzowana przez Apple.</li>
+        <li>Przyznaj <strong>Dostępność</strong>, gdy zapyta. To jedyne uprawnienie, jakiego potrzebuje.</li>
+        <li>Kreator pierwszego uruchomienia pobierze model i pomoże wybrać drugi język.</li>
+      </ol>
+    </div>
+    <div class="guide__block" data-reveal>
+      <h3>2 · Pierwsze tłumaczenie</h3>
+      <ol class="guide__list">
+        <li>Zaznacz zdanie w dowolnej aplikacji.</li>
+        <li>Naciśnij <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy pod rząd.</li>
+        <li>Panel otworzy się przy kursorze i zacznie streamować wynik.</li>
+        <li>Stuknij słowo po alternatywy, zmień ton albo czasownik, albo po prostu <strong>Kopiuj</strong>.</li>
+      </ol>
+    </div>
+    <div class="guide__block" data-reveal>
+      <h3>3 · Na co dzień</h3>
+      <ol class="guide__list">
+        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw gramatykę zaznaczenia bez panelu.</li>
+        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> przetłumacz zaznaczenie w miejscu.</li>
+        <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel.</li>
+        <li>Model i drugi język zmienisz w Ustawieniach z paska menu.</li>
+      </ol>
+    </div>
+  </div>
+</section>
+
+<section class="cta">
+  <img class="cta__icon" src="glosso-icon.png" alt="Ikona aplikacji Glosso" width="96" height="96">
+  <h2>Przetłumacz pierwsze zdanie za minutę.</h2>
+  <p>Pobierz, przeciągnij do Aplikacji, zaznacz tekst, <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy. Reszta dzieje się lokalnie.</p>
+  <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Pobierz dla macOS</a>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot__brand">
+    <img src="glosso-icon-256.png" alt="" width="24" height="24">
+    <span>Glosso</span>
+  </div>
+  <nav class="foot__links" aria-label="Stopka">
+    <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
+    <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Pobierz</a>
+    <a href="https://github.com/ethantiv/glosso/blob/main/docs/DISTRIBUTION.md" rel="noopener">Dystrybucja</a>
+  </nav>
+  <p class="foot__meta">macOS 26+ · tłumaczy lokalnie przez Gemma / Ollama · open source</p>
+</footer>
+
+<script>
+(function () {
+  document.documentElement.classList.add('js');
+  var el = document.getElementById('typed');
+  var full = 'Good morning, nice to meet you.';
+  var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  if (!el) return;
+  if (reduce) {
+    el.textContent = full;
+    var c = document.querySelector('.caret');
+    if (c) c.style.display = 'none';
+    return;
+  }
+  var i = 0;
+  function type() {
+    el.textContent = full.slice(0, i);
+    if (i++ <= full.length) setTimeout(type, 55 + Math.random() * 45);
+  }
+  setTimeout(type, 650);
+
+  var items = [].slice.call(document.querySelectorAll('[data-reveal]'));
+  function reveal(n) { n.classList.add('in'); }
+  if ('IntersectionObserver' in window) {
+    var io = new IntersectionObserver(function (entries) {
+      entries.forEach(function (e) {
+        if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); }
+      });
+    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
+    items.forEach(function (n) { io.observe(n); });
+    // Safety net: never let a section stay hidden if the observer never fires
+    // (headless full-page renders, prerenderers, no-scroll sessions).
+    setTimeout(function () { items.forEach(reveal); }, 2200);
+  } else {
+    items.forEach(reveal);
+  }
+})();
+</script>
+
+</body>
+</html>
