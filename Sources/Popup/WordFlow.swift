@@ -193,11 +193,11 @@ struct AlternativesDropdown: View {
     let onBack: () -> Void
 
     static let width: CGFloat = 200
-    // Cap the reason's height so a long "why" scrolls inside the dropdown instead
-    // of overflowing the window and being clipped (#73). Measured below so a short
-    // reason hugs its content rather than leaving an empty tall box.
-    private static let reasonMaxHeight: CGFloat = 220
-    @State private var reasonHeight: CGFloat = 44
+    // Safety cap for the reason height (#73): PopupView grows the window to fit the
+    // measured reason, but a pathologically long one is capped here and scrolls
+    // instead of growing the window past the screen. PopupView reserves the same
+    // min(measured, cap), so the two stay in lockstep and nothing clips.
+    static let reasonMaxHeight: CGFloat = 300
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -253,9 +253,9 @@ struct AlternativesDropdown: View {
                     .frame(maxWidth: .infinity, alignment: .leading)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 9)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { reasonHeight = $0 }
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.fixReasonContentHeight = $0 }
             }
-            .frame(height: min(reasonHeight, Self.reasonMaxHeight))
+            .frame(height: min(model.fixReasonContentHeight, Self.reasonMaxHeight))
         }
     }
 

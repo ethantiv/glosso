@@ -74,6 +74,10 @@ final class PopupModel {
     // tapped change's struck error and correction, threaded to the model for the reason.
     var fixReasonMode: Bool = false
     var selectedFixChange: (before: String, after: String)? = nil
+    // Measured height of the rendered reason text (#73). PopupView reserves exactly
+    // this below the panel so the window grows to fit the reason instead of clipping
+    // it; the dropdown caps and scrolls it past AlternativesDropdown.reasonMaxHeight.
+    var fixReasonContentHeight: CGFloat = 0
 
     // Memoizes the tokenization keyed on `text` so re-renders that don't change the
     // translation (hover, dropdown open/close) reuse it instead of re-tokenizing.
@@ -120,6 +124,7 @@ final class PopupModel {
         alternatives = []
         fixReasonMode = false
         selectedFixChange = nil
+        fixReasonContentHeight = 0
         closeExplanation()
     }
 
@@ -133,6 +138,7 @@ final class PopupModel {
         showingExplanation = true
         explanationText = ""
         explanationLoading = true
+        fixReasonContentHeight = 0
         explanationRequestToken &+= 1
     }
 
