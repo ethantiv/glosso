@@ -286,27 +286,5 @@
   <p class="foot__meta">macOS 26+ · tłumaczy lokalnie: Gemma przez Ollamę · open source</p>
 </footer>
 
-<script>
-(function () {
-  document.documentElement.classList.add('js');
-
-  var items = [].slice.call(document.querySelectorAll('[data-reveal]'));
-  function reveal(n) { n.classList.add('in'); }
-  if ('IntersectionObserver' in window) {
-    var io = new IntersectionObserver(function (entries) {
-      entries.forEach(function (e) {
-        if (e.isIntersecting) { reveal(e.target); io.unobserve(e.target); }
-      });
-    }, { rootMargin: '0px 0px -8% 0px', threshold: 0.05 });
-    items.forEach(function (n) { io.observe(n); });
-    // Safety net: never let a section stay hidden if the observer never fires
-    // (headless full-page renders, prerenderers, no-scroll sessions).
-    setTimeout(function () { items.forEach(reveal); }, 2200);
-  } else {
-    items.forEach(reveal);
-  }
-})();
-</script>
-
 </body>
 </html>

@@ -206,7 +206,7 @@ kbd {
   font-weight: 600;
   font-size: .9rem;
   letter-spacing: .01em;
-  color: rgba(255,255,255,.9);
+  color: rgba(255,255,255,.95);
   margin-bottom: 1.1rem;
 }
 .hero__title {
@@ -237,7 +237,7 @@ kbd {
 }
 .hero__lede strong { color: #fff; font-weight: 700; }
 .hero__actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-bottom: 1.2rem; }
-.hero__note { font-size: .9rem; color: rgba(255,255,255,.82); }
+.hero__note { font-size: .9rem; color: rgba(255,255,255,.92); }
 
 /* ---------- Panel (odtworzenie UI) ---------- */
 .hero__demo {
@@ -271,7 +271,7 @@ kbd {
 .menubar__glosso img { display: block; border-radius: 4px; }
 .hero__cap {
   font-size: .85rem;
-  color: rgba(255,255,255,.82);
+  color: rgba(255,255,255,.9);
   text-align: center;
   margin-top: .15rem;
 }
@@ -707,18 +707,27 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   .gpane--out::before { display: none; }
 }
 
-/* ---------- Motion: entrance ---------- */
-.js [data-reveal] {
-  opacity: 0;
-  transform: translateY(20px);
-}
-.js [data-reveal].in {
-  opacity: 1;
-  transform: none;
+/* ---------- Motion: entrance ----------
+   Content is visible by default; the reveal only enhances it. @starting-style
+   supplies the entry frame, so there is no JS- or scroll-gated hidden state —
+   crawlers, prerenders, and pre-timer captures always paint real content.
+   Each section gets its own axis so the page-load reveal isn't one uniform fade. */
+[data-reveal] {
   transition: opacity .7s var(--ease), transform .7s var(--ease);
 }
-.js [data-reveal][data-reveal="2"] { transition-delay: .08s; }
-.js [data-reveal][data-reveal="3"] { transition-delay: .16s; }
+@starting-style {
+  .step    { opacity: 0; transform: translateY(20px); }
+  .phase   { opacity: 0; transform: translateX(-18px); }
+  .shot    { opacity: 0; transform: translateY(18px) scale(.985); }
+  .feature { opacity: 0; transform: translateY(16px); }
+}
+.step:nth-child(2)    { transition-delay: .08s; }
+.step:nth-child(3)    { transition-delay: .16s; }
+.phase:nth-child(2)   { transition-delay: .1s; }
+.shot:nth-child(2)    { transition-delay: .09s; }
+.shot:nth-child(3)    { transition-delay: .18s; }
+.feature:nth-child(2) { transition-delay: .07s; }
+.feature:nth-child(3) { transition-delay: .14s; }
 
 .hero__copy > * { animation: rise .8s var(--ease) both; }
 .hero__copy > *:nth-child(2) { animation-delay: .06s; }
@@ -737,6 +746,5 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
     animation-iteration-count: 1 !important;
     transition-duration: .001ms !important;
   }
-  .js [data-reveal] { opacity: 1; transform: none; }
   .caret { display: none; }
 }
