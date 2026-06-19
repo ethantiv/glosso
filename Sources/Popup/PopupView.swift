@@ -47,6 +47,7 @@ struct PopupView: View {
         case .translate: "Tłumaczenie"
         case .summarize: "Streszczenie"
         case .fixGrammar: "Poprawka"
+        case .reply: "Odpowiedź"
         }
     }
 
@@ -54,8 +55,10 @@ struct PopupView: View {
     // Replace overwrites the still-selected source in place, so unlike the
     // non-destructive Copy it must not be offered for a truncated result — one
     // click would replace the original selection with the partial translation
-    // (the source app has no undo for the lost selection), issue #22.
-    private var canReplace: Bool { canCopy && !model.truncated }
+    // (the source app has no undo for the lost selection), issue #22. It is also
+    // suppressed for Reply (#60): a reply is a new message, not a transform of the
+    // selection, so pasting it back would destroy the message being replied to.
+    private var canReplace: Bool { canCopy && !model.truncated && model.action != .reply }
     private var canUndo: Bool {
         model.canUndo && (model.phase == .done || model.phase == .error)
     }
@@ -488,6 +491,8 @@ struct PopupView: View {
                     wordFlow
                 } else if model.action == .fixGrammar {
                     grammarDiffFlow
+                } else if model.action == .reply {
+                    replyDrafts
                 } else {
                     Text(model.text)
                         .font(PopupTheme.fontLead)
@@ -500,6 +505,20 @@ struct PopupView: View {
             .frame(maxHeight: paneMaxHeight)
             .scrollBounceBehavior(.basedOnSize)
         }
+    }
+
+    // The reply drafts (issue #60) as a pick-one list: tapping a card selects it
+    // (highlighted) and mirrors it into model.text so Copy copies the chosen draft.
+    private var replyDrafts: some View {
+        VStack(spacing: 6) {
+            ForEach(Array(model.replyDrafts.enumerated()), id: \.offset) { index, draft in
+                ReplyDraftCard(
+                    text: draft,
+                    selected: model.selectedDraftIndex == index
+                ) { model.selectDraft(index) }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var wordFlow: some View {
@@ -756,6 +775,45 @@ struct PopupView: View {
             .tracking(0.5)
             .textCase(.uppercase)
             .foregroundStyle(.secondary)
+    }
+}
+
+// One reply draft in the pick-one list (issue #60). Mirrors AlternativeRow's hover
+// affordance but renders a full multi-line draft as a bordered card and shows the
+// selected state (the chosen draft is what Copy copies).
+private struct ReplyDraftCard: View {
+    let text: String
+    let selected: Bool
+    let action: () -> Void
+    @State private var hovering = false
+
+    var body: some View {
+        Button(action: action) {
+            HStack(alignment: .firstTextBaseline, spacing: 8) {
+                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 13))
+                    .foregroundStyle(selected ? PopupTheme.accent : Color.secondary)
+                Text(text)
+                    .font(PopupTheme.fontLead)
+                    .foregroundStyle(.primary)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: PopupTheme.rPane)
+                    .fill(selected ? PopupTheme.accentTintStrong : (hovering ? PopupTheme.chipNeutralBg : .clear))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: PopupTheme.rPane)
+                    .strokeBorder(selected ? PopupTheme.accent.opacity(0.5) : Color.primary.opacity(0.10))
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .onHover { hovering = $0 }
     }
 }
 

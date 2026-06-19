@@ -405,6 +405,18 @@ final class AppCoordinator {
             ? DirectionDetector.detect(text, second: second)
             : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
+        // Reply is generative, not a transform: it fetches N drafts as a non-streaming
+        // list (issue #60) instead of streaming a single result, so it skips run()/consume().
+        if action == .reply {
+            let drafts = (try? await llm.reply(to: text, model: settings.modelName)) ?? []
+            if Task.isCancelled { return }
+            if drafts.isEmpty {
+                popup.showError("Nie udało się wygenerować odpowiedzi.")
+            } else {
+                popup.showReplies(drafts)
+            }
+            return
+        }
         await consume(llm.run(
             text, action: action, model: settings.modelName,
             second: second, formality: settings.formality, humanize: settings.humanize))

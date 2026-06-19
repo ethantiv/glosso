@@ -32,6 +32,19 @@ final class PopupModel {
     // streaming. Reset on each fresh present().
     var sizeDelta: CGSize = .zero
 
+    // Reply drafts (issue #60). Populated by the controller's showReplies when the
+    // .reply action finishes; the view renders them as a pick-one list. Picking one
+    // mirrors it into `text` so the Copy button (which copies `text`) works unchanged.
+    // Both are cleared on each pane reset so a stale list can't outlive a verb switch.
+    var replyDrafts: [String] = []
+    var selectedDraftIndex: Int? = nil
+
+    func selectDraft(_ index: Int) {
+        guard replyDrafts.indices.contains(index) else { return }
+        selectedDraftIndex = index
+        text = replyDrafts[index]
+    }
+
     // Per-word alternatives dropdown (issue #17). An empty `alternatives` once
     // `altsLoading` clears means "none / fetch failed" — the coordinator collapses
     // both into an empty list, so there is no separate error state to track here.

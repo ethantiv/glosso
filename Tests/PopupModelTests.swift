@@ -83,6 +83,31 @@ import Testing
         #expect(model.text == "bieżąca")
     }
 
+    // MARK: Reply drafts (issue #60)
+
+    // Picking a draft must mirror it into `text`, because the Copy button copies
+    // `text` — so the chosen draft is what lands on the clipboard.
+    @Test func selectDraftMirrorsIntoTextForCopy() {
+        let model = PopupModel()
+        model.replyDrafts = ["pierwsza", "druga", "trzecia"]
+
+        model.selectDraft(1)
+
+        #expect(model.selectedDraftIndex == 1)
+        #expect(model.text == "druga")
+    }
+
+    @Test func selectDraftIgnoresOutOfRangeIndex() {
+        let model = PopupModel()
+        model.replyDrafts = ["jedna"]
+        model.selectDraft(0)
+
+        model.selectDraft(5)
+
+        #expect(model.selectedDraftIndex == 0)
+        #expect(model.text == "jedna")
+    }
+
     // MARK: Explanation sub-state — "Dlaczego tak?" (issue #39)
 
     @Test func openExplanationArmsLoadingAndBumpsToken() {

@@ -47,6 +47,9 @@ struct FakeLLMClient: LLMClient {
         var fixCorrected: String?
         var fixSecond: SecondLanguage?
         var fixModel: String?
+        // reply(...)
+        var replyText: String?
+        var replyModel: String?
         // reword(...)
         var rewordOriginal: String?
         var rewordChosen: String?
@@ -65,6 +68,8 @@ struct FakeLLMClient: LLMClient {
     let gate: StreamGate?
     let alternativesResult: [String]
     let alternativesError: TranslationError?
+    let replyResult: [String]
+    let replyError: TranslationError?
     let explanationResult: String
     let explanationError: TranslationError?
     let fixReasonResult: String
@@ -79,7 +84,9 @@ struct FakeLLMClient: LLMClient {
         explanation: String = "bo tak każe gramatyka",
         explanationError: TranslationError? = nil,
         fixReason: String = "zła forma czasu przeszłego",
-        fixReasonError: TranslationError? = nil
+        fixReasonError: TranslationError? = nil,
+        reply: [String] = ["draft-one", "draft-two", "draft-three"],
+        replyError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
@@ -90,6 +97,8 @@ struct FakeLLMClient: LLMClient {
         self.explanationError = explanationError
         self.fixReasonResult = fixReason
         self.fixReasonError = fixReasonError
+        self.replyResult = reply
+        self.replyError = replyError
     }
 
     func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -121,6 +130,13 @@ struct FakeLLMClient: LLMClient {
         recorder.altModel = model
         if let alternativesError { throw alternativesError }
         return alternativesResult
+    }
+
+    func reply(to text: String, model: String) async throws -> [String] {
+        recorder.replyText = text
+        recorder.replyModel = model
+        if let replyError { throw replyError }
+        return replyResult
     }
 
     func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
@@ -237,6 +253,7 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var errorMessage: String?
     private(set) var finished = false
     private(set) var truncated = false
+    private(set) var shownReplies: [String]?
 
     func present(at screenPoint: CGPoint, formality: Formality) {
         presented = true
@@ -250,12 +267,14 @@ final class FakePopup: TranslationPopupPresenting {
     func append(token: String) { tokens.append(token) }
     func showError(_ message: String) { errorMessage = message }
     func finish(truncated: Bool) { finished = true; self.truncated = truncated }
+    func showReplies(_ drafts: [String]) { shownReplies = drafts }
     func restartTranslation() {
         restartCount += 1
         tokens.removeAll()
         errorMessage = nil
         finished = false
         truncated = false
+        shownReplies = nil
     }
     func dismiss() {
         guard presented else { return }

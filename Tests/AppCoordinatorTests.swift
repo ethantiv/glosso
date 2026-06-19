@@ -488,6 +488,50 @@ import Testing
         #expect(popup.presentedDirection == .unknown)
     }
 
+    // Reply (#60) is generative, not a transform: picking it must take the
+    // non-streaming list path (llm.reply → popup.showReplies), NOT stream a single
+    // result through run(). The drafts must reach the popup.
+    @Test func pickingReplyShowsDraftsViaTheListPath() async {
+        let llm = FakeLLMClient(reply: ["wersja A", "wersja B", "wersja C"])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Hi, are we still on for Thursday?"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        popup.onSelectAction?(.reply)   // user clicked the Odpowiedz pill
+        var spins = 0
+        while popup.shownReplies == nil && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(popup.shownReplies == ["wersja A", "wersja B", "wersja C"])
+        #expect(llm.recorder.replyText == "Hi, are we still on for Thursday?")
+        #expect(popup.presentedAction == .reply)
+        #expect(popup.presentedDirection == .unknown)
+    }
+
+    // An empty drafts result (or a thrown error, swallowed to []) must surface as an
+    // error in the popup, not a silent empty list.
+    @Test func pickingReplyWithNoDraftsShowsError() async {
+        let llm = FakeLLMClient(reply: [])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        popup.onSelectAction?(.reply)
+        var spins = 0
+        while popup.errorMessage == nil && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(popup.shownReplies == nil)
+        #expect(popup.errorMessage != nil)
+    }
+
     // Changing the verb before any text was captured is a no-op (nothing to re-run).
     @Test func pickingVerbBeforeCaptureIsNoop() {
         let llm = FakeLLMClient()
