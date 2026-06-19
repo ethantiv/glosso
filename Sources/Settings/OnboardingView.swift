@@ -63,11 +63,8 @@ struct OnboardingView: View {
             }
             Spacer()
             if step == .usage {
-                Button("Zakończ") {
-                    store.hasCompletedOnboarding = true
-                    onFinish()
-                }
-                .keyboardShortcut(.defaultAction)
+                Button("Zakończ") { onFinish() }
+                    .keyboardShortcut(.defaultAction)
             } else {
                 Button("Dalej") { advance(by: 1) }
                     .keyboardShortcut(.defaultAction)
