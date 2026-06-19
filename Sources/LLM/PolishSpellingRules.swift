@@ -1,0 +1,25 @@
+// Concise, authoritative cards for the ~12 families of confusable Polish spelling
+// that actually drive fix-grammar corrections, distilled by hand from the RJP
+// codification "Zasady pisowni i interpunkcji polskiej" (Warszawa 2024, Część I).
+// Injected into the grammar-fix explanation prompt (#73) so the model cites a real
+// rule instead of inventing one. Polish — that is the explanation language. The
+// "(RJP X.Y)" marker on each card is the source section, for audit.
+//
+// ponytail: a static Swift constant, not a bundled resource — the base is small
+// (a few KB) and frozen, so no Bundle.module/IO plumbing is warranted.
+enum PolishSpellingRules {
+    static let block: String = """
+    - ó/u: «ó» piszemy, gdy w innych formach wymienia się na o, e lub a (stół→stoły, mój→moje, wiózł→wieźć), w zakończeniach -ów, -ówna, -ówka (chłopców, główka, stołówka) i na początku ósmy, ów; «ó» nigdy nie stoi na końcu wyrazu. «u» m.in. na początku i końcu wyrazów, w przyrostkach -un, -unek, -us, -ulec oraz w formach czasowników na -ować, -uć (całuję, snuję). Wyjątki -uwka: skuwka, wsuwka, zasuwka. (RJP 2.2)
+    - ą/ę a -om/-em/-on/-en: nosówki «ą», «ę» w wyrazach rodzimych (dąb, gęsty) i w czasie przeszłym przed ł, l (zaczął, zaczęła); «ę» na końcu w 1. os. lp. czasownika (idę, piszę) i w bierniku lp. rzeczowników żeńskich na -a (widzę tę igłę). Połączenia: -om w celowniku lm. (dzieciom, oknom), -em w narzędniku lp. r. męskiego (filmem, prezydentem), -on-/-en- przed -ka, -ko (sukienka, okienko). (RJP 2.3)
+    - rz/ż: «rz» gdy wymienia się na r (góra→górzysty, doktor→doktorzy), po p, b, t, d, k, g, ch, j, w (przykład, brzeg, trzeba, drzewo, krzak, grzmot, chrzan, ujrzeć, wrzos) oraz w zakończeniach -arz, -erz, -mierz, -mistrz (piekarz, talerz). «ż» gdy wymienia się na g, dz, h, z, ź, s (może→mogę, drążek→drąg, grożę→groźny), po l, ł, n, r (branża, oranżada) i w obcych na -aż (bandaż, montaż). Wyjątki dla rz po spółgłosce: stopień wyższy/najwyższy -szy, -ejszy (lepszy, najgłośniejszy), ż po przedrostku (odżałować) oraz pszczoła, pszenica, kształt, wszystko. (RJP 3.5)
+    - h/ch: «ch» gdy wymienia się na sz (suchy→susza, słuch→słyszeć), po s (schody, schować), na końcu wyrazu (dach, gmach; wyjątek: druh) i w miejscowniku lm. (o płucach). «h» gdy wymienia się na g, ż, z (wahać→waga) oraz w przedrostkach hekto-, hydro-, hiper-, homo- (hydroplan). Wielu wyrazów reguły nie obejmują — wtedy rozstrzyga słownik. (RJP 3.6)
+    - przedrostki z-/s-/ś-: «z-» przed spółgłoską dźwięczną (zburzyć, zmarnieć), przed h (zhakować) i przed s, si, sz (zsiec, zszyć); «s-» przed bezdźwięczną p, f, k, t, c, cz, ch (spisać, skazać, stanieć, scharakteryzować); «ś-» przed ci (ściąć, ścisnąć). (RJP 3.7.3)
+    - przedrostki bez-, nad-, ob-, od-, pod-, przed-, roz-, w-: pisze się zawsze tak samo, niezależnie od dźwięczności następnej głoski, mimo słyszalnego ubezdźwięcznienia (odpowiedź, podstawić, rozsupłać, wpakować). (RJP 3.7.2)
+    - -ski/-cki/-dzki: «-ski» to domyślne zakończenie przymiotników, zwykle z uproszczeniem zbitki (Haga→haski, Prusy→pruski, szewc→szewski); «-cki» od tematów na t, c, ć, k, cz; «-dzki» od tematów na d, dz, dź (Łódź→łódzki, Grudziądz→grudziądzki). (RJP 3.8)
+    - -ctwo/-dztwo: «-ctwo» od wyrazów z tematem na t, c, cz, ć, k (opat→opactwo, kozak→kozactwo, dziewica→dziewictwo); «-dztwo» od tematów na d, dz, dź (sąsiad→sąsiedztwo, wojewoda→województwo). Wyjątki: uchodźstwo, wychodźstwo. (RJP 3.9)
+    - -ść/-źć (bezokoliczniki): «-źć» gdy ź wymienia się na z lub ż (gryźć→gryzę, wieźć→wiozę, leźć→lezę); «-ść» w pozostałych (kraść→kradnę, nieść→niesie, pleść→plotę). (RJP 3.12)
+    - cząstka nie-: łącznie z rzeczownikami (nieprzyjaciel), przymiotnikami (także stopień wyższy i najwyższy: niedrogi, nienajdroższy), imiesłowami przymiotnikowymi (niepalący, nienapisany) i przysłówkami od przymiotników (niedaleko). Rozdzielnie przed czasownikami (nie chcę), wyrazami o znaczeniu czasownikowym (nie można, nie trzeba, nie warto), imiesłowami przysłówkowymi (nie będąc), formami na -no, -to (nie znaleziono), liczebnikami (nie trzy), zaimkami (nie każdy) i przy przeciwstawieniu (nie czarne, ale białe). (RJP 4.9)
+    - cząstka -by/-bym/-byś/-byśmy/-byście: łącznie z osobowymi formami czasownika (robiłbym, zrobiliby), z formą bezosobową na -łoby (należałoby) oraz w spójnikach i partykułach (gdyby, żeby, aby, jakby, niby, oby). Rozłącznie po bezokoliczniku (skończyć by warto), po formach na -no, -to (zrobiono by), po wyrazach można, trzeba, warto, wolno, winien, powinien (można by, trzeba by) i po spójnikach (poszedłby albo by został). (RJP 4.5)
+    - wielka/mała litera: wielką literą piszemy pierwszy wyraz zdania (po kropce, a także po ?, !, … kończących zdanie) oraz nazwy własne — imiona, nazwiska, nazwy geograficzne, przydomki (Adam Nowak, Wisła, Chrobry); w nazwach wielowyrazowych wszystkie wyrazy oprócz wewnętrznych spójników i przyimków. Małą literą wyrazy pospolite, nazwy dni i miesięcy oraz przymiotniki od nazw własnych (polski, warszawski). (RJP 8)
+    """
+}
