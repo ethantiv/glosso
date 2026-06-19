@@ -206,7 +206,7 @@ kbd {
   font-weight: 600;
   font-size: .9rem;
   letter-spacing: .01em;
-  color: rgba(255,255,255,.78);
+  color: rgba(255,255,255,.9);
   margin-bottom: 1.1rem;
 }
 .hero__title {
@@ -237,7 +237,7 @@ kbd {
 }
 .hero__lede strong { color: #fff; font-weight: 700; }
 .hero__actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-bottom: 1.2rem; }
-.hero__note { font-size: .9rem; color: rgba(255,255,255,.68); }
+.hero__note { font-size: .9rem; color: rgba(255,255,255,.82); }
 
 /* ---------- Panel (odtworzenie UI) ---------- */
 .hero__demo {
@@ -271,7 +271,7 @@ kbd {
 .menubar__glosso img { display: block; border-radius: 4px; }
 .hero__cap {
   font-size: .85rem;
-  color: rgba(255,255,255,.72);
+  color: rgba(255,255,255,.82);
   text-align: center;
   margin-top: .15rem;
 }
@@ -618,9 +618,9 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 .phase:nth-child(3) .phase__badge { background: var(--coral); color: #2a1206; box-shadow: 0 0 0 6px var(--indigo-tint), 0 8px 18px -8px rgba(255,122,89,.5); }
 .phase__card {
   display: grid;
-  grid-template-columns: minmax(0, .6fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, .5fr) minmax(0, 1fr);
   gap: clamp(1rem, 3vw, 2.2rem);
-  align-items: start;
+  align-items: center;
   background: var(--paper);
   border: 1px solid var(--line);
   border-radius: var(--radius);
@@ -691,7 +691,7 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 .foot__links { display: flex; gap: 1.4rem; }
 .foot__links a { color: rgba(255,255,255,.82); text-decoration: none; }
 .foot__links a:hover { color: #fff; }
-.foot__meta { margin-left: auto; text-align: right; font-size: .85rem; color: rgba(255,255,255,.5); }
+.foot__meta { margin-left: auto; text-align: right; font-size: .85rem; color: rgba(255,255,255,.62); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 880px) {
