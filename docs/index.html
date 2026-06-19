@@ -26,8 +26,8 @@
   </a>
   <nav class="nav__links" aria-label="Główna">
     <a href="#how">Jak działa</a>
-    <a href="#panel">Panel</a>
     <a href="#guide">Przewodnik</a>
+    <a href="#panel">Panel</a>
     <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
   </nav>
   <a class="btn btn--accent nav__cta" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Pobierz</a>
@@ -50,7 +50,14 @@
     <p class="hero__note">macOS 26+ · model i silnik pobierają się przy pierwszym użyciu</p>
   </div>
 
-  <div class="hero__demo" aria-hidden="false">
+  <div class="hero__demo">
+    <div class="menubar" aria-hidden="true">
+      <span class="menubar__os"></span>
+      <span class="menubar__spacer"></span>
+      <span class="menubar__item">100%</span>
+      <span class="menubar__glosso"><img src="glosso-icon-256.png" alt="" width="18" height="18"></span>
+      <span class="menubar__item">9:41</span>
+    </div>
     <!-- Odtworzenie pływającego panelu Glosso (zrzuty natywnych okien macOS są blokowane przez system). -->
     <figure class="panel" role="img" aria-label="Panel Glosso tłumaczy „Dzień dobry, miło Cię poznać.” na angielski: „Good morning, nice to meet you.”">
       <div class="panel__bar">
@@ -71,9 +78,7 @@
         <span class="panel__btn panel__btn--primary">Kopiuj</span>
       </div>
     </figure>
-    <div class="hero__menubar" aria-hidden="true">
-      <span class="hero__menubar-dot"></span> w pasku menu, bez ikony w Docku
-    </div>
+    <p class="hero__cap">Mieszka w pasku menu, bez ikony w Docku.</p>
   </div>
 </section>
 
@@ -99,21 +104,56 @@
 </section>
 
 <section class="pillars">
-  <div class="pillar pillar--lead">
+  <div class="pillars__lead">
     <h2>Tekst nie opuszcza Twojego Maca.</h2>
     <p>Model językowy (Gemma przez Ollamę) działa lokalnie na <code>localhost</code>. Żadnego konta, żadnego API, żadnej chmury. Działa też offline, a to, co tłumaczysz, zostaje u Ciebie.</p>
   </div>
-  <div class="pillar">
-    <h3>Błyskawicznie</h3>
-    <p>Model trzymany w pamięci między tłumaczeniami, wynik streamowany słowo po słowie. Bez rozgrzewki przy każdym użyciu.</p>
+  <div class="pillars__list">
+    <div class="pillar">
+      <h3>Błyskawicznie</h3>
+      <p>Model trzymany w pamięci między tłumaczeniami, wynik streamowany słowo po słowie. Bez rozgrzewki przy każdym użyciu.</p>
+    </div>
+    <div class="pillar">
+      <h3>Natywnie</h3>
+      <p>Mieszka w pasku menu, nie w Docku. Wygląda i zachowuje się jak część macOS, a nie jak doklejona przeglądarka.</p>
+    </div>
+    <div class="pillar">
+      <h3>Dwustronnie</h3>
+      <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki lub francuski. Kierunek wykrywany automatycznie.</p>
+    </div>
   </div>
-  <div class="pillar">
-    <h3>Natywnie</h3>
-    <p>Mieszka w pasku menu, nie w Docku. Wygląda i zachowuje się jak część macOS, a nie jak doklejona przeglądarka.</p>
-  </div>
-  <div class="pillar">
-    <h3>Dwustronnie</h3>
-    <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki lub francuski. Kierunek wykrywany automatycznie.</p>
+</section>
+
+<section class="guide" id="guide">
+  <h2 class="section__title">Krótki przewodnik</h2>
+  <div class="guide__grid">
+    <div class="guide__block" data-reveal>
+      <h3><span class="guide__step">1</span> Instalacja</h3>
+      <ol class="guide__list">
+        <li>Pobierz <code>Glosso.zip</code> z <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, rozpakuj i przeciągnij <strong>Glosso.app</strong> do Aplikacji.</li>
+        <li>Kliknij prawym → <strong>Otwórz</strong> → potwierdź. Robisz to raz: apka jest podpisana, ale nie notaryzowana przez Apple.</li>
+        <li>Przyznaj <strong>Dostępność</strong>, gdy zapyta. To jedyne uprawnienie, jakiego potrzebuje.</li>
+        <li>Kreator pierwszego uruchomienia pobierze model i pomoże wybrać drugi język.</li>
+      </ol>
+    </div>
+    <div class="guide__block" data-reveal>
+      <h3><span class="guide__step">2</span> Pierwsze tłumaczenie</h3>
+      <ol class="guide__list">
+        <li>Zaznacz zdanie w dowolnej aplikacji.</li>
+        <li>Naciśnij <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy pod rząd.</li>
+        <li>Panel otworzy się przy kursorze i zacznie streamować wynik.</li>
+        <li>Stuknij słowo po alternatywy, zmień ton albo czasownik, albo po prostu <strong>Kopiuj</strong>.</li>
+      </ol>
+    </div>
+    <div class="guide__block" data-reveal>
+      <h3><span class="guide__step">3</span> Na co dzień</h3>
+      <ol class="guide__list">
+        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw gramatykę zaznaczenia bez panelu.</li>
+        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> przetłumacz zaznaczenie w miejscu.</li>
+        <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel.</li>
+        <li>Model i drugi język zmienisz w Ustawieniach z paska menu.</li>
+      </ol>
+    </div>
   </div>
 </section>
 
@@ -167,46 +207,6 @@
   </div>
 </section>
 
-<section class="guide" id="guide">
-  <h2 class="section__title">Krótki przewodnik</h2>
-  <div class="guide__grid">
-    <div class="guide__block" data-reveal>
-      <h3>1 · Instalacja</h3>
-      <ol class="guide__list">
-        <li>Pobierz <code>Glosso.zip</code> z <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, rozpakuj i przeciągnij <strong>Glosso.app</strong> do Aplikacji.</li>
-        <li>Kliknij prawym → <strong>Otwórz</strong> → potwierdź. Robisz to raz: apka jest podpisana, ale nie notaryzowana przez Apple.</li>
-        <li>Przyznaj <strong>Dostępność</strong>, gdy zapyta. To jedyne uprawnienie, jakiego potrzebuje.</li>
-        <li>Kreator pierwszego uruchomienia pobierze model i pomoże wybrać drugi język.</li>
-      </ol>
-    </div>
-    <div class="guide__block" data-reveal>
-      <h3>2 · Pierwsze tłumaczenie</h3>
-      <ol class="guide__list">
-        <li>Zaznacz zdanie w dowolnej aplikacji.</li>
-        <li>Naciśnij <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy pod rząd.</li>
-        <li>Panel otworzy się przy kursorze i zacznie streamować wynik.</li>
-        <li>Stuknij słowo po alternatywy, zmień ton albo czasownik, albo po prostu <strong>Kopiuj</strong>.</li>
-      </ol>
-    </div>
-    <div class="guide__block" data-reveal>
-      <h3>3 · Na co dzień</h3>
-      <ol class="guide__list">
-        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw gramatykę zaznaczenia bez panelu.</li>
-        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> przetłumacz zaznaczenie w miejscu.</li>
-        <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel.</li>
-        <li>Model i drugi język zmienisz w Ustawieniach z paska menu.</li>
-      </ol>
-    </div>
-  </div>
-</section>
-
-<section class="cta">
-  <img class="cta__icon" src="glosso-icon.png" alt="Ikona aplikacji Glosso" width="96" height="96">
-  <h2>Przetłumacz pierwsze zdanie za minutę.</h2>
-  <p>Pobierz, przeciągnij do Aplikacji, zaznacz tekst, <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy. Reszta dzieje się lokalnie.</p>
-  <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Pobierz dla macOS</a>
-</section>
-
 </main>
 
 <footer class="foot">
@@ -228,19 +228,19 @@
   var el = document.getElementById('typed');
   var full = 'Good morning, nice to meet you.';
   var reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
-  if (!el) return;
-  if (reduce) {
-    el.textContent = full;
-    var c = document.querySelector('.caret');
-    if (c) c.style.display = 'none';
-    return;
+  if (el) {
+    if (reduce) {
+      el.textContent = full;
+      var c = document.querySelector('.caret');
+      if (c) c.style.display = 'none';
+    } else {
+      var i = 0;
+      (function type() {
+        el.textContent = full.slice(0, i);
+        if (i++ <= full.length) setTimeout(type, 55 + Math.random() * 45);
+      })();
+    }
   }
-  var i = 0;
-  function type() {
-    el.textContent = full.slice(0, i);
-    if (i++ <= full.length) setTimeout(type, 55 + Math.random() * 45);
-  }
-  setTimeout(type, 650);
 
   var items = [].slice.call(document.querySelectorAll('[data-reveal]'));
   function reveal(n) { n.classList.add('in'); }
