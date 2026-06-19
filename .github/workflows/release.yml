@@ -1,20 +1,43 @@
 name: Release
 
-# Push a tag like v0.2.0 (matching MARKETING_VERSION in project.yml) to build a
-# signed .zip and publish it as a GitHub Release. The in-app update check reads the
-# latest release here; friends download the .zip from the release page.
+# Auto-release on merge to main: when MARKETING_VERSION in project.yml names a
+# version with no GitHub Release yet, build a signed .zip and publish it (creating
+# the vX.Y.Z tag). Merges that don't bump the version are no-ops. To cut a release,
+# bump MARKETING_VERSION in the PR — merging it is the trigger.
 on:
   push:
-    tags:
-      - "v*"
+    branches: [main]
 
 permissions:
   contents: write # gh release create needs to write Releases
 
 jobs:
+  # Cheap gate so the expensive macOS job only runs when there's a new version.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      released: ${{ steps.v.outputs.released }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/.*MARKETING_VERSION:[[:space:]]*"\(.*\)".*/\1/p' project.yml | head -1)
+          TAG="v$VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG already released — nothing to do."
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
   release:
-    # Needs an Xcode that ships the macOS 26 SDK (project deployment target is 26.0).
-    # If the runner image lacks it, bump this to the newest macos-* label available.
+    needs: check
+    if: needs.check.outputs.released == 'false'
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
@@ -56,8 +79,9 @@ jobs:
       - name: Publish release
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
+          gh release create "$TAG" \
             .build/release/Glosso.zip \
-            --title "$GITHUB_REF_NAME" \
+            --title "$TAG" \
             --generate-notes
