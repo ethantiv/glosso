@@ -20,12 +20,14 @@ enum EmbeddedModelCatalog {
 
     /// The largest model that comfortably fits in this Mac's unified memory. The
     /// model shares RAM with the GPU and stays resident via `keep_alive`, so a model
-    /// near the RAM ceiling would starve the user's other apps. Thresholds are a
-    /// tuning knob — bump them if real-world fit differs from the on-disk size.
+    /// near the RAM ceiling would starve the user's other apps. Calibrated against a
+    /// real 36 GB Mac where 26B (17 GB) is the sweet spot and 31B (20 GB) is already
+    /// too heavy — i.e. roughly RAM ≥ 2× the model's on-disk size. Thresholds are a
+    /// tuning knob — bump them if real-world fit differs.
     static func recommended(forRAMBytes ramBytes: UInt64) -> Entry {
         let gigabytes = Double(ramBytes) / 1_073_741_824
-        if gigabytes >= 32 { return models[2] }
-        if gigabytes >= 24 { return models[1] }
+        if gigabytes >= 48 { return models[2] }
+        if gigabytes >= 36 { return models[1] }
         return models[0]
     }
 
