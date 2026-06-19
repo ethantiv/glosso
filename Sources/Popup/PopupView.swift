@@ -55,8 +55,10 @@ struct PopupView: View {
     // Replace overwrites the still-selected source in place, so unlike the
     // non-destructive Copy it must not be offered for a truncated result — one
     // click would replace the original selection with the partial translation
-    // (the source app has no undo for the lost selection), issue #22.
-    private var canReplace: Bool { canCopy && !model.truncated }
+    // (the source app has no undo for the lost selection), issue #22. It is also
+    // suppressed for Reply (#60): a reply is a new message, not a transform of the
+    // selection, so pasting it back would destroy the message being replied to.
+    private var canReplace: Bool { canCopy && !model.truncated && model.action != .reply }
     private var canUndo: Bool {
         model.canUndo && (model.phase == .done || model.phase == .error)
     }
