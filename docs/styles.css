@@ -189,7 +189,6 @@ kbd {
   .nav__links { gap: .9rem; font-size: .9rem; }
   .nav__links a:not(:last-child) { display: none; }
   .nav__cta { margin-left: .9rem; }
-  .hero__mac { display: block; margin-top: .9rem; font-size: .88rem; color: rgba(255,255,255,.9); }
 }
 
 /* ---------- Hero ---------- */
@@ -261,7 +260,7 @@ kbd {
 }
 .hero__actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-bottom: 1.2rem; }
 .hero__note { font-size: .9rem; color: rgba(255,255,255,.92); }
-.hero__mac { display: none; }
+.hero__mac { margin-top: .55rem; font-size: .88rem; color: rgba(255,255,255,.78); }
 
 /* ---------- Capabilities (own band, lifted out of the hero) ---------- */
 .capa {
@@ -376,7 +375,7 @@ kbd {
 }
 .gpane__label {
   font-size: .68rem; font-weight: 700; letter-spacing: .09em;
-  color: #9aa0b4; margin-bottom: .5rem;
+  color: #6b7185; margin-bottom: .5rem;
 }
 .gpane__text { font-size: 1rem; line-height: 1.5; color: var(--ink); }
 .gflow { display: flex; flex-wrap: wrap; gap: .08rem .32rem; font-size: 1rem; line-height: 1.7; color: var(--ink); margin: 0; }
