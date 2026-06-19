@@ -7,6 +7,11 @@
 DerivedData/
 *.xcresult
 
+# Signing material — the self-signed cert export must never be committed
+*.p12
+*.cer
+*.pem
+
 # macOS
 .DS_Store
 

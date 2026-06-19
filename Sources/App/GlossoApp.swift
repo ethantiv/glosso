@@ -24,6 +24,11 @@ struct GlossoApp: App {
                 }
             }
             Divider()
+            if let update = appDelegate.appState.updateAvailable {
+                Button("Dostępna nowa wersja \(update.version) — Pobierz") {
+                    NSWorkspace.shared.open(update.page)
+                }
+            }
             OpenSettingsButton()
             Button("Zakończ") { NSApplication.shared.terminate(nil) }
         }
@@ -76,6 +81,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     var ax: any AccessibilityAuthorizing = AXChecker()
     var coordinator: AppCoordinator?
     private var activationObserver: NSObjectProtocol?
+    lazy var onboarding = OnboardingController(
+        store: settings,
+        lister: modelLister,
+        engine: engine,
+        modelManager: modelManager,
+        appState: appState,
+        onOpenAccessibility: { [weak self] in self?.openAccessibilitySettings() },
+        onRecheckAccessibility: { [weak self] in self?.recheckAccessibility() }
+    )
 
     func applicationDidFinishLaunching(_ notification: Notification) {
         guard ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] == nil else {
@@ -102,12 +116,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         appState.listening = coordinator.start()
         self.coordinator = coordinator
 
+        // Best-effort, silent: surfaces a "download" item in the menu when a newer
+        // release exists. Any failure leaves updateAvailable nil (no menu noise).
+        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        Task { [appState] in
+            if let update = await GitHubUpdateChecker().availableUpdate(currentVersion: currentVersion) {
+                appState.updateAvailable = update
+            }
+        }
+
         // Accessibility can be revoked while we run; re-check whenever an app
         // activates so the menu stops claiming "Nasłuch aktywny" when it isn't.
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.recheckAccessibility() }
+        }
+
+        if !settings.hasCompletedOnboarding {
+            onboarding.show()
         }
     }
 

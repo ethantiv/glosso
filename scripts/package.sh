@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Build a Release .app, zip it, and install it into /Applications.
-# Free-team signed (Apple Development) — for your own Mac, not notarized.
+# Signed with the stable self-signed "Glosso Self-Signed" identity (see project.yml) —
+# not notarized; first launch on another Mac needs a one-time "Open Anyway".
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
