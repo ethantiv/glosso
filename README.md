@@ -4,11 +4,23 @@ A macOS menu-bar app that translates whatever you've selected when you hit **Cmd
 
 There's no Dock icon — just a bubble in the menu bar. Both Cmd+C presses still copy as usual; the app only listens for the double press, so the only permission it needs is **Accessibility**.
 
+## Install
+
+Grab the latest `Glosso.zip` from [Releases](https://github.com/ethantiv/glosso/releases/latest):
+
+1. Unzip and drag **Glosso.app** to your Applications folder.
+2. Right-click it → **Open** → confirm (once — the app is signed, but not notarized by Apple).
+3. Grant **Accessibility** when asked — it's the only permission it needs.
+4. A first-run wizard walks you through downloading a translation model and picking your second language.
+
+Everything runs locally. The model and its engine download on first use, so you don't need to install [Ollama](https://ollama.com) yourself (though an existing local Ollama is used if you have one).
+
+When a newer release is out, the menu bar shows a **download** link — drop the new app over the old one and your Accessibility grant carries over.
+
 ## Requirements
 
 - macOS 26 or later
-- [Ollama](https://ollama.com) running locally, with a model installed
-- [XcodeGen](https://github.com/yonaskolb/XcodeGen) + Xcode to build
+- To build from source: [XcodeGen](https://github.com/yonaskolb/XcodeGen) + Xcode
 
 ## Build & run
 
@@ -17,10 +29,12 @@ The Xcode project is generated from `project.yml` — don't edit `*.xcodeproj` b
 ```bash
 scripts/run.sh      # build and launch
 scripts/test.sh     # run the tests
-scripts/package.sh  # build a .zip you can drop into /Applications
+scripts/package.sh  # build a signed .zip you can drop into /Applications
 ```
 
 On first launch the app asks for **Accessibility** permission. That's the only one it needs.
+
+Releasing is automatic: bump `MARKETING_VERSION` in `project.yml` in a PR, and merging it to `main` builds, signs, and publishes the release. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
 ## Using the popup
 
