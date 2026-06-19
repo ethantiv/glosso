@@ -19,4 +19,13 @@ import Testing
     @Test func rzZetCardKeepsTheGZetExemplar() {
         #expect(PolishSpellingRules.block.contains("może→mogę"))
     }
+
+    // The ó/u card must carry the historical-ó words, so the model can say "góra"
+    // is historical instead of fabricating an "ó→o" alternation (#73 hallucination).
+    @Test func oUCardListsHistoricalOWords() {
+        #expect(PolishSpellingRules.block.contains("HISTORYCZNE"))
+        for word in ["góra", "córka", "król", "róża"] {
+            #expect(PolishSpellingRules.block.contains(word), "missing historical-ó word \(word)")
+        }
+    }
 }
