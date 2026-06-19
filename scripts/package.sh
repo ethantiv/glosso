@@ -29,6 +29,13 @@ rm -f "$ZIP"
 ditto -c -k --keepParent "$APP" "$ZIP"
 echo "✅ Spakowano → $ZIP"
 
+# CI only needs the signed .zip; the local install/launch below is headless-hostile
+# (`open` fails with LSOpenURLs -10825 and /Applications isn't writable on the runner).
+if [ -n "${CI:-}" ]; then
+  echo "CI: pomijam instalację do /Applications."
+  exit 0
+fi
+
 APP_DEST="/Applications/$SCHEME.app"
 if pgrep -xq "$SCHEME"; then
   osascript -e "tell application \"$SCHEME\" to quit" || true
