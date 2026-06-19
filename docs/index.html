@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Glosso: tłumacz zaznaczenie podwójnym Cmd+C</title>
-<meta name="description" content="Glosso to macOS-owa apka w pasku menu, która tłumaczy zaznaczony tekst po podwójnym Cmd+C. Lokalnie, prywatnie, bez chmury, a model Gemma działa na Twoim Macu.">
+<title>Glosso: tłumacz zaznaczenie skrótem Cmd+C+C</title>
+<meta name="description" content="Glosso to macOS-owa apka w pasku menu, która tłumaczy zaznaczony tekst skrótem Cmd+C+C (trzymasz Cmd i stukasz C dwa razy). Lokalnie, prywatnie, bez chmury, a model Gemma działa na Twoim Macu.">
 <link rel="icon" type="image/png" href="glosso-icon-256.png">
-<meta property="og:title" content="Glosso: tłumacz zaznaczenie podwójnym Cmd+C">
-<meta property="og:description" content="Lokalne tłumaczenie na macOS. Zaznacz, naciśnij Cmd+C dwa razy, czytaj wynik przy kursorze. Nic nie wychodzi do chmury.">
+<meta property="og:title" content="Glosso: tłumacz zaznaczenie skrótem Cmd+C+C">
+<meta property="og:description" content="Lokalne tłumaczenie na macOS. Trzymając Cmd stuknij C dwa razy, czytaj wynik przy kursorze. Nic nie wychodzi do chmury.">
 <meta property="og:image" content="glosso-icon.png">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -38,8 +38,8 @@
 <section class="hero">
   <div class="hero__copy">
     <p class="hero__eyebrow">macOS · działa lokalnie · open source</p>
-    <h1 class="hero__title">Tłumacz zaznaczenie<br><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> <span class="hero__times">×2</span></h1>
-    <p class="hero__lede">Zaznacz dowolny tekst i naciśnij <strong>Cmd+C dwa razy pod rząd</strong>. Tłumaczenie pojawia się w małym panelu przy kursorze. Bez przeglądarki, bez wklejania, bez wysyłania czegokolwiek do chmury.</p>
+    <h1 class="hero__title">Tłumacz zaznaczenie<br><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd class="kbd-2">C</kbd></span></h1>
+    <p class="hero__lede">Zaznacz dowolny tekst i, trzymając <strong>Cmd</strong>, stuknij <strong>C dwa razy</strong>. Tłumaczenie pojawia się w małym panelu przy kursorze. Bez przeglądarki, bez wklejania, bez wysyłania czegokolwiek do chmury.</p>
     <div class="hero__actions">
       <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">
         Pobierz dla macOS
@@ -51,6 +51,7 @@
   </div>
 
   <div class="hero__demo">
+    <div class="stage">
     <div class="menubar" aria-hidden="true">
       <span class="menubar__os"></span>
       <span class="menubar__spacer"></span>
@@ -59,7 +60,7 @@
       <span class="menubar__item">9:41</span>
     </div>
     <!-- Wierne odtworzenie panelu Glosso (zrzuty natywnych okien macOS są blokowane przez system). -->
-    <figure class="gpop gpop--float" role="img" aria-label="Panel Glosso tłumaczy „Dzień dobry, miło Cię poznać. Nazywam się Glosso.” na angielski.">
+    <figure class="gpop" role="img" aria-label="Panel Glosso tłumaczy „Dzień dobry, miło Cię poznać. Nazywam się Glosso.” na angielski.">
       <div class="gpop__bar">
         <div class="gpop__verbs">
           <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/></svg>Tłumacz</span>
@@ -88,6 +89,7 @@
       </div>
       <span class="gpop__grip" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 6 6 14M14 11l-3 3"/></svg></span>
     </figure>
+    </div>
     <p class="hero__cap">Mieszka w pasku menu, bez ikony w Docku.</p>
   </div>
 </section>
@@ -102,8 +104,8 @@
     </li>
     <li class="step" data-reveal>
       <span class="step__num">2</span>
-      <h3>Naciśnij <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy</h3>
-      <p>Oba kopiowania działają normalnie. Glosso nasłuchuje tylko podwójnego naciśnięcia, dlatego potrzebuje jednej zgody: Dostępność.</p>
+      <h3>Trzymaj <span class="kbd-inline"><kbd>⌘</kbd></span> i stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span></h3>
+      <p>Każde stuknięcie C kopiuje normalnie. Glosso nasłuchuje tylko ich szybkiej pary, dlatego potrzebuje jednej zgody: Dostępność.</p>
     </li>
     <li class="step" data-reveal>
       <span class="step__num">3</span>
@@ -150,7 +152,7 @@
       <h3><span class="guide__step">2</span> Pierwsze tłumaczenie</h3>
       <ol class="guide__list">
         <li>Zaznacz zdanie w dowolnej aplikacji.</li>
-        <li>Naciśnij <span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd></span> dwa razy pod rząd.</li>
+        <li>Trzymając <span class="kbd-inline"><kbd>⌘</kbd></span>, stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span>.</li>
         <li>Panel otworzy się przy kursorze i zacznie streamować wynik.</li>
         <li>Stuknij słowo po alternatywy, zmień ton albo czasownik, albo po prostu <strong>Kopiuj</strong>.</li>
       </ol>

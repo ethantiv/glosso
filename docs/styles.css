@@ -222,12 +222,11 @@ kbd {
   padding: .3em .5em;
   transform: translateY(-.12em);
 }
-.hero__times {
-  display: inline-block;
-  font-size: .55em;
-  color: var(--coral);
-  vertical-align: middle;
-  transform: translateY(-.15em);
+.hero__title kbd.kbd-2 {
+  background: var(--coral);
+  color: #2a1206;
+  border-color: rgba(0,0,0,.18);
+  box-shadow: 0 2px 0 rgba(0,0,0,.22);
 }
 .hero__lede {
   font-size: 1.18rem;
@@ -276,6 +275,30 @@ kbd {
   text-align: center;
   margin-top: .15rem;
 }
+
+/* the "screen" that unifies menu bar + popup into one window */
+.stage {
+  position: relative;
+  border-radius: clamp(18px, 2.4vw, 26px);
+  padding-bottom: clamp(1.2rem, 3vw, 1.9rem);
+  background:
+    radial-gradient(70% 55% at 88% 120%, rgba(255,122,89,.32), transparent 60%),
+    linear-gradient(165deg, #5b65de, #353e9e);
+  border: 1px solid rgba(255,255,255,.18);
+  box-shadow: 0 34px 80px -38px rgba(8,9,36,.75);
+  overflow: hidden;
+}
+.stage .menubar {
+  margin: 0;
+  border: 0;
+  border-bottom: 1px solid rgba(255,255,255,.16);
+  border-radius: 0;
+  background: rgba(8,9,36,.34);
+}
+.stage .gpop {
+  width: auto;
+  margin: clamp(1.2rem, 3vw, 1.9rem) clamp(1rem, 3vw, 1.8rem) 0;
+}
 .gpop {
   width: 100%;
   background: #fff;
@@ -285,11 +308,6 @@ kbd {
   box-shadow: var(--shadow-panel);
   padding: .7rem .8rem .85rem;
   position: relative;
-}
-.gpop--float { animation: floaty 7s var(--ease) infinite; }
-@keyframes floaty {
-  0%,100% { transform: translateY(0); }
-  50% { transform: translateY(-9px); }
 }
 .gpop__bar {
   display: flex;
@@ -375,21 +393,35 @@ kbd {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(290px, 1fr));
   gap: clamp(1.25rem, 3vw, 2rem);
-  align-items: start;
+  align-items: stretch;
   margin-bottom: clamp(2.5rem, 6vw, 4rem);
 }
 .shot { display: flex; flex-direction: column; gap: 1.1rem; }
 .shot__ui {
-  background: linear-gradient(165deg, #eef0f8, #e6e8f6);
-  border: 1px solid var(--line);
-  border-radius: 18px;
-  padding: clamp(1rem, 2.5vw, 1.5rem);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border-radius: 20px;
+  padding: clamp(1rem, 2.5vw, 1.4rem);
+  border: 1px solid rgba(255,255,255,.16);
+  background:
+    radial-gradient(75% 60% at 100% 118%, rgba(255,122,89,.28), transparent 60%),
+    linear-gradient(165deg, #5b65de, #353e9e);
+  box-shadow: 0 26px 54px -32px rgba(8,9,36,.6);
+}
+.shot__ui::before {
+  content: "";
+  flex: none;
+  width: 9px; height: 9px; border-radius: 50%;
+  background: #ff5f57;
+  box-shadow: 15px 0 #febc2e, 30px 0 #28c840;
+  margin: .15rem 0 .9rem .3rem;
 }
 .shot__frame {
   background: #fff;
   border-radius: 13px;
   border: 1px solid rgba(20,22,60,.06);
-  box-shadow: 0 14px 34px -20px rgba(21,23,63,.4);
+  box-shadow: 0 14px 34px -22px rgba(8,9,36,.55);
   padding: .8rem .85rem .9rem;
 }
 .shot__cap h3 { font-size: 1.2rem; margin-bottom: .4rem; }
@@ -445,15 +477,21 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 
 /* ---------- Pillars (drench) ---------- */
 .pillars {
-  background: linear-gradient(150deg, var(--indigo-800), var(--indigo-950));
+  position: relative;
+  overflow: hidden;
   color: #fff;
   padding-block: clamp(3.5rem, 7vw, 5.5rem);
+  border-radius: clamp(22px, 3vw, 34px);
+  background:
+    radial-gradient(55% 65% at 102% 115%, rgba(255,122,89,.34), transparent 55%),
+    radial-gradient(48% 70% at -6% -12%, rgba(124,135,255,.55), transparent 55%),
+    linear-gradient(150deg, var(--indigo-800), var(--indigo-950));
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr);
   gap: clamp(2rem, 6vw, 5rem);
   align-items: center;
   max-width: var(--wrap);
-  margin-inline: auto;
+  margin: clamp(1rem, 3vw, 2.5rem) auto;
 }
 .pillars__lead h2 {
   font-size: clamp(1.9rem, 4.5vw, 3rem);
@@ -591,7 +629,7 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 .foot__links { display: flex; gap: 1.4rem; }
 .foot__links a { color: rgba(255,255,255,.82); text-decoration: none; }
 .foot__links a:hover { color: #fff; }
-.foot__meta { width: 100%; font-size: .85rem; color: rgba(255,255,255,.5); }
+.foot__meta { margin-left: auto; text-align: right; font-size: .85rem; color: rgba(255,255,255,.5); }
 
 /* ---------- Responsive ---------- */
 @media (max-width: 880px) {
