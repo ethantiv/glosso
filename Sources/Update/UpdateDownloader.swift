@@ -10,7 +10,12 @@ enum UpdateDownloader {
         guard let downloads = try? FileManager.default.url(
             for: .downloadsDirectory, in: .userDomainMask, appropriateFor: nil, create: false
         ) else { return }
-        guard let (temp, _) = try? await session.download(from: asset) else { return }
+        // Gate on a 2xx: download(from:) succeeds for any reply with a body, so a
+        // 404 or an error page would otherwise land in ~/Downloads as a bogus
+        // "Glosso.zip" the user can't unzip, with no sign anything went wrong.
+        guard let (temp, response) = try? await session.download(from: asset),
+              (response as? HTTPURLResponse).map({ (200..<300).contains($0.statusCode) }) ?? false
+        else { return }
 
         let base = asset.lastPathComponent.isEmpty ? "Glosso.zip" : asset.lastPathComponent
         let destination = downloads.appendingPathComponent(uniqueName(base: base, in: downloads))
