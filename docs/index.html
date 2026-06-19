@@ -50,6 +50,7 @@
       <a class="btn btn--ghost btn--lg" href="#how">Zobacz jak działa</a>
     </div>
     <p class="hero__note">macOS 26+ · model pobiera się raz · działa offline</p>
+    <p class="hero__mac">To aplikacja na Maca — otwórz tę stronę na swoim Macu, żeby pobrać i zainstalować.</p>
   </div>
 
   <div class="hero__demo">
@@ -94,8 +95,14 @@
     <p class="hero__cap">Mieszka w pasku menu, bez ikony w Docku.</p>
   </div>
   </div>
+</section>
 
-  <div class="hero__more" id="how">
+<section class="capa" id="how">
+  <div class="capa__inner">
+    <header class="capa__head">
+      <h2 class="section__title">Jeden gest, trzy zadania</h2>
+      <p class="section__lede">Zaznacz, stuknij ⌘C C i wybierz, co zrobić z tekstem — popraw, streść albo przetłumacz.</p>
+    </header>
     <ol class="flow">
       <li class="flow__step"><span class="flow__n">1</span> Zaznacz tekst</li>
       <li class="flow__step"><span class="flow__n">2</span> Trzymaj <span class="kbd-inline"><kbd>⌘</kbd></span>, stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span></li>
@@ -123,28 +130,6 @@
           <h3>Tłumacz</h3>
         </div>
         <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki, francuski. Jest, bo bywa potrzebny, ale to dopiero początek.</p>
-      </div>
-    </div>
-  </div>
-</section>
-
-<section class="rjp" id="rjp">
-  <div class="rjp__copy">
-    <h2>Popraw, które naprawdę zna reguły</h2>
-    <p>Większość narzędzi „poprawia” na wyczucie modelu i zmyśla uzasadnienia. Glosso dla języka polskiego opiera tryb Popraw na <strong>oficjalnych „Zasadach pisowni i interpunkcji polskiej” Rady Języka Polskiego</strong>, więc przy każdej zmianie poznasz konkretną regułę zamiast wymyślonej historyjki.</p>
-    <a class="rjp__seal" href="https://rjp.pan.pl" rel="noopener">
-      <span class="rjp__sealmark">RJP</span>
-      <span class="rjp__sealtext"><b>Rada Języka Polskiego</b>przy Prezydium PAN · rjp.pan.pl</span>
-    </a>
-    <p class="rjp__note">Na razie po polsku. Kolejne języki w drodze.</p>
-  </div>
-  <div class="rjp__demo">
-    <div class="shot__frame shot__frame--lg">
-      <p class="gpane__label">POPRAWKA</p>
-      <p class="gdiff"><span class="del">Napewno</span> <span class="ins">Na pewno</span> warto wejść na <span class="del">gure</span> <span class="ins">górę</span>.</p>
-      <div class="gmenu gmenu--pop">
-        <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg> Dlaczego poprawiono?</div>
-        <p class="gmenu__why">„<em>na pewno</em>” piszemy <em>rozdzielnie</em>. To wyrażenie przyimkowe, a nie jeden wyraz <span class="rjp__cite">(RJP, pisownia rozdzielna, 4.4)</span>.</p>
       </div>
     </div>
   </div>
@@ -266,6 +251,23 @@
       <div class="shot__cap">
         <h3>Edytowalne źródło</h3>
         <p>Przechwycony tekst poprawisz wprost w panelu i puścisz model jeszcze raz. Dochodzi do tego przełącznik tonu: automatyczny, formalny, na luzie.</p>
+      </div>
+    </div>
+
+    <div class="shot" data-reveal>
+      <div class="shot__ui">
+        <div class="shot__frame">
+          <p class="gpane__label">POPRAWKA</p>
+          <p class="gdiff">Wiem<span class="ins">,</span> że dasz radę.</p>
+          <div class="gmenu gmenu--pop">
+            <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg> Dlaczego poprawiono?</div>
+            <p class="gmenu__why">Przed „<em>że</em>” wprowadzającym zdanie podrzędne stawiamy przecinek <span class="rjp__cite">(RJP, interpunkcja)</span>.</p>
+          </div>
+        </div>
+      </div>
+      <div class="shot__cap">
+        <h3>Popraw, które naprawdę zna reguły</h3>
+        <p>W trybie Popraw każda zmiana ma uzasadnienie z zasad pisowni i interpunkcji <a href="https://rjp.pan.pl" rel="noopener">Rady Języka Polskiego</a> — nie zmyśloną historyjkę.</p>
       </div>
     </div>
   </div>
