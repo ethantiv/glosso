@@ -193,11 +193,6 @@ struct AlternativesDropdown: View {
     let onBack: () -> Void
 
     static let width: CGFloat = 200
-    // Safety cap for the reason height (#73): PopupView grows the window to fit the
-    // measured reason, but a pathologically long one is capped here and scrolls
-    // instead of growing the window past the screen. PopupView reserves the same
-    // min(measured, cap), so the two stay in lockstep and nothing clips.
-    static let reasonMaxHeight: CGFloat = 300
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -255,7 +250,7 @@ struct AlternativesDropdown: View {
                     .padding(.vertical, 9)
                     .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.fixReasonContentHeight = $0 }
             }
-            .frame(height: min(model.fixReasonContentHeight, Self.reasonMaxHeight))
+            .frame(height: FixReasonLayout.reasonPaneHeight(content: model.fixReasonContentHeight))
         }
     }
 
