@@ -35,14 +35,11 @@ The `.p12`/`.pem`/`.cer` files are git-ignored; never commit them.
 
 ## Cutting a release
 
-1. Bump `MARKETING_VERSION` in `project.yml` (e.g. `0.2.0`).
-2. Commit, then tag and push — the tag must match the version, prefixed with `v`:
-   ```bash
-   git tag v0.2.0
-   git push --tags
-   ```
-3. The `Release` workflow builds, signs, and publishes `Glosso.zip` to a GitHub Release.
-4. The in-app update check (menu bar → "Dostępna nowa wersja …") points users at the release page.
+1. In a PR, bump `MARKETING_VERSION` in `project.yml` (e.g. `0.2.0`).
+2. Merge the PR to `main`. The `Release` workflow sees that `v0.2.0` has no release yet, builds, signs, and publishes `Glosso.zip` — creating the `v0.2.0` tag. Merges that don't change the version are no-ops (a cheap pre-check skips the macOS build).
+3. The in-app update check (menu bar → "Dostępna nowa wersja …") points users at the release page.
+
+Bumping the version *is* the release trigger — no manual tagging.
 
 The repository must be **public** so the unauthenticated GitHub API (`releases/latest`) and the release asset download work for everyone.
 
