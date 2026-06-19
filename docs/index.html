@@ -137,35 +137,50 @@
 </section>
 
 <section class="guide" id="guide">
-  <h2 class="section__title">Krótki przewodnik</h2>
-  <div class="guide__grid">
-    <div class="guide__block" data-reveal>
-      <h3><span class="guide__step">1</span> Instalacja</h3>
-      <ol class="guide__list">
-        <li>Pobierz <code>Glosso.zip</code> z <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, rozpakuj i przeciągnij <strong>Glosso.app</strong> do Aplikacji.</li>
-        <li>Kliknij prawym → <strong>Otwórz</strong> → potwierdź. Robisz to raz: apka jest podpisana, ale nie notaryzowana przez Apple.</li>
-        <li>Przyznaj <strong>Dostępność</strong>, gdy zapyta. To jedyne uprawnienie, jakiego potrzebuje.</li>
-        <li>Kreator pierwszego uruchomienia pobierze model i pomoże wybrać drugi język.</li>
-      </ol>
+  <div class="guide__inner">
+    <div class="guide__aside">
+      <h2 class="section__title">Krótki przewodnik</h2>
+      <p class="guide__lede">Od pobrania do pierwszego tłumaczenia w niecałą minutę.</p>
+      <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Pobierz dla macOS</a>
     </div>
-    <div class="guide__block" data-reveal>
-      <h3><span class="guide__step">2</span> Pierwsze tłumaczenie</h3>
-      <ol class="guide__list">
-        <li>Zaznacz zdanie w dowolnej aplikacji.</li>
-        <li>Trzymając <span class="kbd-inline"><kbd>⌘</kbd></span>, stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span>.</li>
-        <li>Panel otworzy się przy kursorze i zacznie streamować wynik.</li>
-        <li>Stuknij słowo po alternatywy, zmień ton albo czasownik, albo po prostu <strong>Kopiuj</strong>.</li>
-      </ol>
-    </div>
-    <div class="guide__block" data-reveal>
-      <h3><span class="guide__step">3</span> Na co dzień</h3>
-      <ol class="guide__list">
-        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw gramatykę zaznaczenia bez panelu.</li>
-        <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> przetłumacz zaznaczenie w miejscu.</li>
-        <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel.</li>
-        <li>Model i drugi język zmienisz w Ustawieniach z paska menu.</li>
-      </ol>
-    </div>
+    <ol class="guide__steps">
+      <li class="phase" data-reveal>
+        <span class="phase__badge">1</span>
+        <div class="phase__body">
+          <h3>Instalacja</h3>
+          <ul class="phase__list">
+            <li>Pobierz <code>Glosso.zip</code> z <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, rozpakuj i przeciągnij <strong>Glosso.app</strong> do Aplikacji.</li>
+            <li>Kliknij prawym → <strong>Otwórz</strong> → potwierdź. Robisz to raz: apka jest podpisana, ale nie notaryzowana przez Apple.</li>
+            <li>Przyznaj <strong>Dostępność</strong>, gdy zapyta. To jedyne uprawnienie, jakiego potrzebuje.</li>
+            <li>Kreator pierwszego uruchomienia pobierze model i pomoże wybrać drugi język.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="phase" data-reveal>
+        <span class="phase__badge">2</span>
+        <div class="phase__body">
+          <h3>Pierwsze tłumaczenie</h3>
+          <ul class="phase__list">
+            <li>Zaznacz zdanie w dowolnej aplikacji.</li>
+            <li>Trzymając <span class="kbd-inline"><kbd>⌘</kbd></span>, stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span>.</li>
+            <li>Panel otworzy się przy kursorze i zacznie streamować wynik.</li>
+            <li>Stuknij słowo po alternatywy, zmień ton albo czasownik, albo po prostu <strong>Kopiuj</strong>.</li>
+          </ul>
+        </div>
+      </li>
+      <li class="phase" data-reveal>
+        <span class="phase__badge">3</span>
+        <div class="phase__body">
+          <h3>Na co dzień</h3>
+          <ul class="phase__list">
+            <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw gramatykę zaznaczenia bez panelu.</li>
+            <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> przetłumacz zaznaczenie w miejscu.</li>
+            <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel.</li>
+            <li>Model i drugi język zmienisz w Ustawieniach z paska menu.</li>
+          </ul>
+        </div>
+      </li>
+    </ol>
   </div>
 </section>
 
@@ -244,10 +259,6 @@
     <li class="feature" data-reveal>
       <h3>Edytowalne źródło</h3>
       <p>Popraw przechwycony tekst w panelu i przetłumacz ponownie. Literówkę w źródle naprawisz bez wracania do aplikacji.</p>
-    </li>
-    <li class="feature" data-reveal>
-      <h3>Zamień i kopiuj</h3>
-      <p>Wklej wynik prosto na zaznaczony tekst, albo skopiuj całość. Panel przeciągniesz za tło i rozciągniesz za róg.</p>
     </li>
   </ul>
 
