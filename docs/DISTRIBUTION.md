@@ -47,7 +47,8 @@ The repository must be **public** so the unauthenticated GitHub API (`releases/l
 
 1. Download `Glosso.zip` and unzip it.
 2. Drag **Glosso.app** to your **Applications** folder.
-3. Right-click Glosso.app → **Open** → confirm **Open** (needed once, because the app is not from the App Store).
+3. The first launch is blocked because the app is signed but not notarized by Apple. On macOS 15 (Sequoia) and later the old right-click → **Open** trick no longer works — instead click **Done**, then open **System Settings → Privacy & Security**, scroll to the bottom, and click **Open Anyway** next to the Glosso message. Needed once.
+   - Shortcut from a terminal: `xattr -dr com.apple.quarantine /Applications/Glosso.app` clears the download-quarantine flag so it opens normally.
 4. Click the Glosso icon in the menu bar and grant **Accessibility** when asked.
 5. The setup wizard guides you through choosing a model and language.
 

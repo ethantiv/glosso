@@ -60,6 +60,7 @@ final class OnboardingController {
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false
         window.collectionBehavior.insert(.moveToActiveSpace)
+        window.layoutIfNeeded()
         window.center()
 
         closeObserver = NotificationCenter.default.addObserver(
