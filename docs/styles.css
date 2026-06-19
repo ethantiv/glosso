@@ -554,66 +554,92 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   background: var(--indigo-tint);
   padding-block: clamp(3.5rem, 7vw, 5.5rem);
 }
-.guide__inner {
-  max-width: var(--wrap);
-  margin-inline: auto;
-  display: grid;
-  grid-template-columns: minmax(0, .82fr) minmax(0, 1.18fr);
-  gap: clamp(2rem, 5vw, 4.5rem);
-  align-items: start;
+.guide__head {
+  max-width: 60ch;
+  margin: 0 auto clamp(2.6rem, 5vw, 3.6rem);
+  text-align: center;
 }
-.guide__aside { position: sticky; top: 5rem; }
+.guide__head .section__title { max-width: none; margin-inline: auto; }
 .guide__lede {
   font-size: 1.12rem;
   color: var(--ink-soft);
   line-height: 1.6;
-  max-width: 28ch;
-  margin: 1rem 0 1.8rem;
+  max-width: 52ch;
+  margin: 1rem auto 0;
 }
 .guide__steps {
+  --step-gap: clamp(1.6rem, 3vw, 2.4rem);
   list-style: none;
-  margin: 0;
+  margin: 0 auto;
   padding: 0;
-  position: relative;
+  max-width: 820px;
   display: flex;
   flex-direction: column;
-  gap: clamp(1.8rem, 3vw, 2.6rem);
-}
-.guide__steps::before {
-  content: "";
-  position: absolute;
-  left: 18px;
-  top: 1.3rem;
-  bottom: 1.3rem;
-  width: 2px;
-  background: linear-gradient(var(--indigo), var(--coral));
-  opacity: .35;
+  gap: var(--step-gap);
 }
 .phase {
+  --badge: 48px;
   position: relative;
   display: grid;
-  grid-template-columns: 38px 1fr;
-  gap: 1.1rem;
+  grid-template-columns: var(--badge) 1fr;
+  gap: clamp(1rem, 2.5vw, 1.6rem);
   align-items: start;
 }
+.phase:not(:last-child)::before {
+  content: "";
+  position: absolute;
+  left: calc(var(--badge) / 2);
+  top: calc(var(--badge) / 2);
+  transform: translateX(-50%);
+  width: 2px;
+  height: calc(100% + var(--step-gap));
+  border-radius: 2px;
+  opacity: .45;
+}
+.phase:nth-child(1)::before { background: linear-gradient(var(--indigo), var(--indigo-600)); }
+.phase:nth-child(2)::before { background: linear-gradient(var(--indigo-600), var(--coral)); }
 .phase__badge {
+  position: relative;
   z-index: 1;
-  width: 38px;
-  height: 38px;
+  width: var(--badge);
+  height: var(--badge);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  border-radius: 12px;
+  border-radius: 14px;
   background: var(--indigo);
   color: #fff;
   font-family: var(--font-display);
   font-weight: 800;
-  font-size: 1.1rem;
-  box-shadow: 0 0 0 6px var(--indigo-tint);
+  font-size: 1.2rem;
+  box-shadow: 0 0 0 6px var(--indigo-tint), 0 8px 18px -8px rgba(79,91,216,.6);
 }
-.phase:nth-child(2) .phase__badge { background: var(--indigo-600); }
-.phase:nth-child(3) .phase__badge { background: var(--coral); color: #2a1206; }
-.phase__body h3 { font-size: 1.3rem; margin: .3rem 0 .85rem; }
+.phase:nth-child(2) .phase__badge { background: var(--indigo-600); box-shadow: 0 0 0 6px var(--indigo-tint), 0 8px 18px -8px rgba(67,80,196,.55); }
+.phase:nth-child(3) .phase__badge { background: var(--coral); color: #2a1206; box-shadow: 0 0 0 6px var(--indigo-tint), 0 8px 18px -8px rgba(255,122,89,.5); }
+.phase__card {
+  display: grid;
+  grid-template-columns: minmax(0, .6fr) minmax(0, 1fr);
+  gap: clamp(1rem, 3vw, 2.2rem);
+  align-items: start;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: clamp(1.2rem, 2.5vw, 1.6rem) clamp(1.3rem, 3vw, 1.9rem);
+  box-shadow: 0 10px 30px -20px rgba(21,23,63,.4);
+  transition: transform .35s var(--ease), box-shadow .35s var(--ease), border-color .35s var(--ease);
+}
+.phase__card:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 20px 44px -22px rgba(21,23,63,.5);
+  border-color: #d9d9ec;
+}
+.phase__head h3 { font-size: 1.28rem; margin: 0; }
+.phase__cap {
+  margin: .4rem 0 0;
+  color: var(--ink-soft);
+  font-size: .98rem;
+  line-height: 1.45;
+}
 .phase__list {
   list-style: none;
   margin: 0;
@@ -673,8 +699,7 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   .hero__copy { max-width: none; }
   .hero__demo { order: 2; max-width: 520px; }
   .pillars { grid-template-columns: 1fr; gap: 2rem; }
-  .guide__inner { grid-template-columns: 1fr; gap: 2rem; }
-  .guide__aside { position: static; }
+  .phase__card { grid-template-columns: 1fr; gap: .85rem; }
 }
 @media (max-width: 600px) {
   .gpop__body { grid-template-columns: 1fr; gap: .7rem; }
