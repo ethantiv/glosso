@@ -31,6 +31,7 @@ struct GlossoApp: App {
                 }
             }
             OpenSettingsButton()
+            Button("O aplikacji…") { appDelegate.showAbout() }
             Button("Zakończ") { NSApplication.shared.terminate(nil) }
         } label: {
             // While an update waits, swap in a glyph variant with a download arrow
@@ -162,6 +163,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func openAccessibilitySettings() {
         ax.openSystemSettings()
+    }
+
+    // The standard panel pulls icon/name/version from the bundle; only the author
+    // line and the two links are supplied via .credits. Activating is needed for an
+    // LSUIElement agent — the panel otherwise opens behind, like the Settings window.
+    func showAbout() {
+        let center = NSMutableParagraphStyle()
+        center.alignment = .center
+        let credits = NSMutableAttributedString(
+            string: "Autor: Mirosław Zaniewicz\n\n",
+            attributes: [.foregroundColor: NSColor.labelColor, .paragraphStyle: center]
+        )
+        func link(_ label: String, _ url: String) {
+            credits.append(NSAttributedString(
+                string: label + "\n",
+                attributes: [.link: URL(string: url)!, .paragraphStyle: center]
+            ))
+        }
+        link("Repozytorium", "https://github.com/ethantiv/glosso")
+        link("Strona projektu", "https://ethantiv.github.io/glosso/")
+
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     /// Fetches the pending release `.zip` into ~/Downloads. Shared by the menu item
