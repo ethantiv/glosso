@@ -204,28 +204,44 @@ kbd {
   padding: 0 max(clamp(1.25rem, 5vw, 3rem), calc((100% - 1200px) / 2)) clamp(3.5rem, 7vw, 5.5rem);
   color: #fff;
   background:
+    radial-gradient(58% 62% at 15% 50%, rgba(9,10,34,.5) 0%, rgba(9,10,34,0) 70%),
     radial-gradient(46% 50% at 80% 46%, rgba(255,122,89,.30) 0%, rgba(255,122,89,0) 62%),
     linear-gradient(158deg, var(--indigo) 0%, var(--indigo-800) 52%, var(--indigo-950) 100%);
 }
 .hero__main {
   min-height: calc(100svh - var(--nav-h));
   display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  grid-template-columns: minmax(0, 1.08fr) minmax(0, .92fr);
   gap: clamp(2rem, 4vw, 3.5rem);
   align-items: center;
 }
-.hero__copy { max-width: 36rem; }
+.hero__copy { max-width: 38rem; }
 .hero__eyebrow {
+  display: inline-flex;
+  align-items: center;
+  gap: .55rem;
   font-weight: 600;
   font-size: .9rem;
   letter-spacing: .01em;
   color: rgba(255,255,255,.95);
-  margin-bottom: 1.1rem;
+  margin-bottom: 1.3rem;
+}
+.hero__dot {
+  width: .55rem;
+  height: .55rem;
+  border-radius: 50%;
+  background: var(--coral);
+  box-shadow: 0 0 0 4px rgba(255,122,89,.18);
 }
 .hero__title {
-  font-size: clamp(2.6rem, 5.2vw, 4.1rem);
-  letter-spacing: -0.035em;
-  margin-bottom: 1rem;
+  font-size: clamp(2.9rem, 6.6vw, 5.5rem);
+  letter-spacing: -0.038em;
+  margin-bottom: 1.05rem;
+}
+.hero__accent {
+  font-style: normal;
+  color: var(--coral);
+  text-shadow: 0 2px 18px rgba(7,8,28,.5);
 }
 .hero__title .kbd-inline { gap: .3rem; vertical-align: middle; }
 .hero__title kbd {
@@ -252,17 +268,35 @@ kbd {
 .hero__gesture {
   display: inline-flex;
   align-items: center;
-  gap: .6rem;
+  gap: .7rem;
   font-size: .98rem;
-  color: rgba(255,255,255,.9);
-  margin-bottom: 1.6rem;
+  color: rgba(255,255,255,.92);
+  margin-bottom: 1.7rem;
+  padding: .5rem .95rem .5rem .55rem;
+  border-radius: 999px;
+  background: rgba(255,255,255,.06);
+  border: 1px solid rgba(255,255,255,.16);
+  backdrop-filter: blur(4px);
 }
-.hero__gesture .kbd-inline { gap: .3rem; }
+.hero__chord { gap: .3rem; }
 .hero__gesture kbd {
   font-family: var(--font-ui);
-  font-size: .95rem;
-  border-radius: 9px;
-  padding: .34em .52em;
+  font-size: 1.02rem;
+  border-radius: 10px;
+  padding: .36em .56em;
+}
+.hero__chord .kbd-2 {
+  background: var(--coral);
+  color: #2a1206;
+  border-color: rgba(0,0,0,.18);
+  box-shadow: 0 2px 0 rgba(0,0,0,.25);
+  transform-origin: center bottom;
+  animation: chord-tap .55s var(--ease) .85s both;
+}
+@keyframes chord-tap {
+  0% { transform: translateY(-4px); box-shadow: 0 5px 0 rgba(0,0,0,.25); }
+  60% { transform: translateY(1px); box-shadow: 0 1px 0 rgba(0,0,0,.25); }
+  100% { transform: translateY(0); box-shadow: 0 2px 0 rgba(0,0,0,.25); }
 }
 .hero__actions { display: flex; flex-wrap: wrap; gap: .9rem; margin-bottom: 1.2rem; }
 .hero__note { font-size: .9rem; color: rgba(255,255,255,.92); }
@@ -844,4 +878,6 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
     animation-iteration-count: 1 !important;
     transition-duration: .001ms !important;
   }
+  /* delay + backwards-fill would otherwise hold the chord key raised before snapping */
+  .hero__chord .kbd-2 { animation: none !important; transform: none; }
 }
