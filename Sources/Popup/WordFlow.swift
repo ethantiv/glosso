@@ -240,13 +240,17 @@ struct AlternativesDropdown: View {
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
         } else {
-            Text(model.explanationText.isEmpty ? "Nie udało się pobrać powodu." : model.explanationText)
-                .font(PopupTheme.fontLead)
-                .foregroundStyle(model.explanationText.isEmpty ? Color.secondary : .primary)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 9)
+            ScrollView {
+                Text(model.explanationText.isEmpty ? "Nie udało się pobrać powodu." : model.explanationText)
+                    .font(PopupTheme.fontLead)
+                    .foregroundStyle(model.explanationText.isEmpty ? Color.secondary : .primary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 9)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.fixReasonContentHeight = $0 }
+            }
+            .frame(height: FixReasonLayout.reasonPaneHeight(content: model.fixReasonContentHeight))
         }
     }
 

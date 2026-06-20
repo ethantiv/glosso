@@ -3,11 +3,11 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Glosso: tłumacz zaznaczenie skrótem Cmd+C+C</title>
-<meta name="description" content="Glosso to macOS-owa apka w pasku menu, która tłumaczy zaznaczony tekst skrótem Cmd+C+C (trzymasz Cmd i stukasz C dwa razy). Lokalnie, prywatnie, bez chmury, a model Gemma działa na Twoim Macu.">
+<title>Glosso: popraw, streść i przetłumacz zaznaczenie skrótem ⌘C C, lokalnie</title>
+<meta name="description" content="Glosso to macOS-owa apka w pasku menu. Zaznacz tekst, trzymając Cmd stuknij C dwa razy, a lokalny model AI poprawi, streści albo przetłumaczy go przy kursorze. Pełne AI: offline, prywatnie, bez abonamentu. Poprawianie po polsku oparte na regułach Rady Języka Polskiego.">
 <link rel="icon" type="image/png" href="glosso-icon-256.png">
-<meta property="og:title" content="Glosso: tłumacz zaznaczenie skrótem Cmd+C+C">
-<meta property="og:description" content="Lokalne tłumaczenie na macOS. Trzymając Cmd, stuknij C dwa razy i czytaj wynik przy kursorze. Nic nie wychodzi do chmury.">
+<meta property="og:title" content="Glosso: popraw, streść i przetłumacz zaznaczenie, lokalnie">
+<meta property="og:description" content="Zaznacz, stuknij ⌘C C i pozwól lokalnemu modelowi AI poprawić, streścić albo przetłumaczyć tekst. Offline, prywatnie, bez abonamentu. Poprawianie po polsku według reguł Rady Języka Polskiego.">
 <meta property="og:image" content="glosso-icon.png">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -27,7 +27,7 @@
   <nav class="nav__links" aria-label="Główna">
     <a href="#how">Jak działa</a>
     <a href="#guide">Przewodnik</a>
-    <a href="#panel">Panel</a>
+    <a href="#privacy">Prywatność</a>
     <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
   </nav>
   <a class="btn btn--accent nav__cta" href="https://github.com/ethantiv/glosso/releases/download/v0.1.2/Glosso.zip" rel="noopener">Pobierz</a>
@@ -36,10 +36,12 @@
 <main id="main">
 
 <section class="hero">
+  <div class="hero__main">
   <div class="hero__copy">
-    <p class="hero__eyebrow">macOS · działa lokalnie · open source</p>
-    <h1 class="hero__title">Tłumacz zaznaczenie<br><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd class="kbd-2">C</kbd></span></h1>
-    <p class="hero__lede">Zaznacz dowolny tekst i, trzymając <strong>Cmd</strong>, stuknij <strong>C dwa razy</strong>. Tłumaczenie pojawia się w małym panelu przy kursorze. Bez przeglądarki, bez wklejania, bez wysyłania czegokolwiek do chmury.</p>
+    <p class="hero__eyebrow">macOS · lokalny model AI · open source</p>
+    <h1 class="hero__title">Popraw, streść,<br>przetłumacz.<br>Lokalnie.</h1>
+    <p class="hero__gesture"><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd class="kbd-2">C</kbd></span> nad każdym zaznaczeniem</p>
+    <p class="hero__lede">Zaznacz dowolny tekst, a lokalny model AI zajmie się resztą. Wynik zobaczysz w panelu przy kursorze albo wstawisz po cichu, prosto w miejsce. Pełne AI, offline i <strong>bez abonamentu</strong>.</p>
     <div class="hero__actions">
       <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/download/v0.1.2/Glosso.zip" rel="noopener">
         Pobierz dla macOS
@@ -47,7 +49,8 @@
       </a>
       <a class="btn btn--ghost btn--lg" href="#how">Zobacz jak działa</a>
     </div>
-    <p class="hero__note">macOS 26+ · model i silnik pobierają się przy pierwszym użyciu</p>
+    <p class="hero__note">macOS 26+ · model pobiera się raz · działa offline</p>
+    <p class="hero__mac">Działa wyłącznie na Macu — na innym systemie pobrany plik się nie uruchomi.</p>
   </div>
 
   <div class="hero__demo">
@@ -59,32 +62,31 @@
       <span class="menubar__glosso"><img src="glosso-icon-256.png" alt="" width="18" height="18"></span>
       <span class="menubar__item">9:41</span>
     </div>
-    <!-- Wierne odtworzenie panelu Glosso (zrzuty natywnych okien macOS są blokowane przez system). -->
-    <figure class="gpop" role="img" aria-label="Panel Glosso tłumaczy „Dzień dobry, miło Cię poznać. Nazywam się Glosso.” na angielski.">
+    <!-- Wierne odtworzenie panelu Glosso w trybie Popraw (zrzuty natywnych okien macOS są blokowane przez system). -->
+    <figure class="gpop" role="img" aria-label="Panel Glosso w trybie Popraw poprawia polski tekst „Już nie moge się doczekac naszego spotkania.” na „Już nie mogę się doczekać naszego spotkania.”">
       <div class="gpop__bar">
         <div class="gpop__verbs">
-          <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/></svg>Tłumacz</span>
+          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Tłumacz</span>
           <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Streść</span>
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Popraw</span>
+          <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Popraw</span>
         </div>
         <div class="gpop__acts">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7h10M3 12h7M3 17h10"/><path d="m16 8 4 4-4 4"/><path d="M20 12h-7"/></svg>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
         </div>
       </div>
-      <div class="gpop__meta">
-        <span class="gp-dir"><b>PL</b><span class="ar">→</span><b class="on">EN</b></span>
-        <span class="gp-auto"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>Automatyczny</span>
-      </div>
       <div class="gpop__body">
         <div class="gpane gpane--src">
           <p class="gpane__label">ORYGINAŁ</p>
-          <p class="gpane__text">Dzień dobry, miło Cię poznać. Nazywam się Glosso.</p>
+          <p class="gpane__text">Już nie moge się doczekac naszego spotkania.</p>
         </div>
         <div class="gpane gpane--out">
-          <p class="gpane__label">TŁUMACZENIE</p>
-          <p class="gflow"><span class="w">Good</span><span class="w">morning</span><span class="w">,</span><span class="w">nice</span><span class="w">to</span><span class="w">meet</span><span class="w">you</span><span class="w">.</span><span class="w">My</span><span class="w">name</span><span class="w">is</span><span class="w">Glosso</span><span class="w">.</span></p>
+          <p class="gpane__label">POPRAWKA</p>
+          <p class="gdiff">Już nie <span class="del">moge</span> <span class="ins">mogę</span> się <span class="del">doczekac</span> <span class="ins">doczekać</span> naszego spotkania.</p>
+          <div class="gmenu gmenu--pop">
+            <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg> Dlaczego poprawiono?</div>
+            <p class="gmenu__why">W 1. osobie liczby pojedynczej czasownik kończy się na „ę”, nie „e” <span class="rjp__cite">(idę, piszę, <em>mogę</em>)</span>.</p>
+          </div>
         </div>
       </div>
       <span class="gpop__grip" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 6 6 14M14 11l-3 3"/></svg></span>
@@ -92,53 +94,50 @@
     </div>
     <p class="hero__cap">Mieszka w pasku menu, bez ikony w Docku.</p>
   </div>
-</section>
-
-<section class="how" id="how">
-  <h2 class="section__title">Trzy ruchy. Bez okna, bez wklejania.</h2>
-  <ol class="steps">
-    <li class="step" data-reveal>
-      <span class="step__num">1</span>
-      <h3>Zaznacz tekst</h3>
-      <p>W dowolnej aplikacji: przeglądarce, mailu, edytorze, PDF-ie. Cokolwiek umiesz zaznaczyć.</p>
-    </li>
-    <li class="step" data-reveal>
-      <span class="step__num">2</span>
-      <h3>Trzymaj <span class="kbd-inline"><kbd>⌘</kbd></span> i stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span></h3>
-      <p>Każde stuknięcie C kopiuje normalnie. Glosso nasłuchuje tylko ich szybkiej pary, dlatego potrzebuje jednej zgody: Dostępność.</p>
-    </li>
-    <li class="step" data-reveal>
-      <span class="step__num">3</span>
-      <h3>Czytaj przy kursorze</h3>
-      <p>Panel otwiera się od razu i streamuje tłumaczenie tak, jak produkuje je model. Zostaje pod ręką do edycji.</p>
-    </li>
-  </ol>
-</section>
-
-<section class="pillars">
-  <div class="pillars__lead">
-    <h2>Tekst nie opuszcza Twojego Maca.</h2>
-    <p>Model językowy (Gemma przez Ollamę) działa lokalnie na <code>localhost</code>. Żadnego konta, żadnego API, żadnej chmury. Działa też offline, a to, co tłumaczysz, zostaje u Ciebie.</p>
   </div>
-  <div class="pillars__list">
-    <div class="pillar">
-      <h3>Błyskawicznie</h3>
-      <p>Model trzymany w pamięci między tłumaczeniami, wynik streamowany słowo po słowie. Bez rozgrzewki przy każdym użyciu.</p>
-    </div>
-    <div class="pillar">
-      <h3>Natywnie</h3>
-      <p>Mieszka w pasku menu, nie w Docku. Wygląda i zachowuje się jak część macOS, a nie jak doklejona przeglądarka.</p>
-    </div>
-    <div class="pillar">
-      <h3>Dwustronnie</h3>
-      <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki lub francuski. Kierunek wykrywany automatycznie.</p>
+</section>
+
+<section class="capa" id="how">
+  <div class="capa__inner">
+    <header class="capa__head">
+      <h2 class="section__title">Jeden gest, trzy zadania</h2>
+      <p class="section__lede">Zaznacz, stuknij ⌘C C i wybierz, co zrobić z tekstem — popraw, streść albo przetłumacz.</p>
+    </header>
+    <ol class="flow">
+      <li class="flow__step"><span class="flow__n">1</span> Zaznacz tekst</li>
+      <li class="flow__step"><span class="flow__n">2</span> Trzymaj <span class="kbd-inline"><kbd>⌘</kbd></span>, stuknij <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span></li>
+      <li class="flow__step"><span class="flow__n">3</span> Wynik przy kursorze</li>
+    </ol>
+
+    <div class="vgrid">
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>
+          <h3>Popraw</h3>
+        </div>
+        <p>Gramatyka, ortografia i interpunkcja bez zmiany języka. Diff pokazuje każdą zmianę, a po stuknięciu poznasz regułę, która za nią stoi.</p>
+      </div>
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <h3>Streść</h3>
+        </div>
+        <p>Długi akapit, mail albo artykuł zamienia się w krótką listę najważniejszych punktów. W tym samym języku co oryginał.</p>
+      </div>
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>
+          <h3>Tłumacz</h3>
+        </div>
+        <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki, francuski. Jest, bo bywa potrzebny, ale to dopiero początek.</p>
+      </div>
     </div>
   </div>
 </section>
 
 <section class="guide" id="guide">
   <header class="guide__head">
-    <h2 class="section__title">Krótki przewodnik</h2>
+    <h2 class="section__title">Przewodnik na start</h2>
     <p class="guide__lede">Jednorazowa instalacja, a potem to już codzienny odruch i skróty pod ręką.</p>
   </header>
   <ol class="guide__steps">
@@ -165,14 +164,35 @@
           <p class="phase__cap">Skróty pod ręką.</p>
         </div>
         <ul class="phase__list">
-          <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw gramatykę zaznaczenia bez panelu.</li>
+          <li><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd>C</kbd></span> otwórz panel nad zaznaczeniem: popraw, streść albo przetłumacz.</li>
+          <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> popraw zaznaczenie w miejscu, bez panelu.</li>
           <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> przetłumacz zaznaczenie w miejscu.</li>
-          <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel.</li>
-          <li>Model i drugi język zmienisz w Ustawieniach z paska menu.</li>
+          <li><kbd>Esc</kbd> zamyka najpierw rozwiniętą listę, potem panel. Model i drugi język zmienisz w Ustawieniach.</li>
         </ul>
       </div>
     </li>
   </ol>
+</section>
+
+<section class="pillars" id="privacy">
+  <div class="pillars__lead">
+    <h2>Bez chmury, bez API,<br>bez abonamentu. Za darmo.</h2>
+    <p>Model językowy (Gemma przez Ollamę) działa lokalnie na <code>localhost</code>. Żadnego konta, żadnego API, żadnej miesięcznej opłaty. To, co poprawiasz i tłumaczysz, nigdy nie opuszcza Twojego Maca.</p>
+  </div>
+  <div class="pillars__list">
+    <div class="pillar">
+      <h3>Prywatnie</h3>
+      <p>Tekst nie trafia na żaden serwer. Możesz pracować na poufnym mailu czy umowie i nic z nich nie wycieknie do chmury.</p>
+    </div>
+    <div class="pillar">
+      <h3>Bez abonamentu</h3>
+      <p>Model mieszka na Twoim dysku. Pobierasz raz i używasz bez limitów, bez konta i bez comiesięcznej faktury za AI.</p>
+    </div>
+    <div class="pillar">
+      <h3>Offline i błyskawicznie</h3>
+      <p>Działa w samolocie i bez internetu. Model zostaje w pamięci między użyciami, więc wynik pojawia się natychmiast, bez rozgrzewki.</p>
+    </div>
+  </div>
 </section>
 
 <section class="panelfeat" id="panel">
@@ -222,41 +242,40 @@
 
     <div class="shot" data-reveal>
       <div class="shot__ui">
+        <div class="shot__frame shot__frame--edit">
+          <p class="gpane__label">ORYGINAŁ <span class="gpane__edit">edytowalny</span></p>
+          <p class="gpane__text gpane__text--edit">Dzień dobry, miło Cię poznać.<span class="gcaret"></span></p>
+          <p class="gpane__sub">Popraw literówkę w źródle i przetłumacz ponownie, bez wracania do aplikacji.</p>
+        </div>
+      </div>
+      <div class="shot__cap">
+        <h3>Edytowalne źródło</h3>
+        <p>Przechwycony tekst poprawisz wprost w panelu i puścisz model jeszcze raz. Dochodzi do tego przełącznik tonu: automatyczny, formalny, na luzie.</p>
+      </div>
+    </div>
+
+    <div class="shot" data-reveal>
+      <div class="shot__ui">
         <div class="shot__frame">
           <p class="gpane__label">POPRAWKA</p>
-          <p class="gdiff">W Szczebrzeszynie <span class="del">hrząszcz</span> <span class="ins">chrząszcz</span> brzmi w <span class="del">tżinie</span> <span class="ins">trzcinie</span>. Jabłko<span class="ins">,</span> gruszka<span class="ins">,</span> banan</p>
+          <p class="gdiff">Wiem<span class="ins">,</span> że dasz radę.</p>
           <div class="gmenu gmenu--pop">
             <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg> Dlaczego poprawiono?</div>
-            <p class="gmenu__why">Brak przecinków przy wyliczaniu elementów.</p>
+            <p class="gmenu__why">Przed „<em>że</em>” wprowadzającym zdanie podrzędne stawiamy przecinek <span class="rjp__cite">(RJP, interpunkcja)</span>.</p>
           </div>
         </div>
       </div>
       <div class="shot__cap">
-        <h3>Popraw bez zmiany języka</h3>
-        <p>Diff podświetla, co się zmieniło. Stuknij zmianę, by poznać regułę, która za nią stoi.</p>
+        <h3>Popraw, które naprawdę zna reguły</h3>
+        <p>W trybie Popraw każda zmiana ma uzasadnienie z zasad pisowni i interpunkcji <a href="https://rjp.pan.pl" rel="noopener">Rady Języka Polskiego</a> — nie zmyśloną historyjkę.</p>
       </div>
     </div>
   </div>
 
-  <ul class="features">
-    <li class="feature" data-reveal>
-      <h3>Czasowniki</h3>
-      <p>Przełącz, co model robi z zaznaczeniem: <strong>Tłumacz</strong>, <strong>Streść</strong> (krótka lista) albo <strong>Popraw</strong> (gramatyka i interpunkcja bez zmiany języka).</p>
-    </li>
-    <li class="feature" data-reveal>
-      <h3>Ton wypowiedzi</h3>
-      <p>Przy tłumaczeniu przełączaj rejestr: automatyczny, formalny, na luzie. Tekst tłumaczy się ponownie z nowym tonem.</p>
-    </li>
-    <li class="feature" data-reveal>
-      <h3>Edytowalne źródło</h3>
-      <p>Popraw przechwycony tekst w panelu i przetłumacz ponownie. Literówkę w źródle naprawisz bez wracania do aplikacji.</p>
-    </li>
-  </ul>
-
   <div class="chords">
     <div class="chords__copy">
       <h3>Albo zupełnie bez panelu</h3>
-      <p>Dwa skróty działają na zaznaczeniu po cichu i wklejają wynik z powrotem na miejsce. Możesz je zmienić w Ustawieniach.</p>
+      <p>Dwa skróty działają na zaznaczeniu po cichu i wklejają wynik prosto na miejsce. Poprawiają albo tłumaczą bez otwierania okna. Możesz je zmienić w Ustawieniach.</p>
     </div>
     <div class="chords__keys">
       <div class="chord">
@@ -268,6 +287,17 @@
         <span class="chord__label">Tłumacz w miejscu</span>
       </div>
     </div>
+  </div>
+</section>
+
+<section class="closer">
+  <div class="closer__inner">
+    <h2>Gotowy, by zacząć?</h2>
+    <p>Pobierz raz, używaj offline i bez abonamentu. Model dociągnie się przy pierwszym uruchomieniu.</p>
+    <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/download/v0.1.2/Glosso.zip" rel="noopener">
+      Pobierz dla macOS
+      <span class="btn__sub">.zip · za darmo</span>
+    </a>
   </div>
 </section>
 
@@ -283,7 +313,7 @@
     <a href="https://github.com/ethantiv/glosso/releases/download/v0.1.2/Glosso.zip" rel="noopener">Pobierz</a>
     <a href="https://github.com/ethantiv/glosso/blob/main/docs/DISTRIBUTION.md" rel="noopener">Dystrybucja</a>
   </nav>
-  <p class="foot__meta">macOS 26+ · tłumaczy lokalnie: Gemma przez Ollamę · open source</p>
+  <p class="foot__meta">macOS 26+ · pełne AI lokalnie: Gemma przez Ollamę · open source</p>
 </footer>
 
 </body>

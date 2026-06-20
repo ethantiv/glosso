@@ -731,8 +731,13 @@ struct PopupView: View {
         let explainRow: CGFloat = 36
         // The grammar-diff reason (issue #51) is a header row plus the one-line
         // reason, sized like the explanation view below.
+        // Reserve the reason's actual measured height (#73) so the window grows to
+        // fit it instead of clipping a long reason; AlternativesDropdown frames and
+        // scrolls the same min(measured, cap) via FixReasonLayout, so reserve and
+        // dropdown stay in lockstep (the no-clip invariant is tested).
         if model.fixReasonMode {
-            return explainRow + (model.explanationLoading ? 40 : 132)
+            return FixReasonLayout.estimatedDropdownHeight(
+                content: model.fixReasonContentHeight, loading: model.explanationLoading)
         }
         if model.showingExplanation {
             // A one-sentence explanation wraps to a few lines in the 200pt dropdown;
