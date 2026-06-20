@@ -76,7 +76,7 @@ final class PopupModel {
     var selectedFixChange: (before: String, after: String)? = nil
     // Measured height of the rendered reason text (#73). PopupView reserves exactly
     // this below the panel so the window grows to fit the reason instead of clipping
-    // it; the dropdown caps and scrolls it past AlternativesDropdown.reasonMaxHeight.
+    // it; the dropdown caps and scrolls it past FixReasonLayout.maxReason.
     var fixReasonContentHeight: CGFloat = 0
 
     // Memoizes the tokenization keyed on `text` so re-renders that don't change the
