@@ -6,7 +6,7 @@ import Testing
 // We assert the RJP section markers because they uniquely identify each family.
 @Suite struct PolishSpellingRulesTests {
     @Test func coversEveryPromisedConfusableFamily() {
-        let sections = ["(RJP 2.2)", "(RJP 2.3)", "(RJP 3.5)", "(RJP 3.6)",
+        let sections = ["(RJP 1)", "(RJP 2.2)", "(RJP 2.3)", "(RJP 3.5)", "(RJP 3.6)",
                         "(RJP 3.7.3)", "(RJP 3.7.2)", "(RJP 3.8)", "(RJP 3.9)",
                         "(RJP 3.12)", "(RJP 4.9)", "(RJP 4.5)", "(RJP 8)"]
         for section in sections {
