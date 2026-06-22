@@ -25,6 +25,7 @@
   --z-nav: 100;
   --nav-h: 71px;
   --ease: cubic-bezier(.22,1,.36,1);
+  --section-pad: clamp(3.5rem, 7vw, 5.5rem);
 }
 
 * { box-sizing: border-box; }
@@ -306,11 +307,9 @@ kbd {
 .capa {
   color: var(--ink);
   background: var(--paper);
-  padding-block: clamp(3rem, 6vw, 4.5rem);
+  padding-block: var(--section-pad);
 }
 .capa__inner { max-width: var(--wrap); margin-inline: auto; }
-.capa__head { max-width: 48ch; margin-bottom: clamp(1.8rem, 4vw, 2.6rem); }
-.capa__head .section__title { max-width: 20ch; }
 
 /* ---------- Panel (odtworzenie UI) ---------- */
 .hero__demo {
@@ -496,6 +495,13 @@ kbd {
 .shot__cap p { color: var(--ink-soft); }
 /* ---------- Section scaffolding ---------- */
 section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
+/* One header treatment for every band below the hero: left-aligned title+lede,
+   shared bottom rhythm. Sections differ in their CONTENT, never in how they announce it. */
+.section__head {
+  max-width: 60ch;
+  margin-bottom: clamp(1.9rem, 4vw, 2.8rem);
+}
+.section__head .section__title { max-width: 20ch; }
 .section__title {
   font-size: clamp(1.9rem, 4.5vw, 3rem);
   max-width: 18ch;
@@ -541,9 +547,8 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 .panelfeat {
   max-width: var(--wrap);
   margin-inline: auto;
-  padding-block: clamp(3.5rem, 7vw, 5.5rem);
+  padding-block: var(--section-pad);
 }
-.panelfeat__head { margin-bottom: 2.6rem; }
 
 /* ---------- Chords ---------- */
 .chords {
@@ -574,17 +579,8 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   padding-block: clamp(3.5rem, 7vw, 5.5rem);
 }
 .guide__head {
-  max-width: 60ch;
-  margin: 0 auto clamp(2.6rem, 5vw, 3.6rem);
-  text-align: center;
-}
-.guide__head .section__title { max-width: none; margin-inline: auto; }
-.guide__lede {
-  font-size: 1.12rem;
-  color: var(--ink-soft);
-  line-height: 1.6;
-  max-width: 52ch;
-  margin: 1rem auto 0;
+  max-width: 820px;
+  margin-inline: auto;
 }
 .guide__steps {
   --step-gap: clamp(1.6rem, 3vw, 2.4rem);
@@ -737,16 +733,6 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 .foot__meta { margin-left: auto; text-align: right; font-size: .85rem; color: rgba(255,255,255,.62); }
 
 /* ---------- Capability cards + RJP demo ---------- */
-.panelfeat__head {
-  display: grid;
-  grid-template-columns: minmax(0, 1.05fr) minmax(0, 1fr);
-  gap: clamp(1rem, 4vw, 3rem);
-  align-items: end;
-  margin-bottom: clamp(2rem, 4vw, 2.8rem);
-}
-.panelfeat__head .section__title { max-width: 17ch; }
-.panelfeat__head .section__lede { margin-top: 0; }
-
 .flow {
   list-style: none;
   margin: 0 0 clamp(2.4rem, 4vw, 3.2rem);
@@ -833,8 +819,6 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   .hero__demo { order: 2; max-width: 520px; }
   .pillars { grid-template-columns: 1fr; gap: 2rem; }
   .phase__card { grid-template-columns: 1fr; gap: .85rem; }
-  .panelfeat__head { grid-template-columns: 1fr; gap: .6rem; }
-  .panelfeat__head .section__title { max-width: none; }
 }
 @media (max-width: 600px) {
   .gpop__body { grid-template-columns: 1fr; gap: .7rem; }
