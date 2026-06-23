@@ -95,6 +95,11 @@ final class AppCoordinator {
         popup.onDismiss = { [weak self] in
             self?.captureTask?.cancel()
             self?.prefetchTask?.cancel()
+            // A per-word fetch task in PopupView isn't cancelled by dismiss; when its
+            // await returns it calls schedulePrefetch(), which would arm a fresh
+            // background prefetch for a popup that no longer exists. Clearing the
+            // capture makes that reschedule (and any later re-run path) a no-op.
+            self?.lastCapture = nil
         }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
