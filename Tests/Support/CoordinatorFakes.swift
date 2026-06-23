@@ -27,6 +27,11 @@ struct FakeLLMClient: LLMClient {
         var receivedFormality: Formality?
         var receivedAction: Action?
         var receivedHumanize: Bool?
+        // Call counts/order so cache + prefetch tests can assert the model is hit the
+        // expected number of times (a cache hit must not re-run it).
+        var runCount = 0
+        var runActions: [Action] = []
+        var replyCount = 0
         var prewarmModel: String?
         // alternatives(...)
         var altWord: String?
@@ -108,6 +113,8 @@ struct FakeLLMClient: LLMClient {
         recorder.receivedFormality = formality
         recorder.receivedAction = action
         recorder.receivedHumanize = humanize
+        recorder.runCount += 1
+        recorder.runActions.append(action)
         return makeStream()
     }
 
@@ -135,6 +142,7 @@ struct FakeLLMClient: LLMClient {
     func reply(to text: String, model: String) async throws -> [String] {
         recorder.replyText = text
         recorder.replyModel = model
+        recorder.replyCount += 1
         if let replyError { throw replyError }
         return replyResult
     }

@@ -20,7 +20,8 @@ import Testing
         reader: any PasteboardReading,
         popup: FakePopup,
         settings: SettingsStore? = nil,
-        axReader: any AXSelectionReading = FakeAXSelectionReader()
+        axReader: any AXSelectionReading = FakeAXSelectionReader(),
+        prefetchLingerMs: Int = 0
     ) -> AppCoordinator {
         AppCoordinator(
             llm: llm,
@@ -30,8 +31,17 @@ import Testing
             popup: popup,
             settings: settings ?? makeSettings(),
             pollStepMs: 1,
-            pollMaxAttempts: 5
+            pollMaxAttempts: 5,
+            prefetchLingerMs: prefetchLingerMs
         )
+    }
+
+    /// Spins the runloop until `condition` holds or a generous cap, so a test can
+    /// wait on the background prefetch (a detached Task with its own linger sleep)
+    /// without a fixed delay.
+    private func spin(until condition: () -> Bool, max: Int = 20_000) async {
+        var spins = 0
+        while !condition() && spins < max { await Task.yield(); spins += 1 }
     }
 
     @Test func translatesOnceClipboardBecomesReady() async {
@@ -1046,5 +1056,78 @@ import Testing
 
         #expect(ax.callCount == 0)
         #expect(popup.errorMessage == "Zaznaczenie nie zawiera tekstu do tłumaczenia.")
+    }
+
+    // After the foreground translate lands, the background prefetch fills the other
+    // verbs over the same selection (fix/summarize via run, reply via reply) so a
+    // later switch is instant. Translate is never prefetched — it's the foreground.
+    @Test func prefetchFillsTheOtherVerbsAfterTheForegroundResult() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 0)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        await spin(until: { llm.recorder.runCount >= 3 && llm.recorder.replyCount >= 1 })
+
+        // translate (foreground) + fixGrammar + summarize; reply takes the reply() path.
+        #expect(llm.recorder.runCount == 3)
+        #expect(llm.recorder.runActions.contains(.fixGrammar))
+        #expect(llm.recorder.runActions.contains(.summarize))
+        #expect(llm.recorder.replyCount == 1)
+    }
+
+    // The point of the cache: switching to a verb the prefetch already computed
+    // replays the stored result instantly and never hits the model again.
+    @Test func switchingToAPrefetchedVerbReplaysFromCacheWithoutRerunning() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 0)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        await spin(until: { llm.recorder.runCount >= 3 && llm.recorder.replyCount >= 1 })
+        let runsBefore = llm.recorder.runCount
+        let repliesBefore = llm.recorder.replyCount
+
+        coordinator.handleActionChange(.fixGrammar)
+        await spin(until: { popup.finished && popup.presentedAction == .fixGrammar })
+        #expect(llm.recorder.runCount == runsBefore)   // served from cache
+        #expect(popup.tokens == ["X"])                 // the cached result replayed
+
+        coordinator.handleActionChange(.reply)
+        await spin(until: { popup.shownReplies != nil })
+        #expect(llm.recorder.replyCount == repliesBefore)
+        #expect(popup.shownReplies == ["draft-one", "draft-two", "draft-three"])
+    }
+
+    // A tone change alters the generation params for every verb, so the whole cache
+    // must drop — proven by a subsequent switch having to re-run the model. Linger is
+    // parked far out so the background prefetch can't muddy the run counts here.
+    @Test func changingToneInvalidatesTheActionCache() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)   // translate cached, runCount 1
+        coordinator.handleActionChange(.fixGrammar)                     // miss → run, runCount 2
+        await spin(until: { llm.recorder.runCount == 2 })
+
+        coordinator.handleActionChange(.translate)                      // cached from foreground → no run
+        await spin(until: { popup.finished && popup.presentedAction == .translate })
+        #expect(llm.recorder.runCount == 2)
+
+        coordinator.handleFormalityChange(.formal)                      // clears cache + re-runs translate → 3
+        await spin(until: { llm.recorder.runCount == 3 })
+        coordinator.handleActionChange(.fixGrammar)                     // cache was cleared → must re-run → 4
+        await spin(until: { llm.recorder.runCount == 4 })
+        #expect(llm.recorder.runCount == 4)
     }
 }

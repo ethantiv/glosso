@@ -228,6 +228,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // A pane restart (re-translation for tone or a picked alternative) must
         // drop any open word dropdown; otherwise it reappears over the new result.
         model.closeDropdown()
+        // The text is about to change, so the segment/change ids the dropdown
+        // caches are keyed on no longer line up — drop them (issue: spinner on revisit).
+        model.altsCache.removeAll()
+        model.explanationCache.removeAll()
+        model.fixReasonCache.removeAll()
         model.text = ""
         model.replyDrafts = []
         model.selectedDraftIndex = nil

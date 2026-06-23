@@ -51,6 +51,17 @@ final class PopupModel {
     var selectedWordID: Int? = nil
     var alternatives: [String] = []
     var altsLoading: Bool = false
+
+    // Per-result caches so re-opening a dropdown the model already answered shows
+    // the answer instantly instead of re-fetching (the spinner-on-revisit bug).
+    // Keyed by segment.id (alternatives/#39 explanation) or change.id (#51 reason),
+    // which are positional in the current text — so resetTranslationPane() clears
+    // all three whenever the text changes and the ids would no longer line up.
+    // Only non-empty results are cached; an empty fetch is a "none/failed" and must
+    // stay retryable.
+    var altsCache: [Int: [String]] = [:]
+    var explanationCache: [Int: String] = [:]
+    var fixReasonCache: [Int: String] = [:]
     var dropdownVisible: Bool { selectedWordID != nil }
     // Bumped on each open so a slow fetch for a previously clicked word can't
     // overwrite the dropdown the user has since reopened on another word.
