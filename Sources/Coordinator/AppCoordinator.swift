@@ -33,6 +33,17 @@ final class AppCoordinator {
     private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
     private var actionCache: [Action: ActionResult] = [:]
 
+    // model, second language and humanize also feed every cached result, but they're
+    // changed only in the Settings window, which can't reach in to clear actionCache
+    // while the popup floats (formality/source edits clear it directly; these can't).
+    // Snapshot them and drop the whole cache when they differ from when it was filled,
+    // so a verb switch after a Settings change recomputes instead of replaying a stale
+    // result. nil until the first stream fills the cache.
+    private var cacheSignature: String?
+    private func currentCacheSignature() -> String {
+        "\(settings.modelName)|\(settings.secondLanguage)|\(settings.humanize)"
+    }
+
     // Retained so the popup's tone pill and verb strip can re-run over the same
     // selection without the user copying again. nil until a capture lands; text,
     // point and action are one unit so a new capture can't half-reset them. The
@@ -390,9 +401,15 @@ final class AppCoordinator {
     /// alternatives) collapses to an empty list — the dropdown shows "no alternatives".
     func fetchAlternatives(word: String, translation: String) async -> [String] {
         guard let capture = lastCapture else { return [] }
-        return (try? await llm.alternatives(
+        // A foreground per-word fetch must preempt the background prefetch — both hit
+        // the one local model, so let the prefetch contend and the dropdown queues
+        // behind it (the spinner the cache was meant to kill). Reschedule after.
+        prefetchTask?.cancel()
+        let result = (try? await llm.alternatives(
             for: word, in: translation, source: capture.text,
             second: settings.secondLanguage, model: settings.modelName)) ?? []
+        schedulePrefetch()
+        return result
     }
 
     /// Asks the model for a one-sentence Polish explanation of a clicked word's
@@ -401,9 +418,12 @@ final class AppCoordinator {
     /// capture) collapses to "" — the dropdown then shows its fallback message.
     func fetchExplanation(word: String, translation: String) async -> String {
         guard let capture = lastCapture else { return "" }
-        return (try? await llm.explain(
+        prefetchTask?.cancel()
+        let result = (try? await llm.explain(
             word: word, in: translation, source: capture.text,
             second: settings.secondLanguage, model: settings.modelName)) ?? ""
+        schedulePrefetch()
+        return result
     }
 
     /// Asks the model for a one-sentence Polish reason a grammar-diff change was
@@ -413,9 +433,12 @@ final class AppCoordinator {
     /// then shows its fallback message.
     func fetchFixReason(before: String, after: String, corrected: String) async -> String {
         guard let capture = lastCapture else { return "" }
-        return (try? await llm.explainFix(
+        prefetchTask?.cancel()
+        let result = (try? await llm.explainFix(
             error: before, correction: after, original: capture.text, corrected: corrected,
             second: settings.secondLanguage, model: settings.modelName)) ?? ""
+        schedulePrefetch()
+        return result
     }
 
     /// The user picked an alternative: re-translate the clause with that word in
@@ -450,6 +473,14 @@ final class AppCoordinator {
             ? DirectionDetector.detect(text, second: second)
             : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
+
+        // The model/language/humanize that fed the cache may have changed in Settings
+        // while the popup floated; drop every cached result if so, then fill afresh.
+        let signature = currentCacheSignature()
+        if signature != cacheSignature {
+            actionCache.removeAll()
+            cacheSignature = signature
+        }
 
         // Cache hit (a prior verb switch or the background prefetch already computed
         // this action over the same input): replay it into the pane instantly through
