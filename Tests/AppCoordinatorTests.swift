@@ -1130,4 +1130,25 @@ import Testing
         await spin(until: { llm.recorder.runCount == 4 })
         #expect(llm.recorder.runCount == 4)
     }
+
+    // A reword overwrites the .translate cache with the reworded text; undoing the
+    // reword restores the original text in the popup but must also drop that cache
+    // entry, or a later switch back to Translate would replay the discarded reword.
+    @Test func undoDropsTheRewordedTranslateCacheSoARoundTripRecomputes() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)   // translate cached, runCount 1
+        coordinator.handlePickAlternative(original: "a", chosen: "b", translation: "X") // reword overwrites .translate
+        await spin(until: { popup.finished })
+
+        coordinator.handleUndo()                                        // must drop the reworded .translate entry
+        coordinator.handleActionChange(.translate)                      // cache gone → must re-run → 2
+        await spin(until: { llm.recorder.runCount == 2 })
+        #expect(llm.recorder.runCount == 2)
+    }
 }

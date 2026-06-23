@@ -101,6 +101,7 @@ final class AppCoordinator {
         }
         popup.onReplace = { [weak self] translation in self?.handleReplace(translation: translation) }
         popup.onRetranslate = { [weak self] source in self?.handleSourceEdit(source) }
+        popup.onUndo = { [weak self] in self?.handleUndo() }
 
         do {
             try monitor.start()
@@ -430,6 +431,14 @@ final class AppCoordinator {
         captureTask = Task { @MainActor [weak self] in
             await self?.streamReword(original: original, chosen: chosen, translation: translation)
         }
+    }
+
+    /// The user undid a picked-alternative reword (issue #25): the popup restored the
+    /// pre-reword text, but streamReword had overwritten the .translate cache with the
+    /// reworded result. Drop that entry so a later switch back to Translate recomputes
+    /// over the source instead of replaying the discarded reword.
+    func handleUndo() {
+        actionCache.removeValue(forKey: .translate)
     }
 
     private func stream(_ text: String, at point: CGPoint, action: Action) async {

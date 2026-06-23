@@ -250,6 +250,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
+    var onUndo: (@MainActor () -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?

@@ -369,6 +369,11 @@ protocol TranslationPopupPresenting: AnyObject {
     /// (issue #44), carrying the edited source. The coordinator re-runs over it with
     /// the same point and action, exactly like the formality/verb re-run path.
     var onRetranslate: (@MainActor (_ source: String) -> Void)? { get set }
+    /// Fires when the user undoes a picked-alternative reword (issue #25). The
+    /// coordinator's per-action cache holds the reworded text under `.translate`,
+    /// which the undo discards — so it must drop that entry, or a later verb
+    /// round-trip back to Translate would replay the undone reword.
+    var onUndo: (@MainActor () -> Void)? { get set }
     func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)

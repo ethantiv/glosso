@@ -184,6 +184,12 @@ final class PopupModel {
     func undo() {
         guard let snapshot = undoSnapshot else { return }
         closeDropdown()
+        // The restored text re-tokenizes, so the segment/change ids the dropdown
+        // caches are keyed on no longer line up — drop them (mirrors
+        // resetTranslationPane), or a revisit replays another word's answer.
+        altsCache.removeAll()
+        explanationCache.removeAll()
+        fixReasonCache.removeAll()
         text = snapshot.text
         truncated = snapshot.truncated
         errorMessage = nil

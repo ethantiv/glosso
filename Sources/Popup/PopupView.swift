@@ -14,6 +14,7 @@ struct PopupView: View {
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
+    let undo: () -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
     let reportSize: (CGSize) -> Void
 
@@ -320,7 +321,7 @@ struct PopupView: View {
                 .animation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast), value: copied)
             }
             if canUndo {
-                Button(action: { model.undo() }) {
+                Button(action: undo) {
                     iconLabel("arrow.uturn.backward")
                         .foregroundStyle(Color.secondary)
                 }
