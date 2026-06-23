@@ -14,6 +14,7 @@ struct PopupView: View {
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
+    let undo: () -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
     let reportSize: (CGSize) -> Void
 
@@ -320,7 +321,7 @@ struct PopupView: View {
                 .animation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast), value: copied)
             }
             if canUndo {
-                Button(action: { model.undo() }) {
+                Button(action: undo) {
                     iconLabel("arrow.uturn.backward")
                         .foregroundStyle(Color.secondary)
                 }
@@ -575,6 +576,11 @@ struct PopupView: View {
 
     private func onTapWord(_ segment: TextSegment) {
         model.openDropdown(for: segment.id)
+        if let cached = model.altsCache[segment.id] {
+            model.alternatives = cached
+            model.altsLoading = false
+            return
+        }
         let token = model.altsRequestToken
         let word = segment.text
         let translation = model.text
@@ -583,11 +589,18 @@ struct PopupView: View {
             guard model.altsRequestToken == token, model.dropdownVisible else { return }
             model.alternatives = alternatives
             model.altsLoading = false
+            if !alternatives.isEmpty { model.altsCache[segment.id] = alternatives }
         }
     }
 
     private func onTapExplain(word: String, translation: String) {
         model.openExplanation()
+        let wordID = model.selectedWordID
+        if let wordID, let cached = model.explanationCache[wordID] {
+            model.explanationText = cached
+            model.explanationLoading = false
+            return
+        }
         let token = model.explanationRequestToken
         Task { @MainActor in
             let explanation = await fetchExplanation(word, translation)
@@ -597,6 +610,7 @@ struct PopupView: View {
                   model.dropdownVisible, model.showingExplanation else { return }
             model.explanationText = explanation
             model.explanationLoading = false
+            if let wordID, !explanation.isEmpty { model.explanationCache[wordID] = explanation }
         }
     }
 
@@ -668,6 +682,11 @@ struct PopupView: View {
 
     private func onTapFixChange(id: Int, before: String, after: String) {
         model.openFixReason(id: id, before: before, after: after)
+        if let cached = model.fixReasonCache[id] {
+            model.explanationText = cached
+            model.explanationLoading = false
+            return
+        }
         let token = model.explanationRequestToken
         let corrected = model.text
         Task { @MainActor in
@@ -678,6 +697,7 @@ struct PopupView: View {
                   model.dropdownVisible, model.fixReasonMode else { return }
             model.explanationText = reason
             model.explanationLoading = false
+            if !reason.isEmpty { model.fixReasonCache[id] = reason }
         }
     }
 

@@ -83,14 +83,18 @@ enum Formality: String, CaseIterable, Sendable {
 /// shared. (Unrelated to `LLMClient.explain(word:)`, which explains one word of a
 /// finished translation for issue #39's per-word dropdown.)
 enum Action: String, CaseIterable, Sendable {
+    // Case order is load-bearing: Action.allCases drives both the palette strip
+    // order (PopupView) and the background prefetch priority (AppCoordinator).
+    // Translate stays first (the default after a double Cmd+C); the rest follow
+    // the prefetch order fix → reply → summarize.
     case translate
-    case summarize
     case fixGrammar
     // Unlike the others, Reply doesn't transform the selection — it generates a
     // reply to it, returning several drafts to pick from (issue #60). It rides the
     // same capture→LLM→popup pipeline but takes the non-streaming list path
     // (LLMClient.reply), not run().
     case reply
+    case summarize
 
     /// Polish label for the verb strip pill.
     var displayName: String {
@@ -365,6 +369,11 @@ protocol TranslationPopupPresenting: AnyObject {
     /// (issue #44), carrying the edited source. The coordinator re-runs over it with
     /// the same point and action, exactly like the formality/verb re-run path.
     var onRetranslate: (@MainActor (_ source: String) -> Void)? { get set }
+    /// Fires when the user undoes a picked-alternative reword (issue #25). The
+    /// coordinator's per-action cache holds the reworded text under `.translate`,
+    /// which the undo discards — so it must drop that entry, or a later verb
+    /// round-trip back to Translate would replay the undone reword.
+    var onUndo: (@MainActor () -> Void)? { get set }
     func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)

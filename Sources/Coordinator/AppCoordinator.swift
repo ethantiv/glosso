@@ -13,11 +13,36 @@ final class AppCoordinator {
 
     private let pollStepMs: Int
     private let pollMaxAttempts: Int
+    private let prefetchLingerMs: Int
     private let frontmostPID: @MainActor () -> pid_t?
     private let notify: @MainActor (String) -> Void
 
     private var captureTask: Task<Void, Never>?
     private var fixTask: Task<Void, Never>?
+
+    // The single background prefetch loop (one action's generation at a time);
+    // cancelled wherever captureTask is, so a stale prefetch from a torn-down popup
+    // can't keep the one local model busy when a new capture arrives.
+    private var prefetchTask: Task<Void, Never>?
+
+    // A finished action result kept so switching back to it (or clicking a verb the
+    // prefetch already filled) shows instantly instead of re-running the model. The
+    // streamed verbs (translate/summarize/fixGrammar) carry text; reply carries its
+    // drafts (issue #60). Cleared whenever the input changes (fresh capture, tone or
+    // source edit); a reword overwrites only the .translate entry.
+    private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
+    private var actionCache: [Action: ActionResult] = [:]
+
+    // model, second language and humanize also feed every cached result, but they're
+    // changed only in the Settings window, which can't reach in to clear actionCache
+    // while the popup floats (formality/source edits clear it directly; these can't).
+    // Snapshot them and drop the whole cache when they differ from when it was filled,
+    // so a verb switch after a Settings change recomputes instead of replaying a stale
+    // result. nil until the first stream fills the cache.
+    private var cacheSignature: String?
+    private func currentCacheSignature() -> String {
+        "\(settings.modelName)|\(settings.secondLanguage)|\(settings.humanize)"
+    }
 
     // Retained so the popup's tone pill and verb strip can re-run over the same
     // selection without the user copying again. nil until a capture lands; text,
@@ -40,6 +65,7 @@ final class AppCoordinator {
         replacer: any SelectionReplacing = SystemSelectionReplacer(),
         pollStepMs: Int = 12,
         pollMaxAttempts: Int = 40,
+        prefetchLingerMs: Int = 800,
         frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier },
         notify: @escaping @MainActor (String) -> Void = { SystemUserNotifier.post($0) }
     ) {
@@ -52,6 +78,7 @@ final class AppCoordinator {
         self.settings = settings
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
+        self.prefetchLingerMs = prefetchLingerMs
         self.frontmostPID = frontmostPID
         self.notify = notify
     }
@@ -65,7 +92,15 @@ final class AppCoordinator {
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         monitor.onFixGrammar = { [weak self] in self?.handleFixGrammar() }
         monitor.onTranslateInPlace = { [weak self] in self?.handleTranslateInPlace() }
-        popup.onDismiss = { [weak self] in self?.captureTask?.cancel() }
+        popup.onDismiss = { [weak self] in
+            self?.captureTask?.cancel()
+            self?.prefetchTask?.cancel()
+            // A per-word fetch task in PopupView isn't cancelled by dismiss; when its
+            // await returns it calls schedulePrefetch(), which would arm a fresh
+            // background prefetch for a popup that no longer exists. Clearing the
+            // capture makes that reschedule (and any later re-run path) a no-op.
+            self?.lastCapture = nil
+        }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
         popup.onFetchAlternatives = { [weak self] word, translation in
@@ -82,6 +117,7 @@ final class AppCoordinator {
         }
         popup.onReplace = { [weak self] translation in self?.handleReplace(translation: translation) }
         popup.onRetranslate = { [weak self] source in self?.handleSourceEdit(source) }
+        popup.onUndo = { [weak self] in self?.handleUndo() }
 
         do {
             try monitor.start()
@@ -96,6 +132,7 @@ final class AppCoordinator {
     func stop() {
         monitor.stop()
         captureTask?.cancel()
+        prefetchTask?.cancel()
         fixTask?.cancel()
         // The popup's Esc dismisser is an AX-gated global monitor too, so an AX
         // revocation silences it — dismiss it here or a popup mid-translation
@@ -107,6 +144,7 @@ final class AppCoordinator {
         let mouse = NSEvent.mouseLocation
         let source = frontmostPID()
         captureTask?.cancel()
+        prefetchTask?.cancel()
         // Tear the previous popup down now so its monitors can't fire onDismiss
         // and cancel the new captureTask before it gets to present its own popup.
         popup.dismiss()
@@ -127,6 +165,8 @@ final class AppCoordinator {
         // presenting rather than orphaning a popup the newer task already replaced.
         if Task.isCancelled { return }
         lastCapture = nil
+        // A fresh selection invalidates every cached action result.
+        actionCache.removeAll()
         lastSourcePID = sourcePID
         popup.present(at: point, formality: settings.formality)
         for _ in 0..<pollMaxAttempts {
@@ -318,6 +358,10 @@ final class AppCoordinator {
         settings.formality = formality
         guard let capture = lastCapture else { return }
         captureTask?.cancel()
+        prefetchTask?.cancel()
+        // Tone changes the generation params for every verb, so every cached result
+        // is stale — drop them and let them recompute lazily.
+        actionCache.removeAll()
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
             await self?.stream(capture.text, at: capture.point, action: capture.action)
@@ -331,6 +375,9 @@ final class AppCoordinator {
     func handleActionChange(_ action: Action) {
         guard let capture = lastCapture else { return }
         captureTask?.cancel()
+        // Cancel the background fill but keep actionCache — switching verbs is exactly
+        // when the cache pays off (stream() serves a hit instantly).
+        prefetchTask?.cancel()
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
             await self?.stream(capture.text, at: capture.point, action: action)
@@ -344,6 +391,9 @@ final class AppCoordinator {
     func handleSourceEdit(_ text: String) {
         guard let capture = lastCapture, !text.isEmpty else { return }
         captureTask?.cancel()
+        prefetchTask?.cancel()
+        // The edited source feeds every verb, so all cached results are stale.
+        actionCache.removeAll()
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
             await self?.stream(text, at: capture.point, action: capture.action)
@@ -356,9 +406,15 @@ final class AppCoordinator {
     /// alternatives) collapses to an empty list — the dropdown shows "no alternatives".
     func fetchAlternatives(word: String, translation: String) async -> [String] {
         guard let capture = lastCapture else { return [] }
-        return (try? await llm.alternatives(
+        // A foreground per-word fetch must preempt the background prefetch — both hit
+        // the one local model, so let the prefetch contend and the dropdown queues
+        // behind it (the spinner the cache was meant to kill). Reschedule after.
+        prefetchTask?.cancel()
+        let result = (try? await llm.alternatives(
             for: word, in: translation, source: capture.text,
             second: settings.secondLanguage, model: settings.modelName)) ?? []
+        schedulePrefetch()
+        return result
     }
 
     /// Asks the model for a one-sentence Polish explanation of a clicked word's
@@ -367,9 +423,12 @@ final class AppCoordinator {
     /// capture) collapses to "" — the dropdown then shows its fallback message.
     func fetchExplanation(word: String, translation: String) async -> String {
         guard let capture = lastCapture else { return "" }
-        return (try? await llm.explain(
+        prefetchTask?.cancel()
+        let result = (try? await llm.explain(
             word: word, in: translation, source: capture.text,
             second: settings.secondLanguage, model: settings.modelName)) ?? ""
+        schedulePrefetch()
+        return result
     }
 
     /// Asks the model for a one-sentence Polish reason a grammar-diff change was
@@ -379,9 +438,12 @@ final class AppCoordinator {
     /// then shows its fallback message.
     func fetchFixReason(before: String, after: String, corrected: String) async -> String {
         guard let capture = lastCapture else { return "" }
-        return (try? await llm.explainFix(
+        prefetchTask?.cancel()
+        let result = (try? await llm.explainFix(
             error: before, correction: after, original: capture.text, corrected: corrected,
             second: settings.secondLanguage, model: settings.modelName)) ?? ""
+        schedulePrefetch()
+        return result
     }
 
     /// The user picked an alternative: re-translate the clause with that word in
@@ -390,10 +452,21 @@ final class AppCoordinator {
     func handlePickAlternative(original: String, chosen: String, translation: String) {
         guard lastCapture != nil else { return }
         captureTask?.cancel()
+        // The reword changes only the translation; the other verbs run over the
+        // unchanged source, so keep their cache. streamReword overwrites .translate.
+        prefetchTask?.cancel()
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
             await self?.streamReword(original: original, chosen: chosen, translation: translation)
         }
+    }
+
+    /// The user undid a picked-alternative reword (issue #25): the popup restored the
+    /// pre-reword text, but streamReword had overwritten the .translate cache with the
+    /// reworded result. Drop that entry so a later switch back to Translate recomputes
+    /// over the source instead of replaying the discarded reword.
+    func handleUndo() {
+        actionCache.removeValue(forKey: .translate)
     }
 
     private func stream(_ text: String, at point: CGPoint, action: Action) async {
@@ -405,6 +478,30 @@ final class AppCoordinator {
             ? DirectionDetector.detect(text, second: second)
             : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
+
+        // The model/language/humanize that fed the cache may have changed in Settings
+        // while the popup floated; drop every cached result if so, then fill afresh.
+        let signature = currentCacheSignature()
+        if signature != cacheSignature {
+            actionCache.removeAll()
+            cacheSignature = signature
+        }
+
+        // Cache hit (a prior verb switch or the background prefetch already computed
+        // this action over the same input): replay it into the pane instantly through
+        // the same protocol methods a live stream uses, skipping the model entirely.
+        if let cached = actionCache[action] {
+            switch cached {
+            case .text(let result, let truncated):
+                popup.append(token: result)
+                popup.finish(truncated: truncated)
+            case .replies(let drafts):
+                popup.showReplies(drafts)
+            }
+            schedulePrefetch()
+            return
+        }
+
         // Reply is generative, not a transform: it fetches N drafts as a non-streaming
         // list (issue #60) instead of streaming a single result, so it skips run()/consume().
         if action == .reply {
@@ -414,37 +511,51 @@ final class AppCoordinator {
                 popup.showError("Nie udało się wygenerować odpowiedzi.")
             } else {
                 popup.showReplies(drafts)
+                actionCache[.reply] = .replies(drafts)
             }
+            schedulePrefetch()
             return
         }
         await consume(llm.run(
             text, action: action, model: settings.modelName,
-            second: second, formality: settings.formality, humanize: settings.humanize))
+            second: second, formality: settings.formality, humanize: settings.humanize),
+            bucket: action)
+        if !Task.isCancelled { schedulePrefetch() }
     }
 
     // Keeps the existing direction/source in place (only the result pane was reset
-    // by restartTranslation); streams the reworded translation into it.
+    // by restartTranslation); streams the reworded translation into it. The result is
+    // the new translation, so it overwrites the .translate cache entry (bucket).
     private func streamReword(original: String, chosen: String, translation: String) async {
         guard let capture = lastCapture else { return }
         await consume(llm.reword(
             original: original, to: chosen, in: translation,
             source: capture.text, second: settings.secondLanguage,
-            formality: settings.formality, model: settings.modelName))
+            formality: settings.formality, model: settings.modelName),
+            bucket: .translate)
+        if !Task.isCancelled { schedulePrefetch() }
     }
 
-    private func consume(_ stream: AsyncThrowingStream<TranslationEvent, Error>) async {
+    // bucket: when non-nil, the finished result is cached under that action so a later
+    // switch back to it replays instantly. The foreground translate/summarize/fixGrammar
+    // and reword pass a bucket; nil is for callers that don't cache.
+    private func consume(_ stream: AsyncThrowingStream<TranslationEvent, Error>, bucket: Action? = nil) async {
+        var accumulated = ""
         do {
             for try await event in stream {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token):
+                    accumulated += token
                     popup.append(token: token)
                 case .finished(let reason):
                     // done_reason "length" means the model hit its token ceiling
                     // and the tail was dropped. Keep the partial text visible and
                     // copyable, but mark it truncated so the popup warns instead
                     // of presenting a silently cut-off translation as complete.
-                    popup.finish(truncated: reason == "length")
+                    let truncated = reason == "length"
+                    popup.finish(truncated: truncated)
+                    if let bucket { actionCache[bucket] = .text(accumulated, truncated: truncated) }
                 }
             }
         } catch let error as TranslationError {
@@ -457,6 +568,57 @@ final class AppCoordinator {
         } catch {
             if Task.isCancelled { return }
             popup.showError("Błąd tłumaczenia.")
+        }
+    }
+
+    // After the foreground result lands and the user has lingered over the popup,
+    // fill the other verbs' caches one at a time in the model's idle reading time, so
+    // a later switch is instant. One local model means this must stay strictly after
+    // the foreground (never concurrent) and sequential; it's best-effort and cancelled
+    // the moment anything changes (dismiss, new capture, verb switch, edit). Called
+    // synchronously from within the captureTask, so Task.isCancelled here reflects it.
+    private func schedulePrefetch() {
+        if Task.isCancelled { return }
+        prefetchTask?.cancel()
+        guard let source = lastCapture?.text else { return }
+        prefetchTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            try? await Task.sleep(for: .milliseconds(self.prefetchLingerMs))
+            if Task.isCancelled { return }
+            // Action.allCases order is the prefetch priority (fix → reply → summarize);
+            // translate is the foreground action, already cached.
+            for action in Action.allCases where action != .translate {
+                if Task.isCancelled { return }
+                if self.actionCache[action] != nil { continue }
+                await self.prefetchOne(action, source: source)
+            }
+        }
+    }
+
+    // Runs one action silently into actionCache (never into the popup). Any failure is
+    // swallowed — a missed prefetch just leaves a cache miss to compute on click.
+    private func prefetchOne(_ action: Action, source: String) async {
+        if action == .reply {
+            guard let drafts = try? await llm.reply(to: source, model: settings.modelName),
+                  !drafts.isEmpty, !Task.isCancelled else { return }
+            actionCache[.reply] = .replies(drafts)
+            return
+        }
+        var accumulated = ""
+        do {
+            for try await event in llm.run(
+                source, action: action, model: settings.modelName,
+                second: settings.secondLanguage, formality: settings.formality,
+                humanize: settings.humanize) {
+                if Task.isCancelled { return }
+                switch event {
+                case .token(let token): accumulated += token
+                case .finished(let reason):
+                    actionCache[action] = .text(accumulated, truncated: reason == "length")
+                }
+            }
+        } catch {
+            // best-effort prefetch
         }
     }
 }

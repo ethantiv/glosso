@@ -12,6 +12,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
+    var onUndo: (@MainActor () -> Void)?
 
     private var panel: FloatingPanel?
     private let model = PopupModel()
@@ -83,6 +84,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
             },
             replace: { [weak self] text in self?.onReplace?(text) },
             retranslate: { [weak self] source in self?.onRetranslate?(source) },
+            undo: { [weak self] in
+                self?.model.undo()
+                self?.onUndo?()
+            },
             // Both sizing closures are gated on panel identity (like the didMove
             // and willClose observers): the torn-down presentation's host view can
             // fire a late onGeometryChange, and its grip can keep delivering an
@@ -228,6 +233,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // A pane restart (re-translation for tone or a picked alternative) must
         // drop any open word dropdown; otherwise it reappears over the new result.
         model.closeDropdown()
+        // The text is about to change, so the segment/change ids the dropdown
+        // caches are keyed on no longer line up — drop them (issue: spinner on revisit).
+        model.altsCache.removeAll()
+        model.explanationCache.removeAll()
+        model.fixReasonCache.removeAll()
         model.text = ""
         model.replyDrafts = []
         model.selectedDraftIndex = nil
