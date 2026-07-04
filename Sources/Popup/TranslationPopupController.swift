@@ -246,6 +246,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.selectedDraftIndex = nil
         model.errorMessage = nil
         model.truncated = false
+        model.diffHidden = false
         model.phase = .capturing
     }
 

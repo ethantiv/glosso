@@ -8,6 +8,52 @@ import Testing
         #expect(model.canUndo == false)
     }
 
+    // MARK: Split fix view (dense diff + clean corrected text)
+
+    // The split (and its eye) exists to make a DENSE diff readable; a sparse diff
+    // nearly equals the clean text, so up to three changes it must stay one view.
+    @Test func splitFixViewRequiresMoreThanThreeChanges() {
+        let model = PopupModel()
+        model.capturedSource = "aa bb cc dd ee ff gg hh"
+
+        model.text = "a2 bb c2 dd e2 ff gg hh"   // three separated substitutions
+        #expect(model.diffChangeCount == 3)
+        #expect(model.splitFixView == false)
+
+        model.text = "a2 bb c2 dd e2 ff g2 hh"   // a fourth crosses the threshold
+        #expect(model.diffChangeCount == 4)
+        #expect(model.splitFixView == true)
+    }
+
+    // Adjacent removals coalesce into ONE tappable change (GrammarDiff), and the
+    // count must follow that unit — not raw token edits — or the threshold would
+    // fire on what the user sees as a single correction.
+    @Test func diffChangeCountUsesCoalescedChangeSpans() {
+        let model = PopupModel()
+        model.capturedSource = "to jest bardzo bardzo dobre"
+        model.text = "to jest dobre"
+
+        #expect(model.diffChangeCount == 1)
+        #expect(model.splitFixView == false)
+    }
+
+    // Hiding the diff removes every dropdown anchor with it, so an open reason
+    // dropdown must close along; showing it back must not resurrect the dropdown.
+    @Test func toggleDiffHiddenClosesOpenDropdown() {
+        let model = PopupModel()
+        model.openFixReason(id: 1, before: "błendy", after: "błędy")
+        #expect(model.dropdownVisible == true)
+
+        model.toggleDiffHidden()
+        #expect(model.diffHidden == true)
+        #expect(model.dropdownVisible == false)
+        #expect(model.fixReasonMode == false)
+
+        model.toggleDiffHidden()
+        #expect(model.diffHidden == false)
+        #expect(model.dropdownVisible == false)
+    }
+
     @Test func snapshotEnablesUndo() {
         let model = PopupModel()
         model.text = "pierwsza wersja"
