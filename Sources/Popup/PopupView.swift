@@ -535,16 +535,11 @@ struct PopupView: View {
                 if model.action == .translate {
                     wordFlow
                 } else if model.action == .fixGrammar {
-                    grammarDiffFlow
+                    if model.splitFixView { fixSplitContent } else { grammarDiffFlow }
                 } else if model.action == .reply {
                     replyDrafts
                 } else {
-                    Text(model.text)
-                        .font(PopupTheme.fontLead)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    plainResultText
                 }
             }
             .frame(maxHeight: paneMaxHeight)
@@ -658,6 +653,53 @@ struct PopupView: View {
         }
     }
 
+    // A dense diff (see PopupModel.splitFixView) splits the pane into two sections
+    // in the one ScrollView: the tappable diff under a "Zmiany (n)" caption with an
+    // eye that hides it (the caption row stays as the way back), and the clean
+    // corrected text below for uncluttered reading. Purely a view change —
+    // Copy/Replace already operate on model.text.
+    private var fixSplitContent: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 6) {
+                label("Zmiany (\(model.diffChangeCount))")
+                Spacer(minLength: 0)
+                diffEyeButton
+            }
+            if !model.diffHidden {
+                grammarDiffFlow
+                Divider()
+                label("Poprawiona wersja")
+            }
+            plainResultText
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var plainResultText: some View {
+        Text(model.text)
+            .font(PopupTheme.fontLead)
+            .foregroundStyle(.primary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var diffEyeButton: some View {
+        Button {
+            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
+                model.toggleDiffHidden()
+            }
+        } label: {
+            Image(systemName: model.diffHidden ? "eye.slash" : "eye")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(Color.secondary)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .help(model.diffHidden ? "Pokaż zmiany" : "Ukryj zmiany")
+        .accessibilityLabel(model.diffHidden ? "Pokaż zmiany" : "Ukryj zmiany")
+    }
+
     // Grammar-diff for fixGrammar results (issue #51): the corrected text rendered
     // word-by-word with each change shown as a struck error → correction, tappable
     // for a one-line Polish reason. Unchanged spans tokenize into the same wrapping
@@ -725,6 +767,9 @@ struct PopupView: View {
     }
 
     private func onTapFixChange(id: Int, before: String, after: String) {
+        // A tap can land on a change span mid hide-animation, after the eye already
+        // set diffHidden — opening then would anchor the dropdown to nothing.
+        guard !model.diffHidden else { return }
         model.openFixReason(id: id, before: before, after: after)
         if let cached = model.fixReasonCache[id] {
             model.explanationText = cached

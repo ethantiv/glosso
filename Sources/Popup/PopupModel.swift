@@ -123,6 +123,31 @@ final class PopupModel {
         return value
     }
 
+    /// Tappable change spans in the current grammar diff — the same unit as the
+    /// "dlaczego poprawiono?" tap targets.
+    var diffChangeCount: Int {
+        diffParts.count { if case .change = $0 { return true } else { return false } }
+    }
+
+    /// A dense fixGrammar diff splits the result pane into a diff section and a
+    /// clean corrected-text section: reading the correction through many
+    /// strikethroughs gets hard. With a few changes the diff nearly IS the clean
+    /// text, so the split (and the eye) would be pure noise — hence the threshold.
+    var splitFixView: Bool { diffChangeCount > 3 }
+
+    /// The split view's eye: hides the diff section, leaving only the clean
+    /// corrected text. Deliberately transient (reset by resetTranslationPane on
+    /// every fresh capture and re-run, never persisted) so the tappable learning
+    /// layer can't stay silently disabled forever.
+    var diffHidden: Bool = false
+
+    /// Hiding the diff removes every dropdown anchor with it, so an open reason
+    /// dropdown must close along.
+    func toggleDiffHidden() {
+        if !diffHidden { closeDropdown() }
+        diffHidden.toggle()
+    }
+
     func openDropdown(for id: Int) {
         selectedWordID = id
         alternatives = []
