@@ -7,6 +7,7 @@ struct PopupView: View {
     @Bindable var model: PopupModel
     let close: () -> Void
     let selectFormality: (Formality) -> Void
+    let selectStyle: (Bool) -> Void
     let selectAction: (Action) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
     let fetchExplanation: (_ word: String, _ translation: String) async -> String
@@ -116,6 +117,7 @@ struct PopupView: View {
             // shows for it alone — the other verbs drop it rather than leave an
             // empty band (issue #23).
             if model.action == .translate { translateControls }
+            if model.action == .fixGrammar && styleSupported { fixControls }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
                 Divider()
@@ -250,6 +252,57 @@ struct PopupView: View {
         case .unknown:
             pill("…", accent: false)
         }
+    }
+
+    // Second row, fixGrammar-only: the grammar-vs-style pill. Shown only for the
+    // languages the rule bases support: Polish text (any second language) or
+    // English text under an English second language; .unknown (empty/ambiguous)
+    // keeps it visible rather than flickering it away.
+    private var fixControls: some View {
+        HStack(spacing: 10) {
+            stylePill
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        .padding(.bottom, PopupTheme.padWindow)
+    }
+
+    private var styleSupported: Bool {
+        switch model.direction {
+        case .fromPolish: true
+        case .toPolish(let second): second == .english
+        case .unknown: true
+        }
+    }
+
+    private var stylePill: some View {
+        let active = model.style
+        let label = active ? "Gramatyka+styl" : "Gramatyka"
+        return Button {
+            let next = !model.style
+            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
+                model.style = next
+            }
+            // A style change re-runs the correction from scratch, so the pre-reword
+            // result no longer applies — drop the undo snapshot (mirrors the tone pill).
+            model.clearUndo()
+            selectStyle(next)
+        } label: {
+            HStack(spacing: 4) {
+                Image(systemName: "wand.and.stars")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text(label)
+                    .font(PopupTheme.fontControl)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Zakres poprawek: \(label). Kliknij, aby przełączyć styl i szyk.")
+        .accessibilityLabel("Zakres poprawek: \(label). Kliknij, aby przełączyć styl i szyk.")
     }
 
     private var tonePill: some View {

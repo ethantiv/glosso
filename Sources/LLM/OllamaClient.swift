@@ -14,8 +14,8 @@ final class OllamaClient: LLMClient {
         self.endpointProvider = endpointProvider
     }
 
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
-        stream(prompt: PromptBuilder.build(for: text, action: action, second: second, formality: formality, humanize: humanize), model: model)
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
+        stream(prompt: PromptBuilder.build(for: text, action: action, second: second, formality: formality, humanize: humanize, style: style), model: model)
     }
 
     func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -37,8 +37,8 @@ final class OllamaClient: LLMClient {
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, second: second)
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, second: second, englishRules: englishRules)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 

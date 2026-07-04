@@ -1,9 +1,12 @@
-// Concise, authoritative cards for the ~12 families of confusable Polish spelling
-// that actually drive fix-grammar corrections, distilled by hand from the RJP
-// codification "Zasady pisowni i interpunkcji polskiej" (Warszawa 2024, Część I).
-// Injected into the grammar-fix explanation prompt (#73) so the model cites a real
-// rule instead of inventing one. Polish — that is the explanation language. The
-// "(RJP X.Y)" marker on each card is the source section, for audit.
+// Concise cards for the families of Polish mistakes that actually drive
+// fix-grammar corrections: ~13 confusable-spelling cards distilled by hand from
+// the RJP codification "Zasady pisowni i interpunkcji polskiej" (Warszawa 2024,
+// Część I), plus style cards (pleonasms, calques, word order…) distilled from
+// common usage guidance — style has no RJP codification, so those carry a
+// "(styl: kategoria)" category marker instead of a section number. Injected into
+// the grammar-fix explanation prompt (#73) so the model cites a real rule instead
+// of inventing one. Polish — that is the explanation language. The "(RJP X.Y)"
+// marker on each spelling card is the source section, for audit.
 //
 // ponytail: a static Swift constant, not a bundled resource — the base is small
 // (a few KB) and frozen, so no Bundle.module/IO plumbing is warranted.
@@ -22,5 +25,11 @@ enum PolishSpellingRules {
     - cząstka nie-: łącznie z rzeczownikami (nieprzyjaciel), przymiotnikami (także stopień wyższy i najwyższy: niedrogi, nienajdroższy), imiesłowami przymiotnikowymi (niepalący, nienapisany) i przysłówkami od przymiotników (niedaleko). Rozdzielnie przed czasownikami (nie chcę), wyrazami o znaczeniu czasownikowym (nie można, nie trzeba, nie warto), imiesłowami przysłówkowymi (nie będąc), formami na -no, -to (nie znaleziono), liczebnikami (nie trzy), zaimkami (nie każdy) i przy przeciwstawieniu (nie czarne, ale białe). (RJP 4.9)
     - cząstka -by/-bym/-byś/-byśmy/-byście: łącznie z osobowymi formami czasownika (robiłbym, zrobiliby), z formą bezosobową na -łoby (należałoby) oraz w spójnikach i partykułach (gdyby, żeby, aby, jakby, niby, oby). Rozłącznie po bezokoliczniku (skończyć by warto), po formach na -no, -to (zrobiono by), po wyrazach można, trzeba, warto, wolno, winien, powinien (można by, trzeba by) i po spójnikach (poszedłby albo by został). (RJP 4.5)
     - wielka/mała litera: wielką literą piszemy pierwszy wyraz zdania (po kropce, a także po ?, !, … kończących zdanie) oraz nazwy własne — imiona, nazwiska, nazwy geograficzne, przydomki (Adam Nowak, Wisła, Chrobry); w nazwach wielowyrazowych wszystkie wyrazy oprócz wewnętrznych spójników i przyimków. Małą literą wyrazy pospolite, nazwy dni i miesięcy oraz przymiotniki od nazw własnych (polski, warszawski). (RJP 8)
+    - pleonazmy: nie dubluje się znaczenia już zawartego w wyrazie — „okres czasu" (okres JEST odcinkiem czasu → wystarczy okres albo czas), „cofać się do tyłu" (cofanie zawsze jest do tyłu), „fakt autentyczny", „w miesiącu maju" (maj jest miesiącem → w maju), „kontynuować dalej", „wzajemna współpraca". Poprawna forma to samo słowo bez dublującego dodatku. (styl: pleonazmy)
+    - kalki z angielskiego: konstrukcje przeniesione żywcem z angielskiego brzmią po polsku obco — „adresować problem" (address an issue → zajmować się problemem, rozwiązywać go), „dedykowany czemuś" (dedicated → przeznaczony do, stworzony z myślą o; dedykować można książkę osobie), „iść do przodu z tematem" (move forward → kontynuować, zaczynać), „na koniec dnia" (at the end of the day → koniec końców, ostatecznie). Poprawka podmienia kalkę na rodzimy odpowiednik. (styl: kalki)
+    - nominalizacje: rozdęta konstrukcja rzeczownikowa zamiast prostego czasownika osłabia zdanie — „dokonać otwarcia" → „otworzyć", „ulec poprawie" → „poprawić się", „przeprowadzić analizę" → „przeanalizować", „poddać kontroli" → „skontrolować". Czasownik niesie tę samą treść krócej i naturalniej. (styl: nominalizacje)
+    - strona bierna: gdy wykonawca jest znany, strona czynna jest naturalniejsza i krótsza — „raport został przygotowany przez zespół" → „zespół przygotował raport". Bierna zostaje, gdy wykonawca jest nieznany lub nieistotny („dom zbudowano w 1900 r."). (styl: strona bierna)
+    - szyk i enklityki: „się" oraz krótkie zaimki (mu, go, mi) nie stoją na końcu zdania ani na jego początku — najlepiej tuż po pierwszym akcentowanym członie: „wczoraj się spotkaliśmy", nie „spotkaliśmy wczoraj się"; „dałem mu go", nie „dałem go jemu" (długa forma jemu/tobie tylko pod akcentem lub w przeciwstawieniu). Naturalny polski szyk prowadzi od tematu (rzecz znana) do rematu (informacja nowa). (styl: szyk)
+    - wata słowna: urzędowe wypełniacze zastępuje się krótką formą — „w dniu dzisiejszym" → „dziś", „na chwilę obecną" → „obecnie/teraz", „w miesiącu bieżącym" → „w tym miesiącu", „celem realizacji…" → „aby…", „z uwagi na fakt, że" → „ponieważ". Treść zostaje, słów ubywa. (styl: zwięzłość)
     """
 }

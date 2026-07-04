@@ -22,6 +22,10 @@ final class PopupModel {
     var errorMessage: String? = nil
     var truncated: Bool = false
     var formality: Formality = .automatic
+    // The fixGrammar style pill state (grammar-only vs grammar+style). Seeded from
+    // the persisted setting on each present(); like formality it survives pane
+    // restarts (a re-run must not visually reset the pill).
+    var style: Bool = false
     // The selected palette verb (issue #23). Drives which header controls show and
     // whether the result is clickable-per-word. Reset to .translate on each capture.
     var action: Action = .translate

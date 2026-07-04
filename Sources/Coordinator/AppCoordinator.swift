@@ -102,6 +102,7 @@ final class AppCoordinator {
             self?.lastCapture = nil
         }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
+        popup.onSelectStyle = { [weak self] style in self?.handleStyleChange(style) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
         popup.onFetchAlternatives = { [weak self] word, translation in
             await self?.fetchAlternatives(word: word, translation: translation) ?? []
@@ -168,7 +169,7 @@ final class AppCoordinator {
         // A fresh selection invalidates every cached action result.
         actionCache.removeAll()
         lastSourcePID = sourcePID
-        popup.present(at: point, formality: settings.formality)
+        popup.present(at: point, formality: settings.formality, style: settings.fixStyle)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -284,7 +285,7 @@ final class AppCoordinator {
             for try await event in llm.run(
                 text, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
-                humanize: settings.humanize) {
+                humanize: settings.humanize, style: settings.fixStyle) {
                 if Task.isCancelled { return }
                 if case .token(let token) = event { buffer += token }
             }
@@ -368,6 +369,24 @@ final class AppCoordinator {
         }
     }
 
+    /// The user toggled the fixGrammar style pill (grammar-only vs grammar+style).
+    /// Mirrors the formality path: persist, drop every cached result (the flag feeds
+    /// the cached fixGrammar generation) and re-run the same capture. Deliberately
+    /// NOT part of currentCacheSignature: the signature covers Settings-window
+    /// changes, and this flag is toggled only from the popup — right here, where
+    /// the cache is cleared directly.
+    func handleStyleChange(_ style: Bool) {
+        settings.fixStyle = style
+        guard let capture = lastCapture else { return }
+        captureTask?.cancel()
+        prefetchTask?.cancel()
+        actionCache.removeAll()
+        popup.restartTranslation()
+        captureTask = Task { @MainActor [weak self] in
+            await self?.stream(capture.text, at: capture.point, action: capture.action)
+        }
+    }
+
     /// The user picked a verb in the palette strip (issue #23): re-run that action
     /// over the same captured selection and stream into the same pane. Mirrors the
     /// formality-change path; the action is not persisted, so a fresh capture
@@ -439,9 +458,16 @@ final class AppCoordinator {
     func fetchFixReason(before: String, after: String, corrected: String) async -> String {
         guard let capture = lastCapture else { return "" }
         prefetchTask?.cancel()
+        // English rule cards ground the explanation only when the corrected text is
+        // English under an English second language; everything else (Polish text,
+        // any other second language) keeps the Polish base and its simple-reason
+        // fallback. Detected on the original — same language as the correction.
+        let englishRules = settings.secondLanguage == .english
+            && DirectionDetector.detect(capture.text, second: .english) == .toPolish(.english)
         let result = (try? await llm.explainFix(
             error: before, correction: after, original: capture.text, corrected: corrected,
-            second: settings.secondLanguage, model: settings.modelName)) ?? ""
+            second: settings.secondLanguage, englishRules: englishRules,
+            model: settings.modelName)) ?? ""
         schedulePrefetch()
         return result
     }
@@ -472,9 +498,11 @@ final class AppCoordinator {
     private func stream(_ text: String, at point: CGPoint, action: Action) async {
         lastCapture = (text, point, action)
         let second = settings.secondLanguage
-        // The direction arrow / language pair only describe a translation; the other
-        // verbs don't translate, so the popup hides that header on a .unknown direction.
-        let direction = action == .translate
+        // The direction arrow / language pair only describe a translation, but
+        // fixGrammar needs the detected language too — it gates the style pill on a
+        // supported language (Polish, or English under an English second language).
+        // Summarize/reply stay .unknown so the popup hides the language header.
+        let direction = action == .translate || action == .fixGrammar
             ? DirectionDetector.detect(text, second: second)
             : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
@@ -518,7 +546,8 @@ final class AppCoordinator {
         }
         await consume(llm.run(
             text, action: action, model: settings.modelName,
-            second: second, formality: settings.formality, humanize: settings.humanize),
+            second: second, formality: settings.formality, humanize: settings.humanize,
+            style: settings.fixStyle),
             bucket: action)
         if !Task.isCancelled { schedulePrefetch() }
     }
@@ -609,7 +638,7 @@ final class AppCoordinator {
             for try await event in llm.run(
                 source, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
-                humanize: settings.humanize) {
+                humanize: settings.humanize, style: settings.fixStyle) {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token): accumulated += token

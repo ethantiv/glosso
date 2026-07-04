@@ -261,6 +261,28 @@ import Testing
         #expect(replacer.replacedText == "the cat")
     }
 
+    // The headless chord and the popup's style pill share one persisted setting:
+    // with style on, the in-place fix must thread it into the LLM call too.
+    @Test func fixGrammarInPlaceThreadsStyleSetting() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        let settings = makeSettings()
+        settings.fixStyle = true
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: settings, replacer: replacer,
+            frontmostPID: { 42 }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(llm.recorder.receivedStyle == true)
+        #expect(replacer.replacedText == "the cat")
+    }
+
     // The headless "translate in place" chord (issue #21) reuses the same in-place
     // pipeline as fix-grammar but with action .translate, pasting the translation
     // straight back over the selection — the silent twin of the popup's Replace button.
@@ -450,6 +472,51 @@ import Testing
         #expect(llm.recorder.receivedText == nil)
     }
 
+    // MARK: Style pill (grammar-only vs grammar+style)
+
+    // Toggling the style pill after a correction must persist the flag, reset the
+    // pane and re-run the SAME source text through fixGrammar with style on —
+    // mirroring the tone pill. Prefetch is parked so it can't muddy the run counts.
+    @Test func togglingStylePersistsAndRerunsSameText() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "w dniu dzisiejszym"
+        let popup = FakePopup()
+        let settings = makeSettings()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings, prefetchLingerMs: 600_000)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        popup.onSelectAction?(.fixGrammar)
+        await spin(until: { llm.recorder.receivedAction == .fixGrammar })
+        #expect(llm.recorder.receivedStyle == false)
+
+        popup.onSelectStyle?(true)   // user clicked the style pill
+        await spin(until: { llm.recorder.receivedStyle == true })
+
+        #expect(settings.fixStyle == true)
+        #expect(popup.restartCount == 2)   // verb switch + style toggle
+        #expect(llm.recorder.receivedText == "w dniu dzisiejszym")
+        #expect(llm.recorder.receivedAction == .fixGrammar)
+    }
+
+    // Toggling style before any capture must only persist the choice (the next
+    // stream reads it fresh) — not restart or re-run nothing.
+    @Test func togglingStyleBeforeCaptureOnlyPersists() {
+        let llm = FakeLLMClient()
+        let popup = FakePopup()
+        let settings = makeSettings()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup, settings: settings)
+
+        coordinator.start()
+        popup.onSelectStyle?(true)
+
+        #expect(settings.fixStyle == true)
+        #expect(popup.restartCount == 0)
+        #expect(llm.recorder.receivedText == nil)
+    }
+
     // MARK: Action palette (issue #23)
 
     // The first capture always runs the Translate verb and threads the persisted
@@ -470,6 +537,23 @@ import Testing
         #expect(llm.recorder.receivedHumanize == false)
         #expect(popup.presentedAction == .translate)
         #expect(popup.presentedDirection == .fromPolish(.english))
+    }
+
+    // The capture threads the persisted style flag into the LLM call and seeds the
+    // popup's style pill with it, so the pill reflects the saved state on open.
+    @Test func captureThreadsStyleSetting() async {
+        let llm = FakeLLMClient(events: [.token("Hi"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        let popup = FakePopup()
+        let settings = makeSettings()
+        settings.fixStyle = true
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedStyle == true)
+        #expect(popup.presentedStyle == true)
     }
 
     // Picking a verb in the palette after a translation re-runs the SAME source
@@ -496,6 +580,26 @@ import Testing
         #expect(llm.recorder.receivedAction == .summarize)
         #expect(popup.presentedAction == .summarize)
         #expect(popup.presentedDirection == .unknown)
+    }
+
+    // fixGrammar computes a real direction (unlike summarize/reply): the popup
+    // gates the style pill on the detected language, so it must know it.
+    @Test func fixGrammarVerbComputesDirection() async {
+        let llm = FakeLLMClient(events: [.token("…"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        popup.onSelectAction?(.fixGrammar)
+        var spins = 0
+        while popup.presentedAction != .fixGrammar && spins < 10_000 { await Task.yield(); spins += 1 }
+
+        #expect(popup.presentedDirection == .fromPolish(.english))
     }
 
     // Reply (#60) is generative, not a transform: picking it must take the
@@ -746,6 +850,43 @@ import Testing
         #expect(llm.recorder.fixCorrected == "I have gone to school")
         #expect(llm.recorder.fixOriginal == "i has went to school")   // the captured original
         #expect(llm.recorder.fixSecond == .english)
+        // English text under an English second language → the English rule base.
+        #expect(llm.recorder.fixEnglishRules == true)
+    }
+
+    // Polish text keeps the Polish rule base even with an English second language.
+    @Test func fetchFixReasonKeepsPolishRulesForPolishText() async {
+        let llm = FakeLLMClient(fixReason: "x")
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "W dniu dzisiejszym cofnąłem się do tyłu"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .english)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        _ = await popup.onFetchFixReason?("dzisiejszym", "dziś", "Dziś się cofnąłem")
+
+        #expect(llm.recorder.fixEnglishRules == false)
+    }
+
+    // The English base exists only for English: any other second language falls
+    // back to the Polish base and its simple-reason escape, whatever the text.
+    @Test func fetchFixReasonKeepsPolishRulesForNonEnglishSecondLanguage() async {
+        let llm = FakeLLMClient(fixReason: "x")
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "i has went to school"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .german)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        _ = await popup.onFetchFixReason?("has went", "went", "i went to school")
+
+        #expect(llm.recorder.fixEnglishRules == false)
     }
 
     // Before any capture there is no original context, so a fetch returns empty
@@ -1129,6 +1270,33 @@ import Testing
         coordinator.handleActionChange(.fixGrammar)                     // cache was cleared → must re-run → 4
         await spin(until: { llm.recorder.runCount == 4 })
         #expect(llm.recorder.runCount == 4)
+    }
+
+    // The style flag feeds the cached fixGrammar generation, and it's deliberately
+    // NOT in the cache signature (popup-only toggle) — so the toggle handler itself
+    // must drop the whole cache, proven by a subsequent switch re-running the model.
+    @Test func togglingStyleInvalidatesTheActionCache() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)   // translate cached, runCount 1
+        coordinator.handleActionChange(.fixGrammar)                     // miss → run, runCount 2
+        await spin(until: { llm.recorder.runCount == 2 })
+
+        coordinator.handleActionChange(.translate)                      // cached from foreground → no run
+        await spin(until: { popup.finished && popup.presentedAction == .translate })
+        #expect(llm.recorder.runCount == 2)
+
+        coordinator.handleStyleChange(true)                             // clears cache + re-runs translate → 3
+        await spin(until: { llm.recorder.runCount == 3 })
+        coordinator.handleActionChange(.fixGrammar)                     // cache was cleared → must re-run → 4
+        await spin(until: { llm.recorder.runCount == 4 })
+        #expect(llm.recorder.runCount == 4)
+        #expect(llm.recorder.receivedStyle == true)
     }
 
     // A reword overwrites the .translate cache with the reworded text; undoing the

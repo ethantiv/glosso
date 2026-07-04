@@ -193,7 +193,11 @@ protocol LLMClient: Sendable {
     /// like the original translate path (issue #23). `humanize` only affects the
     /// `.translate` action — it folds a "natural human writing" directive into the
     /// prompt (default-on, toggled in Settings); the other verbs ignore it.
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
+    /// `style` is its `.fixGrammar` twin: a moderate style pass (flow, word order
+    /// and word choice within sentences, never merging/splitting them) folded into
+    /// the correction prompt; the other verbs ignore it. Toggled by the popup's
+    /// style pill and honored by the headless fix-in-place chord alike.
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
     /// Context-aware alternatives for a single word of the finished translation,
     /// for the popup's per-word dropdown (issue #17). Given the source text, the
@@ -216,8 +220,11 @@ protocol LLMClient: Sendable {
     /// punctuation rule behind the fix ("brak rodzajnika", "zła forma czasu
     /// przeszłego"). Non-streaming like `explain`; the full original and corrected
     /// texts give context. `error` or `correction` may be empty (a pure insertion
-    /// or deletion).
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, model: String) async throws -> String
+    /// or deletion). `englishRules` picks the rule base grounding the explanation:
+    /// the English-grammar cards (for an English text corrected under an English
+    /// second language) instead of the default Polish RJP/style cards — decided by
+    /// the caller, which detects the corrected text's language.
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, model: String) async throws -> String
     /// Generates several distinct reply drafts to `text` (issue #60) — a reply, not
     /// a transformation, so there's no single "right" answer and the popup offers a
     /// few to choose from. Replies in the language `text` is written in. Non-streaming
@@ -338,6 +345,9 @@ protocol TranslationPopupPresenting: AnyObject {
     /// Fires when the user cycles the tone pill, carrying the newly selected
     /// formality so the coordinator can persist it and re-translate.
     var onSelectFormality: (@MainActor (Formality) -> Void)? { get set }
+    /// Fires when the user toggles the fixGrammar style pill (grammar-only vs
+    /// grammar+style), so the coordinator can persist it and re-run the correction.
+    var onSelectStyle: (@MainActor (Bool) -> Void)? { get set }
     /// Fires when the user picks a verb in the palette strip (issue #23), so the
     /// coordinator can re-run that action over the same captured selection.
     var onSelectAction: (@MainActor (Action) -> Void)? { get set }
@@ -374,7 +384,7 @@ protocol TranslationPopupPresenting: AnyObject {
     /// which the undo discards — so it must drop that entry, or a later verb
     /// round-trip back to Translate would replay the undone reword.
     var onUndo: (@MainActor () -> Void)? { get set }
-    func present(at screenPoint: CGPoint, formality: Formality)
+    func present(at screenPoint: CGPoint, formality: Formality, style: Bool)
     func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)
     func showError(_ message: String)
