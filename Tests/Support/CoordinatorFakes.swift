@@ -27,6 +27,7 @@ struct FakeLLMClient: LLMClient {
         var receivedFormality: Formality?
         var receivedAction: Action?
         var receivedHumanize: Bool?
+        var receivedStyle: Bool?
         // Call counts/order so cache + prefetch tests can assert the model is hit the
         // expected number of times (a cache hit must not re-run it).
         var runCount = 0
@@ -51,6 +52,8 @@ struct FakeLLMClient: LLMClient {
         var fixOriginal: String?
         var fixCorrected: String?
         var fixSecond: SecondLanguage?
+        var fixEnglishRules: Bool?
+        var fixStyle: Bool?
         var fixModel: String?
         // reply(...)
         var replyText: String?
@@ -106,13 +109,14 @@ struct FakeLLMClient: LLMClient {
         self.replyError = replyError
     }
 
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
         recorder.receivedModel = model
         recorder.receivedSecond = second
         recorder.receivedFormality = formality
         recorder.receivedAction = action
         recorder.receivedHumanize = humanize
+        recorder.receivedStyle = style
         recorder.runCount += 1
         recorder.runActions.append(action)
         return makeStream()
@@ -157,12 +161,14 @@ struct FakeLLMClient: LLMClient {
         return explanationResult
     }
 
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, model: String) async throws -> String {
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
         recorder.fixError = error
         recorder.fixCorrection = correction
         recorder.fixOriginal = original
         recorder.fixCorrected = corrected
         recorder.fixSecond = second
+        recorder.fixEnglishRules = englishRules
+        recorder.fixStyle = style
         recorder.fixModel = model
         if let fixReasonError { throw fixReasonError }
         return fixReasonResult
@@ -243,6 +249,7 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
+    var onSelectStyle: (@MainActor (Bool) -> Void)?
     var onSelectAction: (@MainActor (Action) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
@@ -256,6 +263,7 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var presentedSourceText: String?
     private(set) var presentedAction: Action?
     private(set) var presentedFormality: Formality?
+    private(set) var presentedStyle: Bool?
     private(set) var dismissCount = 0
     private(set) var restartCount = 0
     private(set) var tokens: [String] = []
@@ -264,9 +272,10 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var truncated = false
     private(set) var shownReplies: [String]?
 
-    func present(at screenPoint: CGPoint, formality: Formality) {
+    func present(at screenPoint: CGPoint, formality: Formality, style: Bool) {
         presented = true
         presentedFormality = formality
+        presentedStyle = style
     }
     func update(direction: TranslationDirection, sourceText: String, action: Action) {
         presentedDirection = direction

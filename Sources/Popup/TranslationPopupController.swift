@@ -5,6 +5,7 @@ import SwiftUI
 final class TranslationPopupController: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
+    var onSelectStyle: (@MainActor (Bool) -> Void)?
     var onSelectAction: (@MainActor (Action) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
@@ -42,7 +43,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     private static let defaultSize = CGSize(width: 561, height: 160)
 
-    func present(at screenPoint: CGPoint, formality: Formality) {
+    func present(at screenPoint: CGPoint, formality: Formality, style: Bool) {
         tearDown()
 
         resetTranslationPane()
@@ -53,6 +54,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
+        model.style = style
         // A fresh capture always starts on Translate (issue #23); the verb is not
         // persisted across captures.
         model.action = .translate
@@ -69,6 +71,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             model: model,
             close: { [weak self] in self?.dismiss() },
             selectFormality: { [weak self] formality in self?.onSelectFormality?(formality) },
+            selectStyle: { [weak self] style in self?.onSelectStyle?(style) },
             selectAction: { [weak self] action in self?.onSelectAction?(action) },
             fetchAlternatives: { [weak self] word, translation in
                 await self?.onFetchAlternatives?(word, translation) ?? []

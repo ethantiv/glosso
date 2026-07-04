@@ -46,10 +46,12 @@ final class AppCoordinator {
 
     // Retained so the popup's tone pill and verb strip can re-run over the same
     // selection without the user copying again. nil until a capture lands; text,
-    // point and action are one unit so a new capture can't half-reset them. The
-    // action starts at .translate and changes when the user picks another verb
-    // (issue #23); a fresh capture always resets it back to .translate.
-    private var lastCapture: (text: String, point: CGPoint, action: Action)?
+    // point, action and direction are one unit so a new capture can't half-reset
+    // them. The action starts at .translate and changes when the user picks another
+    // verb (issue #23); a fresh capture always resets it back to .translate. The
+    // direction is detected once per stream and cached here so per-tap consumers
+    // (fetchFixReason, prefetch) don't re-classify the whole text every time.
+    private var lastCapture: (text: String, point: CGPoint, action: Action, direction: TranslationDirection)?
 
     // The frontmost app's PID at the double-press, retained so Replace can verify
     // the source app hasn't changed before pasting back into it (issue #22).
@@ -102,6 +104,7 @@ final class AppCoordinator {
             self?.lastCapture = nil
         }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
+        popup.onSelectStyle = { [weak self] style in self?.handleStyleChange(style) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
         popup.onFetchAlternatives = { [weak self] word, translation in
             await self?.fetchAlternatives(word: word, translation: translation) ?? []
@@ -168,7 +171,7 @@ final class AppCoordinator {
         // A fresh selection invalidates every cached action result.
         actionCache.removeAll()
         lastSourcePID = sourcePID
-        popup.present(at: point, formality: settings.formality)
+        popup.present(at: point, formality: settings.formality, style: settings.fixStyle)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -280,11 +283,12 @@ final class AppCoordinator {
             return
         }
         var buffer = ""
+        let style = styleEnabled(for: DirectionDetector.detect(text, second: settings.secondLanguage))
         do {
             for try await event in llm.run(
                 text, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
-                humanize: settings.humanize) {
+                humanize: settings.humanize, style: style) {
                 if Task.isCancelled { return }
                 if case .token(let token) = event { buffer += token }
             }
@@ -354,50 +358,57 @@ final class AppCoordinator {
         return captured
     }
 
-    func handleFormalityChange(_ formality: Formality) {
-        settings.formality = formality
+    // The shared re-run body behind every popup control that recomputes over the
+    // last capture: cancel the in-flight work, optionally drop the cached results
+    // (whenever the change feeds the generation of every verb), reset the pane and
+    // stream again. nil text/action keep the capture's own.
+    private func rerunLastCapture(text: String? = nil, action: Action? = nil, invalidatingCache: Bool = true) {
         guard let capture = lastCapture else { return }
         captureTask?.cancel()
         prefetchTask?.cancel()
-        // Tone changes the generation params for every verb, so every cached result
-        // is stale — drop them and let them recompute lazily.
-        actionCache.removeAll()
+        if invalidatingCache { actionCache.removeAll() }
         popup.restartTranslation()
         captureTask = Task { @MainActor [weak self] in
-            await self?.stream(capture.text, at: capture.point, action: capture.action)
+            await self?.stream(text ?? capture.text, at: capture.point, action: action ?? capture.action)
         }
+    }
+
+    /// Tone changes the generation params for every verb, so every cached result
+    /// is stale — persist and re-run the same capture (a toggle before any capture
+    /// only persists).
+    func handleFormalityChange(_ formality: Formality) {
+        settings.formality = formality
+        rerunLastCapture()
+    }
+
+    /// The user toggled the fixGrammar style pill (grammar-only vs grammar+style).
+    /// Mirrors the formality path: persist, drop every cached result (the flag feeds
+    /// the cached fixGrammar generation) and re-run the same capture. Deliberately
+    /// NOT part of currentCacheSignature: the signature covers Settings-window
+    /// changes, and this flag is toggled only from the popup — right here, where
+    /// the cache is cleared directly.
+    func handleStyleChange(_ style: Bool) {
+        settings.fixStyle = style
+        rerunLastCapture()
     }
 
     /// The user picked a verb in the palette strip (issue #23): re-run that action
-    /// over the same captured selection and stream into the same pane. Mirrors the
-    /// formality-change path; the action is not persisted, so a fresh capture
+    /// over the same captured selection and stream into the same pane. Keeps
+    /// actionCache — switching verbs is exactly when the cache pays off (stream()
+    /// serves a hit instantly). The action is not persisted, so a fresh capture
     /// resets it back to .translate.
     func handleActionChange(_ action: Action) {
-        guard let capture = lastCapture else { return }
-        captureTask?.cancel()
-        // Cancel the background fill but keep actionCache — switching verbs is exactly
-        // when the cache pays off (stream() serves a hit instantly).
-        prefetchTask?.cancel()
-        popup.restartTranslation()
-        captureTask = Task { @MainActor [weak self] in
-            await self?.stream(capture.text, at: capture.point, action: action)
-        }
+        rerunLastCapture(action: action, invalidatingCache: false)
     }
 
     /// The user edited the source text and asked to translate it again (issue #44):
-    /// re-run over the edited text with the same point and action. Mirrors the
-    /// verb/formality re-run path; stream() re-snapshots lastCapture with the new
-    /// text. An empty edit is ignored (nothing meaningful to translate).
+    /// re-run over the edited text with the same point and action — the edited
+    /// source feeds every verb, so all cached results are stale. stream()
+    /// re-snapshots lastCapture with the new text. An empty edit is ignored
+    /// (nothing meaningful to translate).
     func handleSourceEdit(_ text: String) {
-        guard let capture = lastCapture, !text.isEmpty else { return }
-        captureTask?.cancel()
-        prefetchTask?.cancel()
-        // The edited source feeds every verb, so all cached results are stale.
-        actionCache.removeAll()
-        popup.restartTranslation()
-        captureTask = Task { @MainActor [weak self] in
-            await self?.stream(text, at: capture.point, action: capture.action)
-        }
+        guard !text.isEmpty else { return }
+        rerunLastCapture(text: text)
     }
 
     /// Asks the model for alternatives of a clicked word in the finished
@@ -439,9 +450,20 @@ final class AppCoordinator {
     func fetchFixReason(before: String, after: String, corrected: String) async -> String {
         guard let capture = lastCapture else { return "" }
         prefetchTask?.cancel()
+        // English rule cards ground the explanation only when the corrected text is
+        // English under an English second language; everything else (Polish text,
+        // any other second language) keeps the Polish base and its simple-reason
+        // fallback. The direction was detected on the original at stream time —
+        // same language as the correction. The style flag mirrors the run that
+        // produced the diff, so the style cards join the base only when a style
+        // pass could actually have driven the change.
+        let englishRules = settings.secondLanguage == .english
+            && capture.direction == .toPolish(.english)
         let result = (try? await llm.explainFix(
             error: before, correction: after, original: capture.text, corrected: corrected,
-            second: settings.secondLanguage, model: settings.modelName)) ?? ""
+            second: settings.secondLanguage, englishRules: englishRules,
+            style: styleEnabled(for: capture.direction),
+            model: settings.modelName)) ?? ""
         schedulePrefetch()
         return result
     }
@@ -470,13 +492,17 @@ final class AppCoordinator {
     }
 
     private func stream(_ text: String, at point: CGPoint, action: Action) async {
-        lastCapture = (text, point, action)
         let second = settings.secondLanguage
-        // The direction arrow / language pair only describe a translation; the other
-        // verbs don't translate, so the popup hides that header on a .unknown direction.
-        let direction = action == .translate
-            ? DirectionDetector.detect(text, second: second)
-            : .unknown
+        // Detected once per stream and cached with the capture, so the per-tap
+        // fix-reason fetches and the prefetch gate reuse it instead of re-classifying
+        // the whole text.
+        let detected = DirectionDetector.detect(text, second: second)
+        lastCapture = (text, point, action, detected)
+        // The direction arrow / language pair only describe a translation, but
+        // fixGrammar needs the detected language too — it gates the style pill on a
+        // supported language (Polish, or English under an English second language).
+        // Summarize/reply stay .unknown so the popup hides the language header.
+        let direction = action == .translate || action == .fixGrammar ? detected : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
 
         // The model/language/humanize that fed the cache may have changed in Settings
@@ -518,9 +544,18 @@ final class AppCoordinator {
         }
         await consume(llm.run(
             text, action: action, model: settings.modelName,
-            second: second, formality: settings.formality, humanize: settings.humanize),
+            second: second, formality: settings.formality, humanize: settings.humanize,
+            style: styleEnabled(for: detected)),
             bucket: action)
         if !Task.isCancelled { schedulePrefetch() }
+    }
+
+    // The persisted style flag is consumed only through this gate, which mirrors the
+    // popup's style-pill visibility (TranslationDirection.supportsStyleFix): a saved
+    // style=true must never silently rewrite a text whose language the pill — and
+    // the rule bases — don't cover.
+    private func styleEnabled(for direction: TranslationDirection) -> Bool {
+        settings.fixStyle && direction.supportsStyleFix
     }
 
     // Keeps the existing direction/source in place (only the result pane was reset
@@ -609,7 +644,8 @@ final class AppCoordinator {
             for try await event in llm.run(
                 source, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
-                humanize: settings.humanize) {
+                humanize: settings.humanize,
+                style: styleEnabled(for: lastCapture?.direction ?? .unknown)) {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token): accumulated += token

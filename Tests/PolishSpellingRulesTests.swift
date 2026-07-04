@@ -28,4 +28,14 @@ import Testing
             #expect(PolishSpellingRules.block.contains(word), "missing historical-ó word \(word)")
         }
     }
+
+    // The style cards (the "Gramatyka+styl" mode's grounding) ride in the same
+    // block; each promised family must stay present, alongside the RJP cards.
+    @Test func coversEveryPromisedStyleFamily() {
+        let markers = ["(styl: pleonazmy)", "(styl: kalki)", "(styl: nominalizacje)",
+                       "(styl: strona bierna)", "(styl: szyk)", "(styl: zwięzłość)"]
+        for marker in markers {
+            #expect(PolishSpellingRules.block.contains(marker), "missing \(marker)")
+        }
+    }
 }
