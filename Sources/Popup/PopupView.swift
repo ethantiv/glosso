@@ -539,12 +539,7 @@ struct PopupView: View {
                 } else if model.action == .reply {
                     replyDrafts
                 } else {
-                    Text(model.text)
-                        .font(PopupTheme.fontLead)
-                        .foregroundStyle(.primary)
-                        .textSelection(.enabled)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                    plainResultText
                 }
             }
             .frame(maxHeight: paneMaxHeight)
@@ -675,14 +670,18 @@ struct PopupView: View {
                 Divider()
                 label("Poprawiona wersja")
             }
-            Text(model.text)
-                .font(PopupTheme.fontLead)
-                .foregroundStyle(.primary)
-                .textSelection(.enabled)
-                .fixedSize(horizontal: false, vertical: true)
-                .frame(maxWidth: .infinity, alignment: .leading)
+            plainResultText
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var plainResultText: some View {
+        Text(model.text)
+            .font(PopupTheme.fontLead)
+            .foregroundStyle(.primary)
+            .textSelection(.enabled)
+            .fixedSize(horizontal: false, vertical: true)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     private var diffEyeButton: some View {
@@ -768,6 +767,9 @@ struct PopupView: View {
     }
 
     private func onTapFixChange(id: Int, before: String, after: String) {
+        // A tap can land on a change span mid hide-animation, after the eye already
+        // set diffHidden — opening then would anchor the dropdown to nothing.
+        guard !model.diffHidden else { return }
         model.openFixReason(id: id, before: before, after: after)
         if let cached = model.fixReasonCache[id] {
             model.explanationText = cached
