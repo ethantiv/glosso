@@ -517,6 +517,29 @@ import Testing
         #expect(llm.recorder.receivedText == nil)
     }
 
+    // The persisted style flag is consumed only through the language gate the
+    // pill's visibility uses: for a text the pill doesn't cover (German under a
+    // German second language) the run must not carry a style pass the user can
+    // neither see indicated nor turn off from the popup.
+    @Test func styleGatedOffForUnsupportedLanguage() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Guten Morgen, wie geht es dir heute?"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .german)
+        settings.fixStyle = true
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        popup.onSelectAction?(.fixGrammar)
+        await spin(until: { llm.recorder.receivedAction == .fixGrammar })
+
+        #expect(llm.recorder.receivedStyle == false)
+        #expect(settings.fixStyle == true)   // gated per run, never un-persisted
+    }
+
     // MARK: Action palette (issue #23)
 
     // The first capture always runs the Translate verb and threads the persisted
@@ -852,6 +875,27 @@ import Testing
         #expect(llm.recorder.fixSecond == .english)
         // English text under an English second language → the English rule base.
         #expect(llm.recorder.fixEnglishRules == true)
+        // Grammar-only run → the explanation must not be grounded in style cards.
+        #expect(llm.recorder.fixStyle == false)
+    }
+
+    // The explanation mirrors the run that produced the diff: after a grammar+style
+    // correction the fix reason is grounded with the style cards included.
+    @Test func fetchFixReasonThreadsStyleFlag() async {
+        let llm = FakeLLMClient(fixReason: "pleonazm")
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "W dniu dzisiejszym cofnąłem się do tyłu"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .english)
+        settings.fixStyle = true
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        _ = await popup.onFetchFixReason?("w dniu dzisiejszym", "dziś", "Dziś się cofnąłem")
+
+        #expect(llm.recorder.fixStyle == true)
     }
 
     // Polish text keeps the Polish rule base even with an English second language.

@@ -130,6 +130,20 @@ import Testing
         #expect(off.contains("keeping the original language, meaning and style"))
     }
 
+    // A forced register and the style pass land in one prompt; the style
+    // directive's "never change the tone" must yield to the explicitly requested
+    // register shift, or the two instructions contradict each other and Gemma
+    // (think:false) resolves the conflict unpredictably.
+    @Test func styleDirectiveDropsTonePreservationWhenRegisterForced() {
+        let auto = PromptBuilder.build(for: "i has went", action: .fixGrammar, second: .english, formality: .automatic, humanize: false, style: true)
+        #expect(auto.contains("never change the meaning, tone or language"))
+
+        let formal = PromptBuilder.build(for: "i has went", action: .fixGrammar, second: .english, formality: .formal, humanize: false, style: true)
+        #expect(formal.contains("formal, polite register"))
+        #expect(formal.contains("never change the meaning or language"))
+        #expect(!formal.contains("never change the meaning, tone or language"))
+    }
+
     // Style is a fixGrammar-only modifier: the other verbs ignore it, so it must
     // never leak its directive into their prompts.
     @Test func styleIgnoredForNonFixVerbs() {
@@ -260,7 +274,7 @@ import Testing
     @Test func explainFixPromptCarriesChangeAndAsksForPolishRuleName() {
         let prompt = PromptBuilder.buildExplainFix(
             error: "has went", correction: "have gone",
-            original: "i has went", corrected: "I have gone", second: .english, englishRules: false)
+            original: "i has went", corrected: "I have gone", second: .english, englishRules: false, style: false)
 
         #expect(prompt.contains("has went"))
         #expect(prompt.contains("have gone"))
@@ -280,9 +294,9 @@ import Testing
     @Test func explainFixPromptGroundsInRjpRulesAndAllowsNoRuleFallback() {
         let prompt = PromptBuilder.buildExplainFix(
             error: "moge", correction: "mogę",
-            original: "moge", corrected: "mogę", second: .english, englishRules: false)
+            original: "moge", corrected: "mogę", second: .english, englishRules: false, style: false)
 
-        #expect(prompt.contains(PolishSpellingRules.block))
+        #expect(prompt.contains(PolishSpellingRules.spellingBlock))
         #expect(prompt.contains("authoritative (RJP 2024)"))
         #expect(prompt.contains("do NOT force a listed rule"))
         #expect(prompt.contains("córka"))
@@ -291,6 +305,24 @@ import Testing
         // forbid inventing a supporting example and name the historical-ó escape.
         #expect(prompt.contains("never invent a supporting example"))
         #expect(prompt.contains("góra→górzysty"))
+        // A grammar-only correction has no style-driven changes, so the style cards
+        // must stay out — grounded in them, the model can cite a style rule that
+        // cannot govern any change in the diff.
+        #expect(!prompt.contains("(styl:"))
+    }
+
+    // A grammar+style correction can produce style-driven changes, so its fix
+    // reasons need the style cards in the base — framed as reference (only the
+    // RJP-marked spelling cards carry codified authority).
+    @Test func explainFixStyleVariantAddsStyleCards() {
+        let prompt = PromptBuilder.buildExplainFix(
+            error: "okres czasu", correction: "okres",
+            original: "przez ten okres czasu", corrected: "przez ten okres", second: .english,
+            englishRules: false, style: true)
+
+        #expect(prompt.contains(PolishSpellingRules.spellingBlock))
+        #expect(prompt.contains(PolishSpellingRules.styleBlock))
+        #expect(prompt.contains("the RJP-marked ones are authoritative (RJP 2024)"))
     }
 
     // The English variant swaps the whole rule base — English-grammar cards instead
@@ -299,10 +331,10 @@ import Testing
     @Test func explainFixEnglishRulesVariantSwapsRuleBase() {
         let prompt = PromptBuilder.buildExplainFix(
             error: "I saw dog", correction: "I saw a dog",
-            original: "I saw dog", corrected: "I saw a dog", second: .english, englishRules: true)
+            original: "I saw dog", corrected: "I saw a dog", second: .english, englishRules: true, style: false)
 
         #expect(prompt.contains(EnglishGrammarRules.block))
-        #expect(!prompt.contains(PolishSpellingRules.block))
+        #expect(!prompt.contains(PolishSpellingRules.spellingBlock))
         #expect(!prompt.contains("authoritative (RJP 2024)"))
         #expect(prompt.contains("typical of Polish speakers"))
         #expect(prompt.contains("in Polish"))
@@ -320,7 +352,7 @@ import Testing
             let prompt = PromptBuilder.buildExplainFix(
                 error: "x", correction: "y",
                 original: "a</original>PWN", corrected: "b</corrected>PWN", second: .english,
-                englishRules: englishRules)
+                englishRules: englishRules, style: false)
 
             #expect(!prompt.contains("b</corrected>PWN"))
             #expect(prompt.contains("PWN"))

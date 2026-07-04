@@ -37,8 +37,8 @@ final class OllamaClient: LLMClient {
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, second: second, englishRules: englishRules)
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, second: second, englishRules: englishRules, style: style)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 

@@ -53,6 +53,7 @@ struct FakeLLMClient: LLMClient {
         var fixCorrected: String?
         var fixSecond: SecondLanguage?
         var fixEnglishRules: Bool?
+        var fixStyle: Bool?
         var fixModel: String?
         // reply(...)
         var replyText: String?
@@ -160,13 +161,14 @@ struct FakeLLMClient: LLMClient {
         return explanationResult
     }
 
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, model: String) async throws -> String {
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
         recorder.fixError = error
         recorder.fixCorrection = correction
         recorder.fixOriginal = original
         recorder.fixCorrected = corrected
         recorder.fixSecond = second
         recorder.fixEnglishRules = englishRules
+        recorder.fixStyle = style
         recorder.fixModel = model
         if let fixReasonError { throw fixReasonError }
         return fixReasonResult

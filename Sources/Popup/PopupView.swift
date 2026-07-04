@@ -117,7 +117,7 @@ struct PopupView: View {
             // shows for it alone — the other verbs drop it rather than leave an
             // empty band (issue #23).
             if model.action == .translate { translateControls }
-            if model.action == .fixGrammar && styleSupported { fixControls }
+            if model.action == .fixGrammar && model.direction.supportsStyleFix { fixControls }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
                 Divider()
@@ -255,9 +255,8 @@ struct PopupView: View {
     }
 
     // Second row, fixGrammar-only: the grammar-vs-style pill. Shown only for the
-    // languages the rule bases support: Polish text (any second language) or
-    // English text under an English second language; .unknown (empty/ambiguous)
-    // keeps it visible rather than flickering it away.
+    // languages the style pass supports (TranslationDirection.supportsStyleFix —
+    // the same gate the coordinator applies to the persisted flag).
     private var fixControls: some View {
         HStack(spacing: 10) {
             stylePill
@@ -265,14 +264,6 @@ struct PopupView: View {
         }
         .padding(.horizontal, 13)
         .padding(.bottom, PopupTheme.padWindow)
-    }
-
-    private var styleSupported: Bool {
-        switch model.direction {
-        case .fromPolish: true
-        case .toPolish(let second): second == .english
-        case .unknown: true
-        }
     }
 
     private var stylePill: some View {

@@ -131,6 +131,20 @@ enum TranslationDirection: Sendable, Equatable {
         case .unknown: "…"
         }
     }
+
+    /// Whether the fixGrammar style pass covers this text's language: Polish (any
+    /// second language) or English under an English second language — the two rule
+    /// bases that exist. `.unknown` (empty/ambiguous text) stays permissive so the
+    /// popup's style pill doesn't flicker away. The single gate shared by the pill's
+    /// visibility and every consumer of the persisted style flag, so a saved
+    /// style=true can never silently rewrite a text the UI says has no style mode.
+    var supportsStyleFix: Bool {
+        switch self {
+        case .fromPolish: true
+        case .toPolish(let second): second == .english
+        case .unknown: true
+        }
+    }
 }
 
 enum TranslationEvent: Sendable, Equatable {
@@ -222,9 +236,13 @@ protocol LLMClient: Sendable {
     /// texts give context. `error` or `correction` may be empty (a pure insertion
     /// or deletion). `englishRules` picks the rule base grounding the explanation:
     /// the English-grammar cards (for an English text corrected under an English
-    /// second language) instead of the default Polish RJP/style cards — decided by
-    /// the caller, which detects the corrected text's language.
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, model: String) async throws -> String
+    /// second language) instead of the default Polish RJP cards — decided by
+    /// the caller, which detects the corrected text's language. `style` mirrors the
+    /// correction that produced the diff: only a grammar+style run can produce
+    /// style-driven changes, so only then do the Polish style cards join the base
+    /// (a grammar-only correction grounded in style cards could cite a rule that
+    /// cannot govern any of its changes).
+    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String
     /// Generates several distinct reply drafts to `text` (issue #60) — a reply, not
     /// a transformation, so there's no single "right" answer and the popup offers a
     /// few to choose from. Replies in the language `text` is written in. Non-streaming
