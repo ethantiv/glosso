@@ -29,6 +29,28 @@ import Testing
         #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
+    // Regression: with the conditional swap prompt, a non-English pair (NL, RU)
+    // came back echoed/paraphrased in the source language instead of translated
+    // to Polish — the humanize directive made it worse but wasn't the cause.
+    @Test func translatesDutchToPolishAgainstLiveOllama() async throws {
+        guard await ollamaReachable() else { return }
+
+        let client = OllamaClient()
+        var output = ""
+        for try await event in client.run(
+            "De kosten van de schade door de bever lopen snel op, vreest de Unie van Waterschappen.",
+            action: .translate, model: LLMConfig.default.model, second: .dutch,
+            formality: .automatic, humanize: true, style: false
+        ) {
+            if case let .token(value) = event {
+                output += value
+            }
+        }
+
+        let detected = DirectionDetector.detect(output, second: .dutch)
+        #expect(detected == .fromPolish(.dutch), "expected Polish output, got: \(output)")
+    }
+
     @Test func explainsAgainstLiveOllama() async throws {
         guard await ollamaReachable() else { return }
 

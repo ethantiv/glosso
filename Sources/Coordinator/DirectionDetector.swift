@@ -1,9 +1,10 @@
 import Foundation
 import NaturalLanguage
 
-/// Picks the UI arrow only. The actual swap lives in the prompt, so this must
-/// mirror it: Polish input is translated to the second language, everything
-/// else to Polish.
+/// Single source of truth for the translation direction: it picks the UI arrow
+/// AND the target language named in the translate prompt (PromptBuilder). Polish
+/// input goes to the second language, everything else to Polish; on .unknown the
+/// prompt falls back to the old conditional swap instruction.
 enum DirectionDetector {
     static func detect(_ text: String, second: SecondLanguage) -> TranslationDirection {
         let recognizer = NLLanguageRecognizer()
