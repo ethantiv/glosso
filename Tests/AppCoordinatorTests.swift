@@ -484,6 +484,7 @@ import Testing
         reader.text = "w dniu dzisiejszym"
         let popup = FakePopup()
         let settings = makeSettings()
+        settings.fixStyle = false   // the toggle flow under test starts from off
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings, prefetchLingerMs: 600_000)
 
         coordinator.start()
@@ -861,6 +862,7 @@ import Testing
         reader.text = "i has went to school"
         let popup = FakePopup()
         let settings = makeSettings(second: .english)
+        settings.fixStyle = false   // grammar-only run: the reason must skip the style cards
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
 
         coordinator.start()

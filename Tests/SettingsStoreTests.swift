@@ -17,7 +17,7 @@ import Testing
         #expect(store.modelName == EmbeddedModelCatalog.recommended.id)
         #expect(store.secondLanguage == .english)
         #expect(store.formality == .automatic)
-        #expect(store.fixStyle == false)
+        #expect(store.fixStyle == true)
         #expect(store.fixChord == .fixGrammarDefault)
         #expect(store.translateInPlaceChord == .translateInPlaceDefault)
     }

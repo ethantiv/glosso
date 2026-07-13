@@ -8,20 +8,42 @@ import Testing
         PromptBuilder.build(for: text, action: .translate, second: second, formality: formality, humanize: humanize, style: false)
     }
 
-    @Test func includesSwapInstructionAndOutputOnlyDirective() {
-        let prompt = translate("Cześć świecie", second: .english)
+    // The target language is resolved in code from the detected source language —
+    // see PromptBuilder.instruction for the NL/RU rationale.
+    @Test func polishSourceGetsUnconditionalTargetInstruction() {
+        let prompt = translate("Cześć świecie, jak się masz dzisiaj?", second: .english)
 
-        #expect(prompt.contains("translate it to English"))
+        #expect(prompt.contains("into English."))
+        #expect(!prompt.contains("If it is Polish"))
         #expect(prompt.contains("Output ONLY the translation"))
     }
 
     // The non-Polish side is user-selectable: the instruction must name the
     // configured second language, not a hardcoded English.
     @Test func namesTheConfiguredSecondLanguage() {
-        let prompt = translate("Cześć świecie", second: .german)
+        let prompt = translate("Cześć świecie, jak się masz dzisiaj?", second: .german)
 
-        #expect(prompt.contains("translate it to German"))
-        #expect(!prompt.contains("translate it to English"))
+        #expect(prompt.contains("into German."))
+        #expect(!prompt.contains("into English."))
+    }
+
+    // The regression this design exists for: a non-English second-language source
+    // must be sent to Polish explicitly, not via the failed conditional swap.
+    @Test func nonEnglishForeignSourceIsSentToPolish() {
+        let dutch = translate("De kosten van de schade door de bever lopen snel op.", second: .dutch)
+        #expect(dutch.contains("into Polish."))
+        #expect(!dutch.contains("If it is Polish"))
+
+        let russian = translate("Служба безопасности предотвратила серию терактов.", second: .russian)
+        #expect(russian.contains("into Polish."))
+    }
+
+    // Undetectable text keeps the old conditional swap, so the model still picks
+    // a sensible direction instead of getting no target at all.
+    @Test func undetectableSourceFallsBackToConditionalSwap() {
+        let prompt = translate("1234 5678", second: .dutch)
+
+        #expect(prompt.contains("If it is Polish, translate it to Dutch; otherwise translate it to Polish."))
     }
 
     // Automatic must add no tone directive at all, so the source text's own

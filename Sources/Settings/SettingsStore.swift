@@ -92,8 +92,8 @@ final class SettingsStore {
         // Default-on: absent key means a fresh install, where humanizing is the
         // intended default — bool(forKey:) alone would read that as false.
         self.humanize = defaults.object(forKey: Key.humanize) as? Bool ?? true
-        // bool(forKey:) reads an absent key as false — the intended default here.
-        self.fixStyle = defaults.bool(forKey: Key.fixStyle)
+        // Default-on like humanize: a fresh install corrects grammar+style.
+        self.fixStyle = defaults.object(forKey: Key.fixStyle) as? Bool ?? true
         self.fixChord = defaults.data(forKey: Key.fixChord)
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .fixGrammarDefault
         self.translateInPlaceChord = defaults.data(forKey: Key.translateInPlaceChord)
