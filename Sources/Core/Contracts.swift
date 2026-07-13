@@ -243,6 +243,12 @@ protocol LLMClient: Sendable {
     /// (a grammar-only correction grounded in style cards could cite a rule that
     /// cannot govern any of its changes).
     func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String
+    /// A few short Polish bullets naming what the tone pill actually did to the
+    /// translation (issue #53): which words, pronouns and verb forms shifted between
+    /// the `from`-register rendering (`previous`) and the `to`-register one
+    /// (`current`), and why — German Sie→du, French vous→tu, a dropped hedge.
+    /// Non-streaming like `explain`; `source` gives the shared original for context.
+    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, second: SecondLanguage, model: String) async throws -> String
     /// Generates several distinct reply drafts to `text` (issue #60) — a reply, not
     /// a transformation, so there's no single "right" answer and the popup offers a
     /// few to choose from. Replies in the language `text` is written in. Non-streaming
@@ -390,6 +396,11 @@ protocol TranslationPopupPresenting: AnyObject {
     /// corrected text; the coordinator fills in the original source and second
     /// language. Returns an empty string on any failure, shown as a fallback.
     var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)? { get set }
+    /// Fires when the user asks what a tone change did ("Co się zmieniło?", issue
+    /// #53), carrying the translation as it read under the previous register, the
+    /// current one, and both registers; the coordinator fills in the source and
+    /// second language. Returns an empty string on any failure, shown as a fallback.
+    var onFetchToneNote: (@MainActor (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String)? { get set }
     /// Fires when the user clicks Replace, carrying the finished translation so the
     /// coordinator can paste it over the source selection (issue #22).
     var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }

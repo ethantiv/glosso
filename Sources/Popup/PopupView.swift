@@ -12,6 +12,7 @@ struct PopupView: View {
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
     let fetchExplanation: (_ word: String, _ translation: String) async -> String
     let fetchFixReason: (_ before: String, _ after: String, _ corrected: String) async -> String
+    let fetchToneNote: (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String
     let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
@@ -118,6 +119,7 @@ struct PopupView: View {
             // empty band (issue #23).
             if model.action == .translate { translateControls }
             if model.action == .fixGrammar && model.direction.supportsStyleFix { fixControls }
+            if model.toneNoteVisible { toneNoteRow }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
                 Divider()
@@ -198,6 +200,7 @@ struct PopupView: View {
         HStack(spacing: 10) {
             languagePair
             tonePill
+            if model.phase == .done && model.toneChange != nil { toneNotePill }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 13)
@@ -212,8 +215,10 @@ struct PopupView: View {
                 model.action = action
             }
             // Switching verbs re-runs from scratch, so the pre-reword result no
-            // longer applies — drop the undo snapshot (mirrors the tone pill).
+            // longer applies — drop the undo snapshot (mirrors the tone pill) and,
+            // with it, the tone note contrasting a translation we're leaving.
             model.clearUndo()
+            model.clearToneNote()
             selectAction(action)
         } label: {
             HStack(spacing: 4) {
@@ -300,6 +305,10 @@ struct PopupView: View {
         let active = model.formality != .automatic
         return Button {
             let nextF = model.formality.next
+            // Snapshot the current result as the "before" side of the tone change
+            // (issue #53) — the re-translation below wipes the pane, so this is the
+            // last moment the previous register's wording exists.
+            model.noteToneChange(from: model.formality, to: nextF)
             withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
                 model.formality = nextF
             }
@@ -323,6 +332,84 @@ struct PopupView: View {
         .buttonStyle(.plain)
         .help("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.")
         .accessibilityLabel("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.")
+    }
+
+    // "Co się zmieniło?" — the register coach (issue #53). Appears only after a tone
+    // cycle re-translated a finished result, and opens the note row below.
+    private var toneNotePill: some View {
+        Button(action: toggleToneNote) {
+            HStack(spacing: 4) {
+                Image(systemName: "arrow.left.arrow.right")
+                    .font(.system(size: 11.5, weight: .semibold))
+                Text("Co się zmieniło?")
+                    .font(PopupTheme.fontControl)
+            }
+            .padding(.horizontal, 8)
+            .padding(.vertical, 3)
+            .background(model.toneNoteVisible ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .foregroundStyle(model.toneNoteVisible ? PopupTheme.accent : Color.secondary)
+            .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .help("Pokaż, co zmieniła zmiana tonu wypowiedzi.")
+        .accessibilityLabel("Pokaż, co zmieniła zmiana tonu wypowiedzi.")
+        .accessibilityAddTraits(model.toneNoteVisible ? .isSelected : [])
+    }
+
+    private var toneNoteRow: some View {
+        HStack(alignment: .top, spacing: 7) {
+            Image(systemName: "info.circle")
+                .font(.system(size: 11.5, weight: .semibold))
+                .foregroundStyle(PopupTheme.accent)
+            if model.toneNoteLoading {
+                ProgressView().controlSize(.small)
+                Text("Analizuję zmianę tonu…")
+                    .font(PopupTheme.fontControl)
+                    .foregroundStyle(.secondary)
+            } else {
+                Text(model.toneNoteText.isEmpty ? "Nie udało się pobrać wyjaśnienia." : model.toneNoteText)
+                    .font(PopupTheme.fontControl)
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .textSelection(.enabled)
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(.horizontal, 13)
+        // Pinned to the panes' width: without it the row's ideal size is the note on a
+        // single line, and the window (which follows the content's ideal width) grows
+        // to that instead of wrapping the text.
+        .frame(width: Self.sourceWidth + Self.translationWidth + 2 * paneWidthDelta, alignment: .leading)
+        .padding(.bottom, PopupTheme.padWindow)
+    }
+
+    private func toggleToneNote() {
+        guard let change = model.toneChange else { return }
+        if model.toneNoteVisible {
+            model.toneNoteVisible = false
+            return
+        }
+        model.toneNoteVisible = true
+        // Already fetched for this tone change — show it again for free.
+        guard model.toneNoteText.isEmpty else { return }
+        // A register the pair doesn't grammaticalize (PL↔EN often) can leave the
+        // wording identical; state that instead of asking the model to explain a
+        // difference that isn't there — it would invent one.
+        guard change.previous != model.text else {
+            model.toneNoteText = "Tłumaczenie nie zmieniło się po zmianie tonu."
+            return
+        }
+        model.toneNoteLoading = true
+        model.toneNoteRequestToken &+= 1
+        let token = model.toneNoteRequestToken
+        let current = model.text
+        Task { @MainActor in
+            let note = await fetchToneNote(change.previous, current, change.from, change.to)
+            // A fresh capture or another tone cycle may have moved on while the model ran.
+            guard model.toneNoteRequestToken == token, model.toneNoteVisible else { return }
+            model.toneNoteText = note
+            model.toneNoteLoading = false
+        }
     }
 
     private func pill(_ code: String, accent: Bool) -> some View {
@@ -477,12 +564,14 @@ struct PopupView: View {
         .accessibilityLabel("Uruchom ponownie na poprawionym tekście")
     }
 
-    // Editing re-runs from scratch, so the open word dropdown and the pre-edit undo
-    // snapshot no longer apply — drop both, mirroring the tone/verb pills.
+    // Editing re-runs from scratch, so the open word dropdown, the pre-edit undo
+    // snapshot and the tone note no longer apply — drop them, mirroring the
+    // tone/verb pills.
     private func runRetranslate() {
         guard canRetranslate else { return }
         model.closeDropdown()
         model.clearUndo()
+        model.clearToneNote()
         retranslate(model.sourceText)
     }
 

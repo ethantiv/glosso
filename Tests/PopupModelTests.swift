@@ -54,6 +54,46 @@ import Testing
         #expect(model.dropdownVisible == false)
     }
 
+    // The tone note contrasts two finished translations, so the "before" side is only
+    // worth snapshotting when there IS one — mid-stream or under another verb the
+    // chip must stay hidden rather than promise a comparison we can't make (#53).
+    @Test func noteToneChangeSnapshotsOnlyAFinishedTranslation() {
+        let model = PopupModel()
+        model.text = "Könnten Sie kommen?"
+        model.phase = .streaming
+
+        model.noteToneChange(from: .formal, to: .informal)
+        #expect(model.toneChange == nil)
+
+        model.phase = .done
+        model.action = .fixGrammar
+        model.noteToneChange(from: .formal, to: .informal)
+        #expect(model.toneChange == nil)
+
+        model.action = .translate
+        model.noteToneChange(from: .formal, to: .informal)
+        #expect(model.toneChange?.previous == "Könnten Sie kommen?")
+        #expect(model.toneChange?.from == .formal)
+        #expect(model.toneChange?.to == .informal)
+    }
+
+    // A reword replaces the very result the note describes, so the note (and its
+    // chip) must not survive it — otherwise it explains text that's no longer shown.
+    @Test func rewordSnapshotClearsToneNote() {
+        let model = PopupModel()
+        model.phase = .done
+        model.text = "Könntest du kommen?"
+        model.noteToneChange(from: .formal, to: .informal)
+        model.toneNoteText = "- Sie → du"
+        model.toneNoteVisible = true
+
+        model.snapshotForUndo()
+
+        #expect(model.toneChange == nil)
+        #expect(model.toneNoteText.isEmpty)
+        #expect(model.toneNoteVisible == false)
+    }
+
     @Test func snapshotEnablesUndo() {
         let model = PopupModel()
         model.text = "pierwsza wersja"

@@ -97,6 +97,68 @@ import Testing
         #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
+    // The VS Code case: the gesture's copies land BEFORE our delayed event
+    // callbacks even run (an open popup's active Esc tap routes every keyDown
+    // through this process), so the strict baseline is post-copy and the poll never
+    // sees a rise. The trailing snapshot — taken on a timer seconds earlier — must
+    // then accept the gesture's own copy. Removing the second chance fails this test.
+    @Test func trailingSnapshotAcceptsACopyThatPrecededTheCallbacks() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5   // the gesture's copy, already landed at callback time
+        reader.text = "select from the terminal"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        coordinator.trailingChangeCounts = [4]   // snapshot from before the gesture
+
+        await coordinator.captureAndTranslate(baseline: 5, at: .zero)
+
+        #expect(llm.recorder.receivedText == "select from the terminal")
+        #expect(popup.errorMessage == nil)
+    }
+
+    // Freshness guard: when the pasteboard hasn't changed since the trailing
+    // snapshot (nothing was copied in the last few seconds), the second chance must
+    // NOT fire and the old clipboard content must not translate.
+    @Test func trailingSnapshotRefusesAnUntouchedClipboard() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5   // stale content, copied long before this gesture
+        reader.text = "stare dane sprzed kwadransa"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        coordinator.trailingChangeCounts = [5]   // the snapshot already saw this copy
+
+        await coordinator.captureAndTranslate(baseline: 5, at: .zero)
+
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
+    // The trailing snapshot cannot tell the gesture's own copy from an unrelated
+    // one made a few seconds earlier, so when the source app exposes its live
+    // selection via AX, that read must win — otherwise a failed copy on a fresh
+    // selection would translate (and Replace would paste) the stale clipboard.
+    @Test func liveAXSelectionBeatsAStaleCopyInsideTheSnapshotWindow() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5   // unrelated copy, landed before the gesture
+        reader.text = "skopiowane chwilę wcześniej, niezwiązane"
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "faktyczne bieżące zaznaczenie"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: axReader)
+        coordinator.trailingChangeCounts = [4]   // snapshot predates the unrelated copy
+
+        await coordinator.captureAndTranslate(baseline: 5, at: .zero)
+
+        #expect(llm.recorder.receivedText == "faktyczne bieżące zaznaczenie")
+        #expect(popup.errorMessage == nil)
+    }
+
     // A second double-copy arriving WHILE the first stream is still in flight must
     // cancel and tear down that stream before reassigning, or the abandoned stream
     // resumes and writes stale tokens into the popup. Gating the fake keeps the
@@ -846,6 +908,64 @@ import Testing
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         let result = await popup.onFetchExplanation?("wspaniały", "wspaniały")
+
+        #expect(result == "")
+    }
+
+    // MARK: Register coach — "Co się zmieniło?" (issue #53)
+
+    // Asking what a tone change did threads both renderings and both registers to
+    // the model, plus the captured source and the persisted second language — the
+    // note contrasts two translations of the same selection, so all four matter.
+    @Test func fetchToneNoteThreadsBothRenderingsRegistersAndSource() async {
+        let llm = FakeLLMClient(toneNote: "- Sie → du: zwrot nieformalny")
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Czy mógłby Pan przyjść?"
+        let popup = FakePopup()
+        let settings = makeSettings(second: .german)
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        let result = await popup.onFetchToneNote?("Könnten Sie kommen?", "Könntest du kommen?", .formal, .informal)
+        #expect(result == "- Sie → du: zwrot nieformalny")
+        #expect(llm.recorder.registerPrevious == "Könnten Sie kommen?")
+        #expect(llm.recorder.registerCurrent == "Könntest du kommen?")
+        #expect(llm.recorder.registerFrom == .formal)
+        #expect(llm.recorder.registerTo == .informal)
+        #expect(llm.recorder.registerSource == "Czy mógłby Pan przyjść?")   // the captured source
+        #expect(llm.recorder.registerSecond == .german)
+    }
+
+    // No capture means no source context, so the note returns empty instead of
+    // asking the model to contrast against nothing (mirrors the explanation seam).
+    @Test func fetchToneNoteBeforeCaptureReturnsEmpty() async {
+        let llm = FakeLLMClient(toneNote: "x")
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+
+        coordinator.start()
+        let result = await popup.onFetchToneNote?("a", "b", .automatic, .formal)
+
+        #expect(result == "")
+        #expect(llm.recorder.registerPrevious == nil)
+    }
+
+    // A failed note fetch collapses to an empty string — the row shows its fallback
+    // message; a tone change must never surface as a translation error.
+    @Test func fetchToneNoteSwallowsErrorsIntoEmptyString() async {
+        let llm = FakeLLMClient(toneNote: "", toneNoteError: .ollamaUnreachable)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Dzień dobry"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        let result = await popup.onFetchToneNote?("Good morning", "Hi", .formal, .informal)
 
         #expect(result == "")
     }

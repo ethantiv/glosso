@@ -94,6 +94,41 @@ final class PopupModel {
     // it; the dropdown caps and scrolls it past FixReasonLayout.maxReason.
     var fixReasonContentHeight: CGFloat = 0
 
+    // Register coach (issue #53): what the last tone-pill cycle did. `toneChange`
+    // holds the translation as it read under the previous register (snapshotted by
+    // the pill before the re-translation wipes the pane) plus both registers; its
+    // presence is what shows the "Co się zmieniło?" chip. The note itself is fetched
+    // only on demand and cached here, so re-opening the row costs no second model run.
+    // Deliberately separate from the explanation* fields, which belong to the word
+    // dropdown and can be open at the same time.
+    var toneChange: (from: Formality, to: Formality, previous: String)? = nil
+    var toneNoteText: String = ""
+    var toneNoteLoading: Bool = false
+    var toneNoteVisible: Bool = false
+    // Mirrors explanationRequestToken: a note fetch outliving its tone change (a
+    // fresh capture, another cycle) must not land in the row.
+    var toneNoteRequestToken: Int = 0
+
+    /// Snapshots the current translation as the "before" side of a tone change. Only
+    /// a finished translation can be contrasted — mid-stream, in another verb, or
+    /// with no result there is nothing to compare against, so the chip stays hidden.
+    func noteToneChange(from: Formality, to: Formality) {
+        clearToneNote()
+        guard phase == .done, action == .translate, !text.isEmpty else { return }
+        toneChange = (from, to, text)
+    }
+
+    /// Drops the tone note whenever the result it contrasts stops being the tone
+    /// change's own: a fresh capture, a verb switch, a source edit, a reword or its
+    /// undo. Not called from the pane reset — the pill snapshots right before the
+    /// re-translation resets the pane, and that would erase it immediately.
+    func clearToneNote() {
+        toneChange = nil
+        toneNoteText = ""
+        toneNoteLoading = false
+        toneNoteVisible = false
+    }
+
     // Memoizes the tokenization keyed on `text` so re-renders that don't change the
     // translation (hover, dropdown open/close) reuse it instead of re-tokenizing.
     @ObservationIgnored private var segmentsCache: (text: String, value: [TextSegment])?
@@ -207,6 +242,9 @@ final class PopupModel {
     // Captured by PopupView right before a picked alternative triggers a reword.
     func snapshotForUndo() {
         undoSnapshot = (text, truncated)
+        // The reword replaces the result the tone note contrasts, so the note (and
+        // its chip) no longer describes what's on screen (issue #53).
+        clearToneNote()
     }
 
     // Restores the pre-reword result; clears the snapshot (single level).
