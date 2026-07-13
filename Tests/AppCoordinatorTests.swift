@@ -97,6 +97,46 @@ import Testing
         #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
+    // The VS Code case: the gesture's copies land BEFORE our delayed event
+    // callbacks even run (an open popup's active Esc tap routes every keyDown
+    // through this process), so the strict baseline is post-copy and the poll never
+    // sees a rise. The trailing snapshot — taken on a timer seconds earlier — must
+    // then accept the gesture's own copy. Removing the second chance fails this test.
+    @Test func trailingSnapshotAcceptsACopyThatPrecededTheCallbacks() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5   // the gesture's copy, already landed at callback time
+        reader.text = "select from the terminal"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        coordinator.trailingChangeCounts = [4]   // snapshot from before the gesture
+
+        await coordinator.captureAndTranslate(baseline: 5, at: .zero)
+
+        #expect(llm.recorder.receivedText == "select from the terminal")
+        #expect(popup.errorMessage == nil)
+    }
+
+    // Freshness guard: when the pasteboard hasn't changed since the trailing
+    // snapshot (nothing was copied in the last few seconds), the second chance must
+    // NOT fire and the old clipboard content must not translate.
+    @Test func trailingSnapshotRefusesAnUntouchedClipboard() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5   // stale content, copied long before this gesture
+        reader.text = "stare dane sprzed kwadransa"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        coordinator.trailingChangeCounts = [5]   // the snapshot already saw this copy
+
+        await coordinator.captureAndTranslate(baseline: 5, at: .zero)
+
+        #expect(llm.recorder.receivedText == nil)
+        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+    }
+
     // A second double-copy arriving WHILE the first stream is still in flight must
     // cancel and tear down that stream before reassigning, or the abandoned stream
     // resumes and writes stale tokens into the popup. Gating the fake keeps the
