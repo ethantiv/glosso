@@ -25,6 +25,19 @@ import Testing
         #expect(DirectionDetector.detect("Hello world", second: .english) == .toPolish(.english))
     }
 
+    // PL/EN homographs get misread with low confidence ("Do" → pl 0.75), and since
+    // the detection names the prompt's target, committing to it would translate
+    // English into English (an echo). Low confidence must fall back to .unknown so
+    // the prompt's conditional swap — reliable for the PL↔EN pair — decides instead.
+    @Test func ambiguousHomographFallsBackToUnknown() {
+        #expect(DirectionDetector.detect("Do", second: .english) == .unknown)
+        #expect(DirectionDetector.detect("To", second: .english) == .unknown)
+    }
+
+    @Test func confidentShortPhraseStillDetected() {
+        #expect(DirectionDetector.detect("To do", second: .english) == .toPolish(.english))
+    }
+
     // With a non-English second language the detector must mirror the prompt for
     // that pair too: Polish → .fromPolish(second), the other side → .toPolish(second).
     @Test func polishGoesToGermanWhenSecondIsGerman() {

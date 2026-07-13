@@ -14,7 +14,18 @@ enum DirectionDetector {
         // the prompt actually does.
         recognizer.languageConstraints = [.polish, nlLanguage(for: second)]
         recognizer.processString(text)
-        guard let language = recognizer.dominantLanguage else { return .unknown }
+        // Since this pick names the prompt's target (not just the arrow), a
+        // misdetection would translate into the source's own language — the model
+        // then echoes the text. Short PL/EN homographs ("To", "Do") are exactly
+        // that case and measure ≤0.75, while correct reads measure ≥0.84 ("Hello
+        // world" 0.86, "To do" 0.94, full sentences ~1.0), so below 0.8 return
+        // .unknown and let the prompt's conditional swap decide. Confidence is
+        // read via languageHypotheses for the dominant language, because the
+        // hypotheses themselves ignore languageConstraints (a Russian probe
+        // returns ru/bg, not ru/pl).
+        guard let language = recognizer.dominantLanguage,
+              recognizer.languageHypotheses(withMaximum: 2)[language] ?? 0 >= 0.8
+        else { return .unknown }
         return language == .polish ? .fromPolish(second) : .toPolish(second)
     }
 
