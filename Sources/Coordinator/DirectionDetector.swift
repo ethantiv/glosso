@@ -18,14 +18,20 @@ enum DirectionDetector {
         // misdetection would translate into the source's own language — the model
         // then echoes the text. Short PL/EN homographs ("To", "Do") are exactly
         // that case and measure ≤0.75, while correct reads measure ≥0.84 ("Hello
-        // world" 0.86, "To do" 0.94, full sentences ~1.0), so below 0.8 return
-        // .unknown and let the prompt's conditional swap decide. Confidence is
-        // read via languageHypotheses for the dominant language, because the
-        // hypotheses themselves ignore languageConstraints (a Russian probe
-        // returns ru/bg, not ru/pl).
-        guard let language = recognizer.dominantLanguage,
-              recognizer.languageHypotheses(withMaximum: 2)[language] ?? 0 >= 0.8
-        else { return .unknown }
+        // world" 0.86, "To do" 0.94; single foreign words ≥0.98 for every
+        // supported pair), so below 0.8 return .unknown and let the prompt's
+        // conditional swap decide. The confidence is the winner's share of the
+        // constrained pair's mass, not a raw hypothesis: languageHypotheses'
+        // interplay with languageConstraints is undocumented (its key set is
+        // unconstrained; empirically its mass does renormalize to the pair), and
+        // the pair-relative share reads the same under either behavior.
+        guard let language = recognizer.dominantLanguage else { return .unknown }
+        let hypotheses = recognizer.languageHypotheses(withMaximum: 50)
+        let polishMass = hypotheses[.polish] ?? 0
+        let secondMass = hypotheses[nlLanguage(for: second)] ?? 0
+        let pairMass = polishMass + secondMass
+        let winnerMass = language == .polish ? polishMass : secondMass
+        guard pairMass > 0, winnerMass / pairMass >= 0.8 else { return .unknown }
         return language == .polish ? .fromPolish(second) : .toPolish(second)
     }
 

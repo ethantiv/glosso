@@ -38,6 +38,17 @@ import Testing
         #expect(DirectionDetector.detect("To do", second: .english) == .toPolish(.english))
     }
 
+    // Single foreign words score ≥0.98 within their constrained pair, so the 0.8
+    // floor must not push short non-English input back to the conditional-swap
+    // prompt — the one that echoed NL/RU sources, which is the bug this PR fixes.
+    @Test func shortDutchWordStillDetected() {
+        #expect(DirectionDetector.detect("gezellig", second: .dutch) == .toPolish(.dutch))
+    }
+
+    @Test func shortRussianWordStillDetected() {
+        #expect(DirectionDetector.detect("привет", second: .russian) == .toPolish(.russian))
+    }
+
     // With a non-English second language the detector must mirror the prompt for
     // that pair too: Polish → .fromPolish(second), the other side → .toPolish(second).
     @Test func polishGoesToGermanWhenSecondIsGerman() {
