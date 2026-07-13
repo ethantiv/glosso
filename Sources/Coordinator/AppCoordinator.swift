@@ -222,6 +222,22 @@ final class AppCoordinator {
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
         if Task.isCancelled { return }
+        // The app didn't copy on Cmd+C at all (some apps, notably Safari/WebKit,
+        // do this inconsistently). Fall back to reading the focused element's
+        // selection directly via the Accessibility API, which doesn't depend on
+        // the pasteboard at all. AX goes FIRST: it reads the source app's *current*
+        // selection, whereas the pasteboard retry below cannot tell the gesture's
+        // own copy from an unrelated one a few seconds older — letting it win over
+        // a live AX read would translate (and, via Replace, paste) stale content.
+        // But the AX read resolves whatever is focused *now* — ~480ms after the
+        // press — so if the user switched apps (Cmd+Tab) within the poll window
+        // we'd read another app's selection. Skip AX in that case.
+        if sourcePID == nil || sourcePID == frontmostPID(),
+           let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
+            if Task.isCancelled { return }
+            await stream(axText, at: point, action: .translate)
+            return
+        }
         // The strict baseline can itself be sampled AFTER the gesture's copy landed:
         // with a popup open, our Esc event tap routes every system keyDown through
         // this process, and a busy main thread then delivers the pair to the hotkey
@@ -235,23 +251,6 @@ final class AppCoordinator {
            let text = try? reader.readSelection(baselineChangeCount: trailing) {
             if Task.isCancelled { return }
             await stream(text, at: point, action: .translate)
-            return
-        }
-        // The app didn't copy on Cmd+C at all (some apps, notably Safari/WebKit,
-        // do this inconsistently). Fall back to reading the focused element's
-        // selection directly via the Accessibility API, which doesn't depend on
-        // the pasteboard at all.
-        // But the AX read resolves whatever is focused *now* — ~480ms after the
-        // press — so if the user switched apps (Cmd+Tab) within the poll window
-        // we'd read and translate a different app's selection. Bail in that case
-        // rather than touching the wrong app's focus.
-        if let sourcePID, sourcePID != frontmostPID() {
-            popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
-            return
-        }
-        if let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
-            if Task.isCancelled { return }
-            await stream(axText, at: point, action: .translate)
             return
         }
         popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")

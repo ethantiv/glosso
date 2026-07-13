@@ -137,6 +137,28 @@ import Testing
         #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
     }
 
+    // The trailing snapshot cannot tell the gesture's own copy from an unrelated
+    // one made a few seconds earlier, so when the source app exposes its live
+    // selection via AX, that read must win — otherwise a failed copy on a fresh
+    // selection would translate (and Replace would paste) the stale clipboard.
+    @Test func liveAXSelectionBeatsAStaleCopyInsideTheSnapshotWindow() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5   // unrelated copy, landed before the gesture
+        reader.text = "skopiowane chwilę wcześniej, niezwiązane"
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "faktyczne bieżące zaznaczenie"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: axReader)
+        coordinator.trailingChangeCounts = [4]   // snapshot predates the unrelated copy
+
+        await coordinator.captureAndTranslate(baseline: 5, at: .zero)
+
+        #expect(llm.recorder.receivedText == "faktyczne bieżące zaznaczenie")
+        #expect(popup.errorMessage == nil)
+    }
+
     // A second double-copy arriving WHILE the first stream is still in flight must
     // cancel and tear down that stream before reassigning, or the abandoned stream
     // resumes and writes stale tokens into the popup. Gating the fake keeps the
