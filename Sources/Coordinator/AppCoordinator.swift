@@ -1,6 +1,7 @@
 import Foundation
 import AppKit
 
+
 @MainActor
 final class AppCoordinator {
     private let llm: any LLMClient
@@ -57,6 +58,29 @@ final class AppCoordinator {
     // the source app hasn't changed before pasting back into it (issue #22).
     private var lastSourcePID: pid_t?
 
+    // Ring of pasteboard changeCounts sampled every 2s (newest last, 3 deep), so
+    // the oldest is 4–6s old once warm. It backs the capture's second chance: when
+    // event delivery lags behind the gesture's own copy (the VS Code case — see
+    // the retry in captureAndTranslate),
+    // every callback-sampled baseline is already post-copy, and only a snapshot
+    // predating the whole gesture can prove the pasteboard changed. Internal (not
+    // private) so tests can seed it without running the timer.
+    // ponytail: 4–6s freshness ceiling; if event lag ever exceeds it, deepen the ring.
+    var trailingChangeCounts: [Int] = []
+    private var snapshotTask: Task<Void, Never>?
+
+    private func startPasteboardSnapshots() {
+        snapshotTask?.cancel()
+        trailingChangeCounts = [reader.currentChangeCount]
+        snapshotTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .seconds(2))
+                guard let self, !Task.isCancelled else { return }
+                trailingChangeCounts = Array((trailingChangeCounts + [reader.currentChangeCount]).suffix(3))
+            }
+        }
+    }
+
     init(
         llm: any LLMClient,
         monitor: any HotkeyMonitor,
@@ -91,6 +115,7 @@ final class AppCoordinator {
     func start() -> Bool {
         Task { try? await llm.prewarm(model: settings.modelName) }
 
+        startPasteboardSnapshots()
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         monitor.onFixGrammar = { [weak self] in self?.handleFixGrammar() }
         monitor.onTranslateInPlace = { [weak self] in self?.handleTranslateInPlace() }
@@ -140,6 +165,7 @@ final class AppCoordinator {
         captureTask?.cancel()
         prefetchTask?.cancel()
         fixTask?.cancel()
+        snapshotTask?.cancel()
         // The popup's Esc dismisser is an AX-gated global monitor too, so an AX
         // revocation silences it — dismiss it here or a popup mid-translation
         // orphans on screen with a stuck spinner.
@@ -196,10 +222,25 @@ final class AppCoordinator {
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
         if Task.isCancelled { return }
-        // The changeCount never rose within the budget: the app didn't copy on
-        // Cmd+C (some apps, notably Safari/WebKit, do this inconsistently). Fall
-        // back to reading the focused element's selection directly via the
-        // Accessibility API, which doesn't depend on the pasteboard at all.
+        // The strict baseline can itself be sampled AFTER the gesture's copy landed:
+        // with a popup open, our Esc event tap routes every system keyDown through
+        // this process, and a busy main thread then delivers the pair to the hotkey
+        // monitor over a second late — by which time VS Code had long copied
+        // (measured live: both copies preceded even the Command-down callback). No
+        // baseline sampled inside an event callback can beat that race, so retry
+        // once against a changeCount snapshot taken on a timer several seconds ago:
+        // it accepts the gesture's own copy regardless of event-delivery lag, while
+        // still refusing anything older than the snapshot window.
+        if let trailing = trailingChangeCounts.first,
+           let text = try? reader.readSelection(baselineChangeCount: trailing) {
+            if Task.isCancelled { return }
+            await stream(text, at: point, action: .translate)
+            return
+        }
+        // The app didn't copy on Cmd+C at all (some apps, notably Safari/WebKit,
+        // do this inconsistently). Fall back to reading the focused element's
+        // selection directly via the Accessibility API, which doesn't depend on
+        // the pasteboard at all.
         // But the AX read resolves whatever is focused *now* — ~480ms after the
         // press — so if the user switched apps (Cmd+Tab) within the poll window
         // we'd read and translate a different app's selection. Bail in that case
