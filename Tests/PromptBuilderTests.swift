@@ -9,10 +9,7 @@ import Testing
     }
 
     // The target language is resolved in code from the detected source language —
-    // an unconditional "into X" instruction. The old conditional swap ("If it is
-    // Polish… otherwise…") asked the model to classify and translate in one step,
-    // which Gemma (think:false) failed for non-English pairs: NL/RU sources came
-    // back echoed or lightly paraphrased instead of translated to Polish.
+    // see PromptBuilder.instruction for the NL/RU rationale.
     @Test func polishSourceGetsUnconditionalTargetInstruction() {
         let prompt = translate("Cześć świecie, jak się masz dzisiaj?", second: .english)
 

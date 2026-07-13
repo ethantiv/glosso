@@ -1,4 +1,5 @@
 import Foundation
+import NaturalLanguage
 import Testing
 @testable import Glosso
 
@@ -29,9 +30,8 @@ import Testing
         #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
-    // Regression: with the conditional swap prompt, a non-English pair (NL, RU)
-    // came back echoed/paraphrased in the source language instead of translated
-    // to Polish — the humanize directive made it worse but wasn't the cause.
+    // Regression guard for the in-code target resolution — see
+    // PromptBuilder.instruction and CLAUDE.md subtlety #2 for the NL/RU rationale.
     @Test func translatesDutchToPolishAgainstLiveOllama() async throws {
         guard await ollamaReachable() else { return }
 
@@ -47,8 +47,13 @@ import Testing
             }
         }
 
-        let detected = DirectionDetector.detect(output, second: .dutch)
-        #expect(detected == .fromPolish(.dutch), "expected Polish output, got: \(output)")
+        // Constrained to the three plausible outcomes (Polish, Dutch echo, English
+        // drift): DirectionDetector's two-language constraint would force an English
+        // answer into one of its buckets and could pass on wrong-language output.
+        let recognizer = NLLanguageRecognizer()
+        recognizer.languageConstraints = [.polish, .dutch, .english]
+        recognizer.processString(output)
+        #expect(recognizer.dominantLanguage == .polish, "expected Polish output, got: \(output)")
     }
 
     @Test func explainsAgainstLiveOllama() async throws {

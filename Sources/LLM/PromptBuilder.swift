@@ -6,7 +6,9 @@ enum PromptBuilder {
     // made Gemma with think:false echo or lightly paraphrase non-English sources
     // (NL, RU) instead of translating them — classify-then-translate in one step
     // only worked reliably for the PL↔EN pair. The conditional wording survives
-    // solely as the .unknown fallback.
+    // solely as the .unknown fallback. Re-detecting here — the coordinator already
+    // detected for the arrow label — is deliberate: threading the direction through
+    // the frozen LLMClient.run seam isn't worth it for a cheap classification.
     static func instruction(for text: String, second: SecondLanguage, formality: Formality) -> String {
         let target: String? = switch DirectionDetector.detect(text, second: second) {
         case .fromPolish: second.englishName
