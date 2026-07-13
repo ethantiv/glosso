@@ -396,6 +396,16 @@ final class AppCoordinator {
             }
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
+        // The Cmd+C may legitimately write nothing: a terminal with copy-on-selection
+        // (VS Code's default) already copied the text the moment the mouse selected it,
+        // and re-copying identical content is a no-op that never bumps changeCount. The
+        // strict baseline can then never rise, even though the selection is right there
+        // on the clipboard. Mirror the double-Cmd+C retry (captureAndTranslate) and give
+        // it a second chance against a snapshot predating the whole gesture: that accepts
+        // the selection's own copy while still refusing a clipboard older than the ring.
+        if captured == nil, let trailing = trailingChangeCounts.first {
+            captured = try? reader.readSelection(baselineChangeCount: trailing)
+        }
         pasteboard.clearContents()
         if let original { pasteboard.setString(original, forType: .string) }
         return captured
