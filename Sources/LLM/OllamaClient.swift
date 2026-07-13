@@ -42,6 +42,11 @@ final class OllamaClient: LLMClient {
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 
+    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, second: SecondLanguage, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplainRegister(previous: previous, current: current, from: from, to: to, source: source, second: second)
+        return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
+    }
+
     // One non-streaming generate, shared by alternatives() and explain() (issue
     // #17/#39). Same locked invariants as translate; only the model is
     // user-selectable per call. Returns the model's raw `response` body; each

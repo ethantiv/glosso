@@ -55,6 +55,14 @@ struct FakeLLMClient: LLMClient {
         var fixEnglishRules: Bool?
         var fixStyle: Bool?
         var fixModel: String?
+        // explainRegister(...)
+        var registerPrevious: String?
+        var registerCurrent: String?
+        var registerFrom: Formality?
+        var registerTo: Formality?
+        var registerSource: String?
+        var registerSecond: SecondLanguage?
+        var registerModel: String?
         // reply(...)
         var replyText: String?
         var replyModel: String?
@@ -82,6 +90,8 @@ struct FakeLLMClient: LLMClient {
     let explanationError: TranslationError?
     let fixReasonResult: String
     let fixReasonError: TranslationError?
+    let toneNoteResult: String
+    let toneNoteError: TranslationError?
 
     init(
         events: [TranslationEvent] = [.token("ok"), .finished(doneReason: "stop")],
@@ -93,6 +103,8 @@ struct FakeLLMClient: LLMClient {
         explanationError: TranslationError? = nil,
         fixReason: String = "zła forma czasu przeszłego",
         fixReasonError: TranslationError? = nil,
+        toneNote: String = "- Sie → du: zwrot nieformalny",
+        toneNoteError: TranslationError? = nil,
         reply: [String] = ["draft-one", "draft-two", "draft-three"],
         replyError: TranslationError? = nil
     ) {
@@ -105,6 +117,8 @@ struct FakeLLMClient: LLMClient {
         self.explanationError = explanationError
         self.fixReasonResult = fixReason
         self.fixReasonError = fixReasonError
+        self.toneNoteResult = toneNote
+        self.toneNoteError = toneNoteError
         self.replyResult = reply
         self.replyError = replyError
     }
@@ -172,6 +186,18 @@ struct FakeLLMClient: LLMClient {
         recorder.fixModel = model
         if let fixReasonError { throw fixReasonError }
         return fixReasonResult
+    }
+
+    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, second: SecondLanguage, model: String) async throws -> String {
+        recorder.registerPrevious = previous
+        recorder.registerCurrent = current
+        recorder.registerFrom = from
+        recorder.registerTo = to
+        recorder.registerSource = source
+        recorder.registerSecond = second
+        recorder.registerModel = model
+        if let toneNoteError { throw toneNoteError }
+        return toneNoteResult
     }
 
     private func makeStream() -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -255,6 +281,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
     var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)?
+    var onFetchToneNote: (@MainActor (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
     var onUndo: (@MainActor () -> Void)?

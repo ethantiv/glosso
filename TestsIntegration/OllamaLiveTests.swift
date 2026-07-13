@@ -66,4 +66,19 @@ import Testing
 
         #expect(!explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
+
+    // The whole point of the register coach (#53): the note must name the concrete
+    // pronoun shift a T–V language makes, not just say "the tone is now informal".
+    @Test func explainsRegisterShiftAgainstLiveOllama() async throws {
+        guard await ollamaReachable() else { return }
+
+        let client = OllamaClient()
+        let note = try await client.explainRegister(
+            previous: "Könnten Sie mir bitte helfen?", current: "Könntest du mir helfen?",
+            from: .formal, to: .informal, source: "Czy mógłby mi Pan pomóc?",
+            second: .german, model: LLMConfig.default.model)
+
+        #expect(note.contains("du"), "expected the note to name the du form, got: \(note)")
+        #expect(note.contains("Sie"), "expected the note to name the Sie form, got: \(note)")
+    }
 }

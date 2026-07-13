@@ -118,6 +118,9 @@ final class AppCoordinator {
         popup.onFetchFixReason = { [weak self] before, after, corrected in
             await self?.fetchFixReason(before: before, after: after, corrected: corrected) ?? ""
         }
+        popup.onFetchToneNote = { [weak self] previous, current, from, to in
+            await self?.fetchToneNote(previous: previous, current: current, from: from, to: to) ?? ""
+        }
         popup.onReplace = { [weak self] translation in self?.handleReplace(translation: translation) }
         popup.onRetranslate = { [weak self] source in self?.handleSourceEdit(source) }
         popup.onUndo = { [weak self] in self?.handleUndo() }
@@ -463,6 +466,21 @@ final class AppCoordinator {
             error: before, correction: after, original: capture.text, corrected: corrected,
             second: settings.secondLanguage, englishRules: englishRules,
             style: styleEnabled(for: capture.direction),
+            model: settings.modelName)) ?? ""
+        schedulePrefetch()
+        return result
+    }
+
+    /// Asks the model what the tone change did to the translation (issue #53).
+    /// Mirrors `fetchExplanation`: both renderings and their registers come from the
+    /// popup, the shared source is the last capture, any failure (or no capture)
+    /// collapses to "" — the note row then shows its fallback message.
+    func fetchToneNote(previous: String, current: String, from: Formality, to: Formality) async -> String {
+        guard let capture = lastCapture else { return "" }
+        prefetchTask?.cancel()
+        let result = (try? await llm.explainRegister(
+            previous: previous, current: current, from: from, to: to,
+            source: capture.text, second: settings.secondLanguage,
             model: settings.modelName)) ?? ""
         schedulePrefetch()
         return result

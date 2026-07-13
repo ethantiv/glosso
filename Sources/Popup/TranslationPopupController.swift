@@ -11,6 +11,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
     var onFetchExplanation: (@MainActor (_ word: String, _ translation: String) async -> String)?
     var onFetchFixReason: (@MainActor (_ before: String, _ after: String, _ corrected: String) async -> String)?
+    var onFetchToneNote: (@MainActor (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
     var onUndo: (@MainActor () -> Void)?
@@ -51,6 +52,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // translation (issue #25); resetTranslationPane is shared with reword, which
         // keeps the snapshot, so clear it only on this fresh-translation path.
         model.clearUndo()
+        // Same reason (issue #53): a fresh capture's translation has no earlier
+        // register rendering to contrast with.
+        model.clearToneNote()
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
@@ -81,6 +85,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
             },
             fetchFixReason: { [weak self] before, after, corrected in
                 await self?.onFetchFixReason?(before, after, corrected) ?? ""
+            },
+            fetchToneNote: { [weak self] previous, current, from, to in
+                await self?.onFetchToneNote?(previous, current, from, to) ?? ""
             },
             pickAlternative: { [weak self] original, chosen, translation in
                 self?.onPickAlternative?(original, chosen, translation)
