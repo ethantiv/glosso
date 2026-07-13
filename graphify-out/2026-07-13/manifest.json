@@ -1,0 +1,602 @@
+{
+  ".claude/settings.json": {
+    "mtime": 1783945890.653076,
+    "ast_hash": "f2276804ae5c4df3bb81046b7bd99123",
+    "semantic_hash": "f2276804ae5c4df3bb81046b7bd99123"
+  },
+  "Sources/App/GlossoApp.swift": {
+    "mtime": 1781956210.1510062,
+    "ast_hash": "b3c1b5a8ca00de93b5e7a6b2d82b786e",
+    "semantic_hash": "b3c1b5a8ca00de93b5e7a6b2d82b786e"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/Contents.json": {
+    "mtime": 1780349286.6505713,
+    "ast_hash": "7b5f2baed9b2483bc157d75c5616833f",
+    "semantic_hash": "7b5f2baed9b2483bc157d75c5616833f"
+  },
+  "Sources/Assets.xcassets/Contents.json": {
+    "mtime": 1780349286.651709,
+    "ast_hash": "9deb2ada1cc834bbebf8bbad9c8978a1",
+    "semantic_hash": "9deb2ada1cc834bbebf8bbad9c8978a1"
+  },
+  "Sources/Assets.xcassets/MenuBarIcon.imageset/Contents.json": {
+    "mtime": 1780349286.6518407,
+    "ast_hash": "9bea1036a4ebcd6058ab40dc3b082471",
+    "semantic_hash": "9bea1036a4ebcd6058ab40dc3b082471"
+  },
+  "Sources/Assets.xcassets/MenuBarIconUpdate.imageset/Contents.json": {
+    "mtime": 1781873230.6301665,
+    "ast_hash": "b2f732ab1712079c376f8b03abf397e3",
+    "semantic_hash": "b2f732ab1712079c376f8b03abf397e3"
+  },
+  "Sources/Capture/AXSelectionReader.swift": {
+    "mtime": 1780323642.3124235,
+    "ast_hash": "d7a42e6db87adc1437da82dbb02e3823",
+    "semantic_hash": "d7a42e6db87adc1437da82dbb02e3823"
+  },
+  "Sources/Capture/SelectionGuard.swift": {
+    "mtime": 1780473669.5566194,
+    "ast_hash": "43b01008e0ae5592da6ec4c3ae3a5dac",
+    "semantic_hash": "43b01008e0ae5592da6ec4c3ae3a5dac"
+  },
+  "Sources/Capture/SystemPasteboardReader.swift": {
+    "mtime": 1780313577.274764,
+    "ast_hash": "7d8f49142e97382b26ae4d5979422524",
+    "semantic_hash": "7d8f49142e97382b26ae4d5979422524"
+  },
+  "Sources/Coordinator/AXChecker.swift": {
+    "mtime": 1780313577.2748947,
+    "ast_hash": "d1655b699986827498e1d4c924801703",
+    "semantic_hash": "d1655b699986827498e1d4c924801703"
+  },
+  "Sources/Coordinator/AppCoordinator.swift": {
+    "mtime": 1783972359.171444,
+    "ast_hash": "4adf7941e65c0a86d4c74046df4b307a",
+    "semantic_hash": "4adf7941e65c0a86d4c74046df4b307a"
+  },
+  "Sources/Coordinator/AppState.swift": {
+    "mtime": 1781873230.6305368,
+    "ast_hash": "055ff40e8a448995c5bc01c59b36f626",
+    "semantic_hash": "055ff40e8a448995c5bc01c59b36f626"
+  },
+  "Sources/Coordinator/DirectionDetector.swift": {
+    "mtime": 1783930509.8711615,
+    "ast_hash": "96e6899525049b1bda8b319c57cc6065",
+    "semantic_hash": "96e6899525049b1bda8b319c57cc6065"
+  },
+  "Sources/Core/Contracts.swift": {
+    "mtime": 1783943881.3937883,
+    "ast_hash": "913dcb41e02ab65dfb10667c622ef3ce",
+    "semantic_hash": "913dcb41e02ab65dfb10667c622ef3ce"
+  },
+  "Sources/Engine/EmbeddedModelCatalog.swift": {
+    "mtime": 1781850930.9295118,
+    "ast_hash": "80ff7fcbae4d53384d9fb06060339677",
+    "semantic_hash": "80ff7fcbae4d53384d9fb06060339677"
+  },
+  "Sources/Engine/EngineManager.swift": {
+    "mtime": 1781785934.4799402,
+    "ast_hash": "d74e2ff8b78a40a1e1139a3b7c33a821",
+    "semantic_hash": "d74e2ff8b78a40a1e1139a3b7c33a821"
+  },
+  "Sources/Engine/OllamaEngineDownloader.swift": {
+    "mtime": 1781785934.480105,
+    "ast_hash": "498e312a9de94887e5abff82e92eabfe",
+    "semantic_hash": "498e312a9de94887e5abff82e92eabfe"
+  },
+  "Sources/Engine/OllamaModelManager.swift": {
+    "mtime": 1781785934.4802015,
+    "ast_hash": "75b69f5a8e87af905c7ac9e9cdbc6342",
+    "semantic_hash": "75b69f5a8e87af905c7ac9e9cdbc6342"
+  },
+  "Sources/Engine/PullProgressParser.swift": {
+    "mtime": 1781785934.4802904,
+    "ast_hash": "22d1c5c755f9c1c710b38bcf4884171e",
+    "semantic_hash": "22d1c5c755f9c1c710b38bcf4884171e"
+  },
+  "Sources/Hotkey/DoubleCopyDetector.swift": {
+    "mtime": 1780313577.2754667,
+    "ast_hash": "2be72022a0ba1cd869fdbd58899bd70f",
+    "semantic_hash": "2be72022a0ba1cd869fdbd58899bd70f"
+  },
+  "Sources/Hotkey/GlobalHotkeyMonitor.swift": {
+    "mtime": 1783936795.4493716,
+    "ast_hash": "ef072ca3e8438c48534ac5c8aa036051",
+    "semantic_hash": "ef072ca3e8438c48534ac5c8aa036051"
+  },
+  "Sources/Hotkey/SystemClock.swift": {
+    "mtime": 1781522069.4491982,
+    "ast_hash": "c455d02ad0fe8b8506c67f4433ee00bd",
+    "semantic_hash": "c455d02ad0fe8b8506c67f4433ee00bd"
+  },
+  "Sources/LLM/AlternativesParser.swift": {
+    "mtime": 1780418696.223113,
+    "ast_hash": "9026fd0537bb709da30879f8876a09af",
+    "semantic_hash": "9026fd0537bb709da30879f8876a09af"
+  },
+  "Sources/LLM/EnglishGrammarRules.swift": {
+    "mtime": 1783179631.172145,
+    "ast_hash": "12b6a1620038f5bf395abe6d92f88381",
+    "semantic_hash": "12b6a1620038f5bf395abe6d92f88381"
+  },
+  "Sources/LLM/ExplanationParser.swift": {
+    "mtime": 1780747512.9223242,
+    "ast_hash": "88bf37b77bbb454b4a31e59c0df923d4",
+    "semantic_hash": "88bf37b77bbb454b4a31e59c0df923d4"
+  },
+  "Sources/LLM/GenerateModels.swift": {
+    "mtime": 1780313577.2757354,
+    "ast_hash": "75e37e4ee8f9929f79fe721be404bb47",
+    "semantic_hash": "75e37e4ee8f9929f79fe721be404bb47"
+  },
+  "Sources/LLM/NDJSONStreamParser.swift": {
+    "mtime": 1780313577.2758157,
+    "ast_hash": "22c77a156f212167905e1457032b7bd3",
+    "semantic_hash": "22c77a156f212167905e1457032b7bd3"
+  },
+  "Sources/LLM/OllamaClient.swift": {
+    "mtime": 1783943881.394125,
+    "ast_hash": "40384a1aafdc28ca1d1ddd3a2d1841d6",
+    "semantic_hash": "40384a1aafdc28ca1d1ddd3a2d1841d6"
+  },
+  "Sources/LLM/PolishSpellingRules.swift": {
+    "mtime": 1783179631.172667,
+    "ast_hash": "906198076465d8ced9c2c497746b4f1c",
+    "semantic_hash": "906198076465d8ced9c2c497746b4f1c"
+  },
+  "Sources/LLM/PromptBuilder.swift": {
+    "mtime": 1783943881.394518,
+    "ast_hash": "3af6d0e6787fa9113e0466bcaab2d414",
+    "semantic_hash": "3af6d0e6787fa9113e0466bcaab2d414"
+  },
+  "Sources/LLM/ReplyParser.swift": {
+    "mtime": 1781885431.1058302,
+    "ast_hash": "1c54b3ae8c1a5236ed9d3d3aec652977",
+    "semantic_hash": "1c54b3ae8c1a5236ed9d3d3aec652977"
+  },
+  "Sources/Notify/SystemUserNotifier.swift": {
+    "mtime": 1781873230.6307013,
+    "ast_hash": "916e6b193a70c69f0ecf0ff7ca981539",
+    "semantic_hash": "916e6b193a70c69f0ecf0ff7ca981539"
+  },
+  "Sources/Popup/EscKeyHandling.swift": {
+    "mtime": 1781700366.6929529,
+    "ast_hash": "d2a086e158b590f0864d71d1f85b272d",
+    "semantic_hash": "d2a086e158b590f0864d71d1f85b272d"
+  },
+  "Sources/Popup/FixReasonLayout.swift": {
+    "mtime": 1781955540.8956532,
+    "ast_hash": "7e77b98c17b654ee75f8d41874f64b55",
+    "semantic_hash": "7e77b98c17b654ee75f8d41874f64b55"
+  },
+  "Sources/Popup/FloatingPanel.swift": {
+    "mtime": 1781640589.1358747,
+    "ast_hash": "fc1a626d36845716588aa146163a1057",
+    "semantic_hash": "fc1a626d36845716588aa146163a1057"
+  },
+  "Sources/Popup/GrammarDiff.swift": {
+    "mtime": 1781700366.693456,
+    "ast_hash": "b1f0167e1a781c44f14971744f73b692",
+    "semantic_hash": "b1f0167e1a781c44f14971744f73b692"
+  },
+  "Sources/Popup/PanelPositioning.swift": {
+    "mtime": 1781093846.2561986,
+    "ast_hash": "a1ca824b8f0ca8fcb9bee83ec8dbac8f",
+    "semantic_hash": "a1ca824b8f0ca8fcb9bee83ec8dbac8f"
+  },
+  "Sources/Popup/PanelResize.swift": {
+    "mtime": 1781093846.2562964,
+    "ast_hash": "d618f3ac26a4b1662abbad25d06fd776",
+    "semantic_hash": "d618f3ac26a4b1662abbad25d06fd776"
+  },
+  "Sources/Popup/PopupModel.swift": {
+    "mtime": 1783943881.3948216,
+    "ast_hash": "45c28e356bb454a0ca97a7be9f71b7c2",
+    "semantic_hash": "45c28e356bb454a0ca97a7be9f71b7c2"
+  },
+  "Sources/Popup/PopupTheme.swift": {
+    "mtime": 1781685374.9936914,
+    "ast_hash": "2d8e85e5fd6992a8efdb46db63056826",
+    "semantic_hash": "2d8e85e5fd6992a8efdb46db63056826"
+  },
+  "Sources/Popup/PopupView.swift": {
+    "mtime": 1783943881.3952343,
+    "ast_hash": "15b315a2510e7b4f0882bf00c60ef4f6",
+    "semantic_hash": "15b315a2510e7b4f0882bf00c60ef4f6"
+  },
+  "Sources/Popup/ResizeGripArea.swift": {
+    "mtime": 1781093846.2567506,
+    "ast_hash": "0d2a608738853f1d8c2e75ec2ad60bcb",
+    "semantic_hash": "0d2a608738853f1d8c2e75ec2ad60bcb"
+  },
+  "Sources/Popup/TranslationPopupController.swift": {
+    "mtime": 1783943881.395519,
+    "ast_hash": "7d8ece94c5ea58157584ae705a89eadf",
+    "semantic_hash": "7d8ece94c5ea58157584ae705a89eadf"
+  },
+  "Sources/Popup/WordFlow.swift": {
+    "mtime": 1781955540.8963225,
+    "ast_hash": "3c524b99b780c4bfd3d66d2b33a7607b",
+    "semantic_hash": "3c524b99b780c4bfd3d66d2b33a7607b"
+  },
+  "Sources/Replace/SystemSelectionReplacer.swift": {
+    "mtime": 1781681316.8311138,
+    "ast_hash": "9498a9ff39590ecb820e8d15825fd91a",
+    "semantic_hash": "9498a9ff39590ecb820e8d15825fd91a"
+  },
+  "Sources/Settings/KeyChordRecorder.swift": {
+    "mtime": 1781768322.2770214,
+    "ast_hash": "6142b9c92ba1b04f2083958f1cd9b830",
+    "semantic_hash": "6142b9c92ba1b04f2083958f1cd9b830"
+  },
+  "Sources/Settings/ModelDownload.swift": {
+    "mtime": 1781858336.225297,
+    "ast_hash": "8aff2bace0c8de4992246d03c22da82d",
+    "semantic_hash": "8aff2bace0c8de4992246d03c22da82d"
+  },
+  "Sources/Settings/OllamaModelLister.swift": {
+    "mtime": 1781785934.4806294,
+    "ast_hash": "d782058e00690a8c3c6f4494f0c71fb1",
+    "semantic_hash": "d782058e00690a8c3c6f4494f0c71fb1"
+  },
+  "Sources/Settings/OnboardingController.swift": {
+    "mtime": 1781869271.2860544,
+    "ast_hash": "a329740da454f2507fc22bd3eef203b0",
+    "semantic_hash": "a329740da454f2507fc22bd3eef203b0"
+  },
+  "Sources/Settings/OnboardingView.swift": {
+    "mtime": 1781858336.2262728,
+    "ast_hash": "d99c5634ff8885a8896e67264e7fc9ad",
+    "semantic_hash": "d99c5634ff8885a8896e67264e7fc9ad"
+  },
+  "Sources/Settings/SMAppServiceLoginItem.swift": {
+    "mtime": 1780331431.590937,
+    "ast_hash": "372bc84061ef24155ca176bc93688dc0",
+    "semantic_hash": "372bc84061ef24155ca176bc93688dc0"
+  },
+  "Sources/Settings/SettingsStore.swift": {
+    "mtime": 1783930509.8719647,
+    "ast_hash": "dccce2c5d55e6d0d595ac47af2f52433",
+    "semantic_hash": "dccce2c5d55e6d0d595ac47af2f52433"
+  },
+  "Sources/Settings/SettingsView.swift": {
+    "mtime": 1781858336.2267685,
+    "ast_hash": "2388b000b9ec5a9ec9e0f5b4657a9d54",
+    "semantic_hash": "2388b000b9ec5a9ec9e0f5b4657a9d54"
+  },
+  "Sources/Update/UpdateChecker.swift": {
+    "mtime": 1781873230.6310337,
+    "ast_hash": "7801bf09fb3d19607c9343f642981d3e",
+    "semantic_hash": "7801bf09fb3d19607c9343f642981d3e"
+  },
+  "Sources/Update/UpdateDownloader.swift": {
+    "mtime": 1781873230.6311417,
+    "ast_hash": "9e85805fb28d5143755e4286b7aa0de3",
+    "semantic_hash": "9e85805fb28d5143755e4286b7aa0de3"
+  },
+  "Tests/AlternativesParserTests.swift": {
+    "mtime": 1780477884.9307363,
+    "ast_hash": "868416b96ad62846e3cfbf9751447159",
+    "semantic_hash": "868416b96ad62846e3cfbf9751447159"
+  },
+  "Tests/AppCoordinatorTests.swift": {
+    "mtime": 1783972359.1718416,
+    "ast_hash": "6dcf924f1eb77bf506816799a7b7ffa8",
+    "semantic_hash": "6dcf924f1eb77bf506816799a7b7ffa8"
+  },
+  "Tests/AppDelegateTests.swift": {
+    "mtime": 1780477884.9310484,
+    "ast_hash": "0ffb976dd219ab8694f8c716fd1e2e81",
+    "semantic_hash": "0ffb976dd219ab8694f8c716fd1e2e81"
+  },
+  "Tests/DirectionDetectorTests.swift": {
+    "mtime": 1783930509.8726084,
+    "ast_hash": "9d54ac0b48ecfd3cc944a56cec4cbb17",
+    "semantic_hash": "9d54ac0b48ecfd3cc944a56cec4cbb17"
+  },
+  "Tests/DoubleCopyDetectorTests.swift": {
+    "mtime": 1780477884.9313405,
+    "ast_hash": "5665f347edab3917f897c8326ba7d03a",
+    "semantic_hash": "5665f347edab3917f897c8326ba7d03a"
+  },
+  "Tests/EmbeddedModelCatalogTests.swift": {
+    "mtime": 1781850939.3503997,
+    "ast_hash": "d0a296143f4e30a086474840ebbbb7b7",
+    "semantic_hash": "d0a296143f4e30a086474840ebbbb7b7"
+  },
+  "Tests/EngineManagerTests.swift": {
+    "mtime": 1781785934.4809215,
+    "ast_hash": "0dac966df770c231f70f70dfdc4d0a7a",
+    "semantic_hash": "0dac966df770c231f70f70dfdc4d0a7a"
+  },
+  "Tests/EnglishGrammarRulesTests.swift": {
+    "mtime": 1783179631.1747303,
+    "ast_hash": "2012c1cbf38bfa1e807d7e6def4554e7",
+    "semantic_hash": "2012c1cbf38bfa1e807d7e6def4554e7"
+  },
+  "Tests/EscKeyHandlingTests.swift": {
+    "mtime": 1781700366.6953695,
+    "ast_hash": "34139959821567a560aba938bd9a3ed9",
+    "semantic_hash": "34139959821567a560aba938bd9a3ed9"
+  },
+  "Tests/ExplanationParserTests.swift": {
+    "mtime": 1780747512.923774,
+    "ast_hash": "39917ee4e4354d86ea56105fa8d9950d",
+    "semantic_hash": "39917ee4e4354d86ea56105fa8d9950d"
+  },
+  "Tests/FixReasonLayoutTests.swift": {
+    "mtime": 1781955540.89643,
+    "ast_hash": "f6ec09f0ca30c3c775e2c4f745d2aafc",
+    "semantic_hash": "f6ec09f0ca30c3c775e2c4f745d2aafc"
+  },
+  "Tests/FloatingPanelTests.swift": {
+    "mtime": 1781093846.2572925,
+    "ast_hash": "6585d4b20a20a852b42f13150a034c67",
+    "semantic_hash": "6585d4b20a20a852b42f13150a034c67"
+  },
+  "Tests/FormalityTests.swift": {
+    "mtime": 1780477884.9316537,
+    "ast_hash": "f82009c27bb729de46f558d5be2928a4",
+    "semantic_hash": "f82009c27bb729de46f558d5be2928a4"
+  },
+  "Tests/GlobalHotkeyMonitorTests.swift": {
+    "mtime": 1783936795.449675,
+    "ast_hash": "c4f9bc52e1f271955ceee5d06b6f999b",
+    "semantic_hash": "c4f9bc52e1f271955ceee5d06b6f999b"
+  },
+  "Tests/GrammarDiffTests.swift": {
+    "mtime": 1781700366.6954813,
+    "ast_hash": "e990c4f94f437852cc3c251d5f69cc73",
+    "semantic_hash": "e990c4f94f437852cc3c251d5f69cc73"
+  },
+  "Tests/NDJSONStreamParserTests.swift": {
+    "mtime": 1780477884.9319317,
+    "ast_hash": "f30938a6e8c6886cd3dec60f5377d22f",
+    "semantic_hash": "f30938a6e8c6886cd3dec60f5377d22f"
+  },
+  "Tests/OllamaClientTests.swift": {
+    "mtime": 1783179631.1749766,
+    "ast_hash": "4d5b3869486fa60056cd02271828b156",
+    "semantic_hash": "4d5b3869486fa60056cd02271828b156"
+  },
+  "Tests/OllamaModelListerTests.swift": {
+    "mtime": 1780477884.9323065,
+    "ast_hash": "771c6e918cece1496d406a9e3cb06acc",
+    "semantic_hash": "771c6e918cece1496d406a9e3cb06acc"
+  },
+  "Tests/OllamaModelManagerTests.swift": {
+    "mtime": 1781785934.4810274,
+    "ast_hash": "d8c92dd2cfe4502f0d369159c76a8121",
+    "semantic_hash": "d8c92dd2cfe4502f0d369159c76a8121"
+  },
+  "Tests/PanelPositioningTests.swift": {
+    "mtime": 1781093846.2574282,
+    "ast_hash": "4b17d2c2aa0bbf3bbc5f4c9261503066",
+    "semantic_hash": "4b17d2c2aa0bbf3bbc5f4c9261503066"
+  },
+  "Tests/PanelResizeTests.swift": {
+    "mtime": 1781093846.257526,
+    "ast_hash": "8dec14d879785f7af36034800649aea7",
+    "semantic_hash": "8dec14d879785f7af36034800649aea7"
+  },
+  "Tests/PolishSpellingRulesTests.swift": {
+    "mtime": 1783179631.1751742,
+    "ast_hash": "41bde3091e3ee174a9fdbdbc6bc6edc9",
+    "semantic_hash": "41bde3091e3ee174a9fdbdbc6bc6edc9"
+  },
+  "Tests/PopupModelTests.swift": {
+    "mtime": 1783943881.3962584,
+    "ast_hash": "0c468db965ef4045b62f07e5c2a69d8b",
+    "semantic_hash": "0c468db965ef4045b62f07e5c2a69d8b"
+  },
+  "Tests/PromptBuilderTests.swift": {
+    "mtime": 1783943881.3964584,
+    "ast_hash": "c880ff44b3be04b36a946c4095c456e4",
+    "semantic_hash": "c880ff44b3be04b36a946c4095c456e4"
+  },
+  "Tests/PullProgressParserTests.swift": {
+    "mtime": 1781785934.481128,
+    "ast_hash": "e60dc1eec8af0dfc3bf20a1e02ed76a4",
+    "semantic_hash": "e60dc1eec8af0dfc3bf20a1e02ed76a4"
+  },
+  "Tests/ReplyParserTests.swift": {
+    "mtime": 1781885431.1075194,
+    "ast_hash": "162d866a6403bd3af06957a257c84a6b",
+    "semantic_hash": "162d866a6403bd3af06957a257c84a6b"
+  },
+  "Tests/SanityTests.swift": {
+    "mtime": 1780477884.9328713,
+    "ast_hash": "1703bc8dd9bdcf73b966bd3d40cfbf3f",
+    "semantic_hash": "1703bc8dd9bdcf73b966bd3d40cfbf3f"
+  },
+  "Tests/SecondLanguageTests.swift": {
+    "mtime": 1780993848.7633538,
+    "ast_hash": "11fc9121e2f8c5d00a75be159fabc059",
+    "semantic_hash": "11fc9121e2f8c5d00a75be159fabc059"
+  },
+  "Tests/SelectionGuardTests.swift": {
+    "mtime": 1780477884.9331303,
+    "ast_hash": "d3b75cfebb8a9824dad70531d0c70ec4",
+    "semantic_hash": "d3b75cfebb8a9824dad70531d0c70ec4"
+  },
+  "Tests/SettingsStoreTests.swift": {
+    "mtime": 1783930509.873124,
+    "ast_hash": "ce64e2d5b5359e1c33570dd5d1e12e97",
+    "semantic_hash": "ce64e2d5b5359e1c33570dd5d1e12e97"
+  },
+  "Tests/Support/CoordinatorFakes.swift": {
+    "mtime": 1783972359.1721203,
+    "ast_hash": "c3c640fba03fe4088213a88ec0412551",
+    "semantic_hash": "c3c640fba03fe4088213a88ec0412551"
+  },
+  "Tests/Support/FakeLoginItem.swift": {
+    "mtime": 1780477884.933722,
+    "ast_hash": "c589a1cd57a6366253af9eb4553b46a2",
+    "semantic_hash": "c589a1cd57a6366253af9eb4553b46a2"
+  },
+  "Tests/Support/MockURLProtocol.swift": {
+    "mtime": 1780313577.2780004,
+    "ast_hash": "331d560c3c48ac85e10e5f941c068890",
+    "semantic_hash": "331d560c3c48ac85e10e5f941c068890"
+  },
+  "Tests/TokenizerTests.swift": {
+    "mtime": 1781685374.9945564,
+    "ast_hash": "8c833065b5b1b8c0ea098321a904f191",
+    "semantic_hash": "8c833065b5b1b8c0ea098321a904f191"
+  },
+  "Tests/UpdateCheckerTests.swift": {
+    "mtime": 1781873230.631296,
+    "ast_hash": "c389e44de4794ebdf078da0987f4e953",
+    "semantic_hash": "c389e44de4794ebdf078da0987f4e953"
+  },
+  "Tests/UpdateDownloaderTests.swift": {
+    "mtime": 1781873230.6313894,
+    "ast_hash": "cf2fd33e4f228d20862e9277c7bad074",
+    "semantic_hash": "cf2fd33e4f228d20862e9277c7bad074"
+  },
+  "TestsIntegration/OllamaLiveTests.swift": {
+    "mtime": 1783943881.3970485,
+    "ast_hash": "e79f8b1538ff077295ac3500756a745a",
+    "semantic_hash": "e79f8b1538ff077295ac3500756a745a"
+  },
+  "scripts/build.sh": {
+    "mtime": 1780477884.9342444,
+    "ast_hash": "de5b417780fe268762824758c419077d",
+    "semantic_hash": "de5b417780fe268762824758c419077d"
+  },
+  "scripts/gen.sh": {
+    "mtime": 1780477884.9343736,
+    "ast_hash": "a88d2103d4f2b9ee8527d5b791c9b640",
+    "semantic_hash": "a88d2103d4f2b9ee8527d5b791c9b640"
+  },
+  "scripts/package.sh": {
+    "mtime": 1781858336.2278411,
+    "ast_hash": "3424b96468ad5ffec4a68d9261d1f0c5",
+    "semantic_hash": "3424b96468ad5ffec4a68d9261d1f0c5"
+  },
+  "scripts/run.sh": {
+    "mtime": 1780477884.934667,
+    "ast_hash": "c37141a5e5953b59dc82ad743759f340",
+    "semantic_hash": "c37141a5e5953b59dc82ad743759f340"
+  },
+  "scripts/test.sh": {
+    "mtime": 1780477884.9348204,
+    "ast_hash": "6eb26418da596869fa95f71a768cf611",
+    "semantic_hash": "6eb26418da596869fa95f71a768cf611"
+  },
+  ".github/workflows/claude-code-review.yml": {
+    "mtime": 1780331724.6548653,
+    "ast_hash": "b35121daf3fe001c0c6cdcf50903ef94",
+    "semantic_hash": "b35121daf3fe001c0c6cdcf50903ef94"
+  },
+  ".github/workflows/claude.yml": {
+    "mtime": 1780265385.6109889,
+    "ast_hash": "4751035d8586074e42c62a062ec6e9e1",
+    "semantic_hash": "4751035d8586074e42c62a062ec6e9e1"
+  },
+  ".github/workflows/release.yml": {
+    "mtime": 1781865951.0219543,
+    "ast_hash": "8a0dfb3e99c346e2c6882635db64e9f8",
+    "semantic_hash": "8a0dfb3e99c346e2c6882635db64e9f8"
+  },
+  "CLAUDE.md": {
+    "mtime": 1783945890.652777,
+    "ast_hash": "4b4b67d9b80b75eb2a7660443636953f",
+    "semantic_hash": "4b4b67d9b80b75eb2a7660443636953f"
+  },
+  "DESIGN.md": {
+    "mtime": 1781960143.4480839,
+    "ast_hash": "5b042eccf5bc2520daf7a3cbbfeae600",
+    "semantic_hash": "5b042eccf5bc2520daf7a3cbbfeae600"
+  },
+  "PRODUCT.md": {
+    "mtime": 1781860905.9440887,
+    "ast_hash": "9aa3608f96d6104f9502211d3de9d63d",
+    "semantic_hash": "9aa3608f96d6104f9502211d3de9d63d"
+  },
+  "README.md": {
+    "mtime": 1781883199.4147696,
+    "ast_hash": "aa9f3554195643800fbb7774a113a165",
+    "semantic_hash": "aa9f3554195643800fbb7774a113a165"
+  },
+  "docs/DISTRIBUTION.md": {
+    "mtime": 1781869271.2862165,
+    "ast_hash": "b2a7128fc6959dff5990727b40fbb3f1",
+    "semantic_hash": "b2a7128fc6959dff5990727b40fbb3f1"
+  },
+  "docs/index.html": {
+    "mtime": 1783944605.7184787,
+    "ast_hash": "652f9f4c089dbe0520bb7709292f7323",
+    "semantic_hash": "652f9f4c089dbe0520bb7709292f7323"
+  },
+  "project.yml": {
+    "mtime": 1783972359.172358,
+    "ast_hash": "a1d04ccbc3813aa1defed0d84778b39e",
+    "semantic_hash": "a1d04ccbc3813aa1defed0d84778b39e"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_1024.png": {
+    "mtime": 1780349286.65083,
+    "ast_hash": "f5a63c6181abef28340908dfa49ff05a",
+    "semantic_hash": "f5a63c6181abef28340908dfa49ff05a"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_128.png": {
+    "mtime": 1780349286.6510103,
+    "ast_hash": "6b9a8b0e18e3abac8ea61af5ca5bec48",
+    "semantic_hash": "6b9a8b0e18e3abac8ea61af5ca5bec48"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_16.png": {
+    "mtime": 1780349286.6511202,
+    "ast_hash": "ac0837230a666d0d058b59a341443a57",
+    "semantic_hash": "ac0837230a666d0d058b59a341443a57"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_256.png": {
+    "mtime": 1780349286.6512764,
+    "ast_hash": "8d1affae77a6f86296f0df4ed7e6fe81",
+    "semantic_hash": "8d1affae77a6f86296f0df4ed7e6fe81"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_32.png": {
+    "mtime": 1780349286.6513808,
+    "ast_hash": "7828fa0af64b9f53e6649abdd56be9f4",
+    "semantic_hash": "7828fa0af64b9f53e6649abdd56be9f4"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_512.png": {
+    "mtime": 1780349286.6515353,
+    "ast_hash": "f7bd81ce4793a3e7280d6dd10f1532cf",
+    "semantic_hash": "f7bd81ce4793a3e7280d6dd10f1532cf"
+  },
+  "Sources/Assets.xcassets/AppIcon.appiconset/icon_64.png": {
+    "mtime": 1780349286.6516266,
+    "ast_hash": "4c9e1e0ceada212b406a580fdb277f08",
+    "semantic_hash": "4c9e1e0ceada212b406a580fdb277f08"
+  },
+  "Sources/Assets.xcassets/MenuBarIcon.imageset/menubar_18.png": {
+    "mtime": 1780349286.6519613,
+    "ast_hash": "601b705af2d0965f7e9e05ff00b860e9",
+    "semantic_hash": "601b705af2d0965f7e9e05ff00b860e9"
+  },
+  "Sources/Assets.xcassets/MenuBarIcon.imageset/menubar_36.png": {
+    "mtime": 1780349286.6520593,
+    "ast_hash": "9f0bf1f389d0c65dc9c73a87c8e223ed",
+    "semantic_hash": "9f0bf1f389d0c65dc9c73a87c8e223ed"
+  },
+  "Sources/Assets.xcassets/MenuBarIconUpdate.imageset/menubar_update_18.png": {
+    "mtime": 1781873230.630269,
+    "ast_hash": "89b0ca68ce9d42345216f896d7c3c528",
+    "semantic_hash": "89b0ca68ce9d42345216f896d7c3c528"
+  },
+  "Sources/Assets.xcassets/MenuBarIconUpdate.imageset/menubar_update_36.png": {
+    "mtime": 1781873230.6303713,
+    "ast_hash": "bbd9382928b9440391553423943e6dee",
+    "semantic_hash": "bbd9382928b9440391553423943e6dee"
+  },
+  "docs/glosso-icon-256.png": {
+    "mtime": 1781860971.8741744,
+    "ast_hash": "8d1affae77a6f86296f0df4ed7e6fe81",
+    "semantic_hash": "8d1affae77a6f86296f0df4ed7e6fe81"
+  },
+  "docs/glosso-icon.png": {
+    "mtime": 1781860971.8719635,
+    "ast_hash": "f7bd81ce4793a3e7280d6dd10f1532cf",
+    "semantic_hash": "f7bd81ce4793a3e7280d6dd10f1532cf"
+  }
+}
