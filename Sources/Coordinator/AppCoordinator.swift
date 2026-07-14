@@ -403,6 +403,9 @@ final class AppCoordinator {
         // on the clipboard. Mirror the double-Cmd+C retry (captureAndTranslate) and give
         // it a second chance against a snapshot predating the whole gesture: that accepts
         // the selection's own copy while still refusing a clipboard older than the ring.
+        // ponytail: the ring's ~4-6s window is the whole guard — a copy-on-selection
+        // older than it fails, an unrelated copy inside it is accepted. Nothing on the
+        // pasteboard can tell the two apart; only a real selection read (AX) could.
         if captured == nil, let trailing = trailingChangeCounts.first {
             captured = try? reader.readSelection(baselineChangeCount: trailing)
         }

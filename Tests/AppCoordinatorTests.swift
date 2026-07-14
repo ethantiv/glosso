@@ -425,6 +425,36 @@ import Testing
         #expect(messages.first?.contains("schowku") == true)
     }
 
+    // The other side of that second chance, and the only guard it left standing: the
+    // retry cannot tell the selection's own copy from an unrelated one, so it must at
+    // least refuse a clipboard that already predates the trailing snapshot. Without
+    // this, a chord fired with no selection at all would run the model over whatever
+    // the user last copied and hand the result back over their clipboard.
+    @Test func fixGrammarRefusesAClipboardOlderThanTheSnapshot() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = nil                    // terminals expose no AXSelectedText
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.landedChangeCount = 5           // stale clipboard, copied long before the chord
+        reader.currentChangeCount = 5
+        reader.text = "hasło skopiowane kwadrans temu"
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: reader, axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: FakeSelectionReplacer(),
+            pollStepMs: 1, pollMaxAttempts: 5,
+            notify: { messages.append($0) }
+        )
+        coordinator.trailingChangeCounts = [5]  // the snapshot already saw this copy
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(llm.recorder.receivedText == nil)
+        #expect(messages == ["Nie udało się odczytać zaznaczenia do poprawy."])
+    }
+
     // Terminals and some web/Electron fields expose no AXSelectedText for reading,
     // so fix-grammar falls back to firing the app's Cmd+C to capture. But such a
     // selection may be a non-replaceable mouse highlight (terminals), where a paste

@@ -18,3 +18,4 @@ DerivedData/
 # Claude Code
 .claude/scheduled_tasks.lock
 .impeccable/
+graphify-out/
