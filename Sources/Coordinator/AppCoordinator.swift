@@ -129,7 +129,6 @@ final class AppCoordinator {
             self?.lastCapture = nil
         }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
-        popup.onSelectStyle = { [weak self] style in self?.handleStyleChange(style) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
         popup.onFetchAlternatives = { [weak self] word, translation in
             await self?.fetchAlternatives(word: word, translation: translation) ?? []
@@ -200,7 +199,7 @@ final class AppCoordinator {
         // A fresh selection invalidates every cached action result.
         actionCache.removeAll()
         lastSourcePID = sourcePID
-        popup.present(at: point, formality: settings.formality, style: settings.fixStyle)
+        popup.present(at: point, formality: settings.formality)
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -326,7 +325,7 @@ final class AppCoordinator {
             return
         }
         var buffer = ""
-        let style = styleEnabled(for: DirectionDetector.detect(text, second: settings.secondLanguage))
+        let style = DirectionDetector.detect(text, second: settings.secondLanguage).supportsStyleFix
         do {
             for try await event in llm.run(
                 text, action: action, model: settings.modelName,
@@ -437,17 +436,6 @@ final class AppCoordinator {
         rerunLastCapture()
     }
 
-    /// The user toggled the fixGrammar style pill (grammar-only vs grammar+style).
-    /// Mirrors the formality path: persist, drop every cached result (the flag feeds
-    /// the cached fixGrammar generation) and re-run the same capture. Deliberately
-    /// NOT part of currentCacheSignature: the signature covers Settings-window
-    /// changes, and this flag is toggled only from the popup — right here, where
-    /// the cache is cleared directly.
-    func handleStyleChange(_ style: Bool) {
-        settings.fixStyle = style
-        rerunLastCapture()
-    }
-
     /// The user picked a verb in the palette strip (issue #23): re-run that action
     /// over the same captured selection and stream into the same pane. Keeps
     /// actionCache — switching verbs is exactly when the cache pays off (stream()
@@ -518,7 +506,7 @@ final class AppCoordinator {
         let result = (try? await llm.explainFix(
             error: before, correction: after, original: capture.text, corrected: corrected,
             second: settings.secondLanguage, englishRules: englishRules,
-            style: styleEnabled(for: capture.direction),
+            style: capture.direction.supportsStyleFix,
             model: settings.modelName)) ?? ""
         schedulePrefetch()
         return result
@@ -570,8 +558,9 @@ final class AppCoordinator {
         let detected = DirectionDetector.detect(text, second: second)
         lastCapture = (text, point, action, detected)
         // The direction arrow / language pair only describe a translation, but
-        // fixGrammar needs the detected language too — it gates the style pill on a
-        // supported language (Polish, or English under an English second language).
+        // fixGrammar needs the detected language too — it gates the automatic style
+        // pass on a supported language (Polish, or English under an English second
+        // language).
         // Summarize/reply stay .unknown so the popup hides the language header.
         let direction = action == .translate || action == .fixGrammar ? detected : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
@@ -616,17 +605,9 @@ final class AppCoordinator {
         await consume(llm.run(
             text, action: action, model: settings.modelName,
             second: second, formality: settings.formality, humanize: settings.humanize,
-            style: styleEnabled(for: detected)),
+            style: detected.supportsStyleFix),
             bucket: action)
         if !Task.isCancelled { schedulePrefetch() }
-    }
-
-    // The persisted style flag is consumed only through this gate, which mirrors the
-    // popup's style-pill visibility (TranslationDirection.supportsStyleFix): a saved
-    // style=true must never silently rewrite a text whose language the pill — and
-    // the rule bases — don't cover.
-    private func styleEnabled(for direction: TranslationDirection) -> Bool {
-        settings.fixStyle && direction.supportsStyleFix
     }
 
     // Keeps the existing direction/source in place (only the result pane was reset
@@ -716,7 +697,7 @@ final class AppCoordinator {
                 source, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
                 humanize: settings.humanize,
-                style: styleEnabled(for: lastCapture?.direction ?? .unknown)) {
+                style: (lastCapture?.direction ?? .unknown).supportsStyleFix) {
                 if Task.isCancelled { return }
                 switch event {
                 case .token(let token): accumulated += token

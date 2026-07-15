@@ -275,7 +275,6 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 final class FakePopup: TranslationPopupPresenting {
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
-    var onSelectStyle: (@MainActor (Bool) -> Void)?
     var onSelectAction: (@MainActor (Action) -> Void)?
     var onFetchAlternatives: (@MainActor (_ word: String, _ translation: String) async -> [String])?
     var onPickAlternative: (@MainActor (_ original: String, _ chosen: String, _ translation: String) -> Void)?
@@ -290,7 +289,6 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var presentedSourceText: String?
     private(set) var presentedAction: Action?
     private(set) var presentedFormality: Formality?
-    private(set) var presentedStyle: Bool?
     private(set) var dismissCount = 0
     private(set) var restartCount = 0
     private(set) var tokens: [String] = []
@@ -299,10 +297,9 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var truncated = false
     private(set) var shownReplies: [String]?
 
-    func present(at screenPoint: CGPoint, formality: Formality, style: Bool) {
+    func present(at screenPoint: CGPoint, formality: Formality) {
         presented = true
         presentedFormality = formality
-        presentedStyle = style
     }
     func update(direction: TranslationDirection, sourceText: String, action: Action) {
         presentedDirection = direction

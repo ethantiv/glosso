@@ -134,10 +134,8 @@ enum TranslationDirection: Sendable, Equatable {
 
     /// Whether the fixGrammar style pass covers this text's language: Polish (any
     /// second language) or English under an English second language — the two rule
-    /// bases that exist. `.unknown` (empty/ambiguous text) stays permissive so the
-    /// popup's style pill doesn't flicker away. The single gate shared by the pill's
-    /// visibility and every consumer of the persisted style flag, so a saved
-    /// style=true can never silently rewrite a text the UI says has no style mode.
+    /// bases that exist. `.unknown` (empty/ambiguous text) stays permissive. This is
+    /// the gate for the automatic style pass, applied whenever the direction supports it.
     var supportsStyleFix: Bool {
         switch self {
         case .fromPolish: true
@@ -209,8 +207,9 @@ protocol LLMClient: Sendable {
     /// prompt (default-on, toggled in Settings); the other verbs ignore it.
     /// `style` is its `.fixGrammar` twin: a moderate style pass (flow, word order
     /// and word choice within sentences, never merging/splitting them) folded into
-    /// the correction prompt; the other verbs ignore it. Toggled by the popup's
-    /// style pill and honored by the headless fix-in-place chord alike.
+    /// the correction prompt; the other verbs ignore it. Applied automatically
+    /// whenever the detected direction supports it, in the popup and the headless
+    /// fix-in-place chord alike.
     func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
     /// Context-aware alternatives for a single word of the finished translation,
@@ -369,9 +368,6 @@ protocol TranslationPopupPresenting: AnyObject {
     /// Fires when the user cycles the tone pill, carrying the newly selected
     /// formality so the coordinator can persist it and re-translate.
     var onSelectFormality: (@MainActor (Formality) -> Void)? { get set }
-    /// Fires when the user toggles the fixGrammar style pill (grammar-only vs
-    /// grammar+style), so the coordinator can persist it and re-run the correction.
-    var onSelectStyle: (@MainActor (Bool) -> Void)? { get set }
     /// Fires when the user picks a verb in the palette strip (issue #23), so the
     /// coordinator can re-run that action over the same captured selection.
     var onSelectAction: (@MainActor (Action) -> Void)? { get set }
@@ -413,7 +409,7 @@ protocol TranslationPopupPresenting: AnyObject {
     /// which the undo discards — so it must drop that entry, or a later verb
     /// round-trip back to Translate would replay the undone reword.
     var onUndo: (@MainActor () -> Void)? { get set }
-    func present(at screenPoint: CGPoint, formality: Formality, style: Bool)
+    func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)
     func showError(_ message: String)

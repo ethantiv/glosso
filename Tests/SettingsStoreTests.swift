@@ -17,7 +17,6 @@ import Testing
         #expect(store.modelName == EmbeddedModelCatalog.recommended.id)
         #expect(store.secondLanguage == .english)
         #expect(store.formality == .automatic)
-        #expect(store.fixStyle == true)
         #expect(store.fixChord == .fixGrammarDefault)
         #expect(store.translateInPlaceChord == .translateInPlaceDefault)
     }
@@ -55,13 +54,11 @@ import Testing
         first.modelName = "llama3:8b"
         first.secondLanguage = .german
         first.formality = .formal
-        first.fixStyle = true
 
         let reloaded = SettingsStore(defaults: defaults)
         #expect(reloaded.modelName == "llama3:8b")
         #expect(reloaded.secondLanguage == .german)
         #expect(reloaded.formality == .formal)
-        #expect(reloaded.fixStyle == true)
     }
 
     // A corrupt/unknown persisted language code must fall back to English rather
