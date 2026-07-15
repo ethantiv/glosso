@@ -12,7 +12,6 @@ final class SettingsStore {
         static let secondLanguage = "translation.secondLanguage"
         static let formality = "translation.formality"
         static let humanize = "translation.humanize"
-        static let fixStyle = "fix.style"
         static let fixChord = "shortcut.fixInPlace"
         static let translateInPlaceChord = "shortcut.translateInPlace"
         static let hasCompletedOnboarding = "app.hasCompletedOnboarding"
@@ -38,13 +37,6 @@ final class SettingsStore {
     /// (issue #23). Default-on; only the translate verb honors it.
     var humanize: Bool {
         didSet { defaults.set(humanize, forKey: Key.humanize) }
-    }
-
-    /// Moderate style pass for the fixGrammar verb ("Gramatyka+styl"): toggled by
-    /// the popup's style pill, and the headless fix-in-place chord reads the same
-    /// value — one source of truth for both paths. Default off (grammar-only).
-    var fixStyle: Bool {
-        didSet { defaults.set(fixStyle, forKey: Key.fixStyle) }
     }
 
     /// Headless "fix grammar in place" chord (issue #21), default Ctrl+Cmd+G.
@@ -92,8 +84,6 @@ final class SettingsStore {
         // Default-on: absent key means a fresh install, where humanizing is the
         // intended default — bool(forKey:) alone would read that as false.
         self.humanize = defaults.object(forKey: Key.humanize) as? Bool ?? true
-        // Default-on like humanize: a fresh install corrects grammar+style.
-        self.fixStyle = defaults.object(forKey: Key.fixStyle) as? Bool ?? true
         self.fixChord = defaults.data(forKey: Key.fixChord)
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .fixGrammarDefault
         self.translateInPlaceChord = defaults.data(forKey: Key.translateInPlaceChord)

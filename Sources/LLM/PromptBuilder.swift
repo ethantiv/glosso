@@ -45,10 +45,11 @@ enum PromptBuilder {
     // Kept to one sentence because Gemma with think:false handles short prompts best.
     private static let humanizeDirective = " The result must remain a translation into the target language; render the original's meaning, but make it read like natural, fluent writing in that language rather than a stiff, machine translation: vary sentence rhythm, prefer plain verbs, and avoid inflated, promotional or padded phrasing."
 
-    // Moderate style pass folded into the fixGrammar prompt when the popup's style
-    // pill (or the headless chord reading the same setting) asks for it. Wording is
-    // deliberately language-neutral and anchored to "the text's own language" —
-    // the humanizer regression above showed that English-flavored style phrasing
+    // Moderate style pass folded into the fixGrammar prompt whenever the detected
+    // direction supports it (requested automatically, in the popup and the headless
+    // chord alike). Wording is deliberately language-neutral and anchored to "the
+    // text's own language" — the humanizer regression above showed that
+    // English-flavored style phrasing
     // makes the model switch the output language. Sentence boundaries are the hard
     // limit: within them the diff stays readable span-by-span. "never change the
     // tone" holds only under automatic formality — a forced register directive in
