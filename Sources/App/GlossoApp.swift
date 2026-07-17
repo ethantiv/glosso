@@ -112,8 +112,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         let reader = SystemPasteboardReader()
+        let llm = OllamaClient(endpointProvider: Self.endpointProvider(engine))
         let coordinator = AppCoordinator(
-            llm: OllamaClient(endpointProvider: Self.endpointProvider(engine)),
+            llm: llm,
             monitor: GlobalHotkeyMonitor(
                 changeCountProvider: { reader.currentChangeCount },
                 chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) }
@@ -121,7 +122,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             reader: reader,
             axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
-            settings: settings
+            settings: settings,
+            articleReader: ReaderController(llm: llm, settings: settings)
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator

@@ -11,6 +11,7 @@ final class AppCoordinator {
     private let popup: any TranslationPopupPresenting
     private let replacer: any SelectionReplacing
     private let settings: SettingsStore
+    private let articleReader: (any ReaderPresenting)?
 
     private let pollStepMs: Int
     private let pollMaxAttempts: Int
@@ -88,6 +89,7 @@ final class AppCoordinator {
         axReader: any AXSelectionReading,
         popup: any TranslationPopupPresenting,
         settings: SettingsStore,
+        articleReader: (any ReaderPresenting)? = nil,
         replacer: any SelectionReplacing = SystemSelectionReplacer(),
         pollStepMs: Int = 12,
         pollMaxAttempts: Int = 40,
@@ -102,6 +104,7 @@ final class AppCoordinator {
         self.popup = popup
         self.replacer = replacer
         self.settings = settings
+        self.articleReader = articleReader
         self.pollStepMs = pollStepMs
         self.pollMaxAttempts = pollMaxAttempts
         self.prefetchLingerMs = prefetchLingerMs
@@ -205,7 +208,7 @@ final class AppCoordinator {
             do {
                 let text = try reader.readSelection(baselineChangeCount: baseline)
                 if Task.isCancelled { return }
-                await stream(text, at: point, action: .translate)
+                await route(text, at: point)
                 return
             } catch CaptureError.emptyOrNonText {
                 popup.showError("Zaznaczenie nie zawiera tekstu do tłumaczenia.")
@@ -234,7 +237,7 @@ final class AppCoordinator {
         if sourcePID == nil || sourcePID == frontmostPID(),
            let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
             if Task.isCancelled { return }
-            await stream(axText, at: point, action: .translate)
+            await route(axText, at: point)
             return
         }
         // The strict baseline can itself be sampled AFTER the gesture's copy landed:
@@ -249,7 +252,7 @@ final class AppCoordinator {
         if let trailing = trailingChangeCounts.first,
            let text = try? reader.readSelection(baselineChangeCount: trailing) {
             if Task.isCancelled { return }
-            await stream(text, at: point, action: .translate)
+            await route(text, at: point)
             return
         }
         popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
@@ -548,6 +551,23 @@ final class AppCoordinator {
     /// over the source instead of replaying the discarded reword.
     func handleUndo() {
         actionCache.removeValue(forKey: .translate)
+    }
+
+    /// Routes a FRESH capture: a selection that is exactly one article URL opens
+    /// the reader window instead of translating the URL string. Only the three
+    /// capture sites call this — the re-run paths (tone/verb/source-edit/reword)
+    /// call stream() directly and must never re-route, and the headless chords
+    /// have their own pipeline.
+    private func route(_ text: String, at point: CGPoint) async {
+        if let articleReader, let url = URLDetector.articleURL(in: text) {
+            articleReader.show(url)
+            // Tear down the skeleton popup presented at capture start. Its
+            // onDismiss cancels this very captureTask, so show() must run first;
+            // the reader's own Task is unaffected by that cancellation.
+            popup.dismiss()
+            return
+        }
+        await stream(text, at: point, action: .translate)
     }
 
     private func stream(_ text: String, at point: CGPoint, action: Action) async {

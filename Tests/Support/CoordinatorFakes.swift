@@ -66,6 +66,9 @@ struct FakeLLMClient: LLMClient {
         // reply(...)
         var replyText: String?
         var replyModel: String?
+        // translateBlock(...)
+        var blockHTMLs: [String] = []
+        var blockModel: String?
         // reword(...)
         var rewordOriginal: String?
         var rewordChosen: String?
@@ -86,6 +89,8 @@ struct FakeLLMClient: LLMClient {
     let alternativesError: TranslationError?
     let replyResult: [String]
     let replyError: TranslationError?
+    let blockResult: String
+    let blockError: TranslationError?
     let explanationResult: String
     let explanationError: TranslationError?
     let fixReasonResult: String
@@ -106,7 +111,9 @@ struct FakeLLMClient: LLMClient {
         toneNote: String = "- Sie → du: zwrot nieformalny",
         toneNoteError: TranslationError? = nil,
         reply: [String] = ["draft-one", "draft-two", "draft-three"],
-        replyError: TranslationError? = nil
+        replyError: TranslationError? = nil,
+        blockResult: String = "<b>PL</b>",
+        blockError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
@@ -121,6 +128,8 @@ struct FakeLLMClient: LLMClient {
         self.toneNoteError = toneNoteError
         self.replyResult = reply
         self.replyError = replyError
+        self.blockResult = blockResult
+        self.blockError = blockError
     }
 
     func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -223,7 +232,20 @@ struct FakeLLMClient: LLMClient {
         }
     }
 
+    func translateBlock(html: String, model: String) async throws -> String {
+        recorder.blockHTMLs.append(html)
+        recorder.blockModel = model
+        if let blockError { throw blockError }
+        return blockResult
+    }
+
     func prewarm(model: String) async throws { recorder.prewarmModel = model }
+}
+
+@MainActor
+final class FakeReaderPresenter: ReaderPresenting {
+    private(set) var shownURLs: [URL] = []
+    func show(_ url: URL) { shownURLs.append(url) }
 }
 
 @MainActor
