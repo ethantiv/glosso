@@ -72,6 +72,12 @@ enum ReaderTemplate {
       #glosso-toggle:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
       #glosso-toggle svg { width: 1.1em; height: 1.1em; }
       img, video { max-width: 100%; height: auto; border-radius: 4px; }
+      /* Embedded players carry fixed width/height attributes and would overflow
+         the column; cap them and let aspect-ratio keep the video shape.
+         ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
+         shape too — revisit if one ever matters. */
+      iframe, embed, object { max-width: 100%; border-radius: 4px; }
+      iframe { aspect-ratio: 16 / 9; height: auto; }
       figure { margin: 1.5em 0; }
       figcaption { font-size: .85em; opacity: .7; }
       blockquote { border-left: 3px solid color-mix(in srgb, CanvasText 25%, Canvas);
