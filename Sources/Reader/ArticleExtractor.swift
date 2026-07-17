@@ -35,9 +35,40 @@ final class ArticleExtractor {
 
     // Returns a JSON string, or "" when Readability found no article — never
     // null/undefined, which evaluateJavaScript reports awkwardly.
+    //
+    // Two pre-passes run on the clone before Readability so content images
+    // survive extraction on real-world pages:
+    // - Lazy-loader promotion: sites park the real image URL in data-src/
+    //   data-srcset until the image scrolls into view — which in this hidden,
+    //   never-scrolled webview is never. Promote those attributes so the
+    //   extracted content carries real URLs.
+    // - Gallery rescue: Readability unconditionally strips every <aside>, which
+    //   takes image galleries marked up as <aside class="gallery"> with it.
+    //   An aside dominated by images (little text, and next to none of it in
+    //   links) is a gallery, not boilerplate — convert it to <figure>, which
+    //   Readability keeps. Link-heavy asides ("Related Articles") still die.
     private static let driverJS = """
     (function() {
-      const article = new Readability(document.cloneNode(true)).parse();
+      const doc = document.cloneNode(true);
+      const LAZY = ['data-src', 'data-lazy-src', 'data-original', 'data-url'];
+      for (const img of doc.querySelectorAll('img')) {
+        const candidate = LAZY.map(a => img.getAttribute(a)).find(v => v && /^(https?:|\\/)/.test(v));
+        const src = img.getAttribute('src') || '';
+        if (candidate && (src === '' || src.startsWith('data:'))) { img.setAttribute('src', candidate); }
+        const srcset = img.getAttribute('data-srcset') || img.getAttribute('data-lazy-srcset');
+        if (srcset && !img.getAttribute('srcset')) { img.setAttribute('srcset', srcset); }
+      }
+      for (const aside of doc.querySelectorAll('aside')) {
+        if (aside.querySelectorAll('img').length === 0) { continue; }
+        const text = aside.textContent.trim();
+        const linkText = Array.from(aside.querySelectorAll('a')).map(a => a.textContent.trim()).join('');
+        if (text.length - linkText.length <= 120 && linkText.length <= 40) {
+          const figure = doc.createElement('figure');
+          while (aside.firstChild) { figure.appendChild(aside.firstChild); }
+          aside.replaceWith(figure);
+        }
+      }
+      const article = new Readability(doc).parse();
       if (!article || !article.content) { return ""; }
       return JSON.stringify({
         title: article.title || document.title,

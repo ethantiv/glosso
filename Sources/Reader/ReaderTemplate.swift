@@ -108,7 +108,17 @@ enum ReaderTemplate {
     }
     function glossoApply(id, html) {
       const el = document.querySelector('[data-glosso-id="' + id + '"]');
-      if (el) { el.innerHTML = html; el.classList.remove('glosso-pending'); }
+      if (!el) { return; }
+      // The model occasionally drops an <img> while translating a mixed block;
+      // re-append any image the replacement lost so translation never costs
+      // pictures (position within the block may shift — acceptable).
+      const had = Array.from(el.querySelectorAll('img'));
+      el.innerHTML = html;
+      const have = new Set(Array.from(el.querySelectorAll('img')).map(img => img.getAttribute('src')));
+      for (const img of had) {
+        if (!have.has(img.getAttribute('src'))) { el.appendChild(img); }
+      }
+      el.classList.remove('glosso-pending');
     }
     function glossoStatus(msg) {
       const status = document.getElementById('glosso-status');
