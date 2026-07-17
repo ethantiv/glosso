@@ -58,7 +58,7 @@ Two headless chords act on the current selection without opening the panel and p
 
 From the menu bar you can pick the Ollama model and the second language (English by default; also German, Russian, Spanish, Dutch, French). Polish is always the other side of the pair, and the direction is detected automatically.
 
-Two toggles: **Naturalny styl** (default on) makes translations read like natural prose instead of stiff machine output, and **Uruchamiaj przy logowaniu** starts the app quietly in the menu bar. The two in-place shortcuts above are rebindable here too.
+A **Uruchamiaj przy logowaniu** toggle starts the app quietly in the menu bar. The two in-place shortcuts above are rebindable here too. Translations always read like natural prose instead of stiff machine output — there is no toggle for it.
 
 ## How it works
 

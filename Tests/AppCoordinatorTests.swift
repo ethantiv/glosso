@@ -693,22 +693,19 @@ import Testing
 
     // MARK: Action palette (issue #23)
 
-    // The first capture always runs the Translate verb and threads the persisted
-    // humanize setting into the LLM call.
-    @Test func firstCaptureRunsTranslateWithHumanizeSetting() async {
+    // The first capture always runs the Translate verb.
+    @Test func firstCaptureRunsTranslate() async {
         let llm = FakeLLMClient(events: [.token("Hi"), .finished(doneReason: "stop")])
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = 0
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let settings = makeSettings()
-        settings.humanize = false
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedAction == .translate)
-        #expect(llm.recorder.receivedHumanize == false)
         #expect(popup.presentedAction == .translate)
         #expect(popup.presentedDirection == .fromPolish(.english))
     }

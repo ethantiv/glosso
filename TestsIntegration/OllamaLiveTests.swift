@@ -21,7 +21,7 @@ import Testing
 
         let client = OllamaClient()
         var output = ""
-        for try await event in client.run("Dzień dobry", action: .translate, model: LLMConfig.default.model, second: .english, formality: .automatic, humanize: false, style: false) {
+        for try await event in client.run("Dzień dobry", action: .translate, model: LLMConfig.default.model, second: .english, formality: .automatic, style: false) {
             if case let .token(value) = event {
                 output += value
             }
@@ -40,7 +40,7 @@ import Testing
         for try await event in client.run(
             "De kosten van de schade door de bever lopen snel op, vreest de Unie van Waterschappen.",
             action: .translate, model: LLMConfig.default.model, second: .dutch,
-            formality: .automatic, humanize: true, style: false
+            formality: .automatic, style: false
         ) {
             if case let .token(value) = event {
                 output += value
