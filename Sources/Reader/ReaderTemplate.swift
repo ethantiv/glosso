@@ -88,7 +88,7 @@ enum ReaderTemplate {
     </style>
     </head>
     <body>
-    <button id="glosso-toggle" type="button" onclick="glossoToggleOriginal()" title="Przełącz oryginał / tłumaczenie">
+    <button id="glosso-toggle" type="button" title="Przełącz oryginał / tłumaczenie">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
         <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
         <circle cx="12" cy="12" r="2.6"/>
@@ -220,23 +220,29 @@ enum ReaderTemplate {
     function glossoToggleOriginal() {
       const toOriginal = glosso.mode === 'translated';
       glosso.mode = toOriginal ? 'original' : 'translated';
-      for (const id of Object.keys(glosso.original)) {
-        glossoRender(id, toOriginal ? glosso.original[id] : (glosso.translated[id] || glosso.original[id]));
-        if (!toOriginal && glosso.pending.has(Number(id))) {
-          const el = document.querySelector('[data-glosso-id="' + id + '"]');
-          if (el) { el.classList.add('glosso-pending'); }
-        }
+      // Only blocks that HAVE a translation differ between the two views —
+      // everything else already shows its original, so re-rendering it would
+      // reparse HTML and drop any selection inside it for nothing.
+      for (const id of Object.keys(glosso.translated)) {
+        glossoRender(id, toOriginal ? glosso.original[id] : glosso.translated[id]);
+      }
+      for (const id of glosso.pending) {
+        const el = document.querySelector('[data-glosso-id="' + id + '"]');
+        if (el) { el.classList.toggle('glosso-pending', !toOriginal); }
       }
       const heading = document.getElementById('glosso-title');
       const title = toOriginal ? glosso.originalTitle : (glosso.translatedTitle || glosso.originalTitle);
       heading.textContent = title;
       document.title = title;
-      heading.classList.toggle('glosso-pending', !toOriginal && !glosso.translatedTitle && glosso.pending.size > 0);
+      heading.classList.toggle('glosso-pending', !toOriginal && !glosso.translatedTitle);
       glossoRefreshSummary();
       document.getElementById('glosso-toggle-label').textContent = toOriginal ? 'Tłumaczenie' : 'Oryginał';
     }
     function glossoAbort() {
       glosso.pending.clear();
+      // Nothing is in flight any more, so the title is final at whatever it now
+      // shows — or toggling back would re-dim it forever.
+      glosso.translatedTitle = glosso.translatedTitle || glosso.originalTitle;
       for (const el of document.querySelectorAll('.glosso-pending')) {
         el.classList.remove('glosso-pending');
       }
@@ -246,6 +252,9 @@ enum ReaderTemplate {
       status.textContent = msg;
       status.style.display = msg ? 'block' : 'none';
     }
+    // Bound here rather than as an inline onclick: glossoSanitize strips on*
+    // attributes, so an inline handler would die the day it runs any wider.
+    document.getElementById('glosso-toggle').addEventListener('click', glossoToggleOriginal);
     </script>
     </body>
     </html>

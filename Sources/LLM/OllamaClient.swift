@@ -33,11 +33,13 @@ final class OllamaClient: LLMClient {
     }
 
     func translateBlock(html: String, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html), model: model)
+        try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html),
+                           model: model, timeout: Self.longFormTimeout)
     }
 
     func readerSummary(of text: String, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text), model: model)
+        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text),
+                           model: model, timeout: Self.longFormTimeout)
     }
 
     func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
@@ -55,13 +57,19 @@ final class OllamaClient: LLMClient {
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 
+    // A non-streaming generate receives no bytes until the whole generation is
+    // done, so the request timeout is its total budget. The reader's article
+    // blocks and summaries legitimately run for minutes on a big model; the
+    // popup lookups behind a spinner must fail fast instead.
+    private static let longFormTimeout: TimeInterval = 300
+
     // One non-streaming generate, shared by alternatives() and explain() (issue
     // #17/#39). Same locked invariants as translate; only the model is
     // user-selectable per call. Returns the model's raw `response` body; each
     // caller parses it (AlternativesParser / ExplanationParser).
-    private func generate(prompt: String, model: String) async throws -> String {
+    private func generate(prompt: String, model: String, timeout: TimeInterval? = nil) async throws -> String {
         let endpoint = try await endpointProvider()
-        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint)
+        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint, timeout: timeout)
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
@@ -180,15 +188,12 @@ final class OllamaClient: LLMClient {
     // — think:false, temperature:0, keep_alive — stay locked) in one place, so no
     // caller hand-copies the config to swap the model. The endpoint is resolved by
     // the caller via `endpointProvider`, not taken from the config.
-    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool, endpoint: URL) throws -> URLRequest {
+    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool, endpoint: URL, timeout: TimeInterval? = nil) throws -> URLRequest {
         var config = baseConfig
         config.model = model
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
-        // The default 60s idle timeout kills non-streaming generates, which
-        // receive zero bytes until the whole generation is done — a long block
-        // on a slow tier (or a cold model load) legitimately takes minutes.
-        request.timeoutInterval = 300
+        if let timeout { request.timeoutInterval = timeout }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(GenerateRequest(config: config, prompt: prompt, stream: stream))
         return request

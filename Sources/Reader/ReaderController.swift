@@ -73,7 +73,10 @@ final class ReaderController: ReaderPresenting {
     // it) — a title must never block the article's translation.
     private func translateTitle(_ title: String, in webView: WKWebView) async {
         var final = title
-        if !Self.isConfidentlyPolish(title) {
+        // An empty title must not reach the model: it answers an empty block with
+        // whatever it likes, and that would become the article's heading.
+        let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        if hasTitle, !Self.isConfidentlyPolish(title) {
             setStatus("Tłumaczę tytuł…", in: webView)
             let translated = ReaderTemplate.stripFences(
                 (try? await llm.translateBlock(html: title, model: settings.modelName)) ?? "")
@@ -87,14 +90,15 @@ final class ReaderController: ReaderPresenting {
     // Best-effort tl;dr under the title: a failure just leaves the section
     // hidden, never blocks the block translation.
     private func summarize(in webView: WKWebView) async {
+        // ponytail: 6000-char cap — the summary reads the article's head; raise
+        // it if long-article summaries come out thin. Sliced in JS so a long
+        // article isn't bridged out of the web process just to be truncated.
         guard let text = try? await webView.evaluateStringResult(
-                "document.getElementById('glosso-content').textContent"),
+                "document.getElementById('glosso-content').textContent.slice(0, 6000)"),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return }
         setStatus("Streszczam…", in: webView)
-        // ponytail: 6000-char cap — the summary reads the article's head; raise
-        // it if long-article summaries come out thin.
-        guard let summary = try? await llm.readerSummary(of: String(text.prefix(6000)), model: settings.modelName) else { return }
+        guard let summary = try? await llm.readerSummary(of: text, model: settings.modelName) else { return }
         if Task.isCancelled { return }
         let cleaned = ReaderTemplate.stripFences(summary)
         if !cleaned.isEmpty {
