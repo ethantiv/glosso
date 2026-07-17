@@ -252,7 +252,11 @@ final class AppCoordinator {
         if let trailing = trailingChangeCounts.first,
            let text = try? reader.readSelection(baselineChangeCount: trailing) {
             if Task.isCancelled { return }
-            await route(text, at: point)
+            // Deliberately stream(), not route(): this baseline is seconds old and
+            // cannot tell the gesture's copy from an unrelated earlier one. A stale
+            // URL mistranslated in the passive popup is a shrug; the same URL
+            // opening a focus-stealing reader window mid-typing is not.
+            await stream(text, at: point, action: .translate)
             return
         }
         popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
@@ -554,10 +558,11 @@ final class AppCoordinator {
     }
 
     /// Routes a FRESH capture: a selection that is exactly one article URL opens
-    /// the reader window instead of translating the URL string. Only the three
-    /// capture sites call this — the re-run paths (tone/verb/source-edit/reword)
-    /// call stream() directly and must never re-route, and the headless chords
-    /// have their own pipeline.
+    /// the reader window instead of translating the URL string. Only the two
+    /// provably-fresh capture sites call this (strict baseline and AX fallback) —
+    /// the trailing-changeCount retry streams directly (its capture may be stale),
+    /// the re-run paths (tone/verb/source-edit/reword) call stream() directly and
+    /// must never re-route, and the headless chords have their own pipeline.
     private func route(_ text: String, at point: CGPoint) async {
         if let articleReader, let url = URLDetector.articleURL(in: text) {
             articleReader.show(url)

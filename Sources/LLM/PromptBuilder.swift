@@ -48,9 +48,9 @@ enum PromptBuilder {
     // Moderate style pass folded into the fixGrammar prompt whenever the detected
     // direction supports it (requested automatically, in the popup and the headless
     // chord alike). Wording is deliberately language-neutral and anchored to "the
-    // text's own language" — the humanizer regression above showed that
-    // English-flavored style phrasing
-    // makes the model switch the output language. Sentence boundaries are the hard
+    // text's own language" — the humanizer regression above showed that English-
+    // flavored style phrasing makes the model switch the output language.
+    // Sentence boundaries are the hard
     // limit: within them the diff stays readable span-by-span. "never change the
     // tone" holds only under automatic formality — a forced register directive in
     // the same prompt explicitly asks for a tone shift, and the two instructions

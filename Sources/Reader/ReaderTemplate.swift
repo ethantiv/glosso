@@ -10,6 +10,7 @@ import Foundation
 ///   (the dimmed original text is its own skeleton) and returns the block list
 ///   as a JSON string for Swift to loop over.
 /// - `glossoApply(id, html)` swaps in one block's translation.
+/// - `glossoAbort()` un-dims every still-pending block (translation gave up).
 /// - `glossoStatus(msg)` shows progress/errors in the bottom bar ('' hides it).
 enum ReaderTemplate {
     /// One tagged block of the rendered article, as returned by glossoSetArticle.
@@ -79,20 +80,39 @@ enum ReaderTemplate {
     <div id="glosso-content"></div>
     <div id="glosso-status"></div>
     <script>
+    // Readability strips <script> but keeps on* handler attributes and
+    // javascript: URLs, and innerHTML fires e.g. <img onerror> on insert —
+    // strip both before any extracted or model-produced HTML goes live.
+    function glossoSanitize(root) {
+      for (const el of root.querySelectorAll('*')) {
+        for (const attr of Array.from(el.attributes)) {
+          const name = attr.name.toLowerCase();
+          if (name.startsWith('on') || name === 'srcdoc') { el.removeAttribute(attr.name); continue; }
+          if (['href', 'src', 'data', 'xlink:href'].includes(name)
+              && attr.value.trim().toLowerCase().startsWith('javascript:')) {
+            el.removeAttribute(attr.name);
+          }
+        }
+      }
+    }
     function glossoSetArticle(title, byline, html) {
       document.title = title;
       document.getElementById('glosso-title').textContent = title;
       document.getElementById('glosso-byline').textContent = byline || '';
       const content = document.getElementById('glosso-content');
       content.innerHTML = html;
+      glossoSanitize(content);
       const SKIP = ['FIGURE', 'IMG', 'HR', 'TABLE', 'PRE', 'VIDEO', 'IFRAME'];
       const blocks = [];
       (function walk(node) {
         for (const el of Array.from(node.children)) {
           // Readability wraps everything in div.page containers — recurse through
           // structural wrappers, treat everything else (whole ul/ol/blockquote
-          // included) as one block.
-          if (['DIV', 'SECTION', 'ARTICLE', 'MAIN'].includes(el.tagName)) { walk(el); continue; }
+          // included) as one block. A wrapper with no element children only has
+          // bare text nodes, which recursion would silently skip — treat it as a
+          // block instead.
+          if (['DIV', 'SECTION', 'ARTICLE', 'MAIN'].includes(el.tagName)
+              && el.children.length > 0) { walk(el); continue; }
           const id = blocks.length;
           el.dataset.glossoId = id;
           const text = el.textContent.trim();
@@ -114,11 +134,17 @@ enum ReaderTemplate {
       // pictures (position within the block may shift — acceptable).
       const had = Array.from(el.querySelectorAll('img'));
       el.innerHTML = html;
+      glossoSanitize(el);
       const have = new Set(Array.from(el.querySelectorAll('img')).map(img => img.getAttribute('src')));
       for (const img of had) {
         if (!have.has(img.getAttribute('src'))) { el.appendChild(img); }
       }
       el.classList.remove('glosso-pending');
+    }
+    function glossoAbort() {
+      for (const el of document.querySelectorAll('.glosso-pending')) {
+        el.classList.remove('glosso-pending');
+      }
     }
     function glossoStatus(msg) {
       const status = document.getElementById('glosso-status');

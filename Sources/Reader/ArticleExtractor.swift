@@ -29,7 +29,13 @@ final class ArticleExtractor {
     private static let readabilityJS: String = {
         guard let url = Bundle.main.url(forResource: "Readability", withExtension: "js"),
               let source = try? String(contentsOf: url, encoding: .utf8)
-        else { return "" }
+        else {
+            // A missing resource is a packaging bug (project.yml's buildPhase:
+            // resources wiring) — crash in debug; in release runReadability turns
+            // it into extractionFailed instead of a misleading network error.
+            assertionFailure("Readability.js missing from the app bundle")
+            return ""
+        }
         return source
     }()
 
@@ -117,6 +123,7 @@ final class ArticleExtractor {
     }
 
     private func runReadability(in webView: WKWebView) async throws -> ExtractedArticle? {
+        guard !Self.readabilityJS.isEmpty else { throw ReaderError.extractionFailed }
         let script = Self.readabilityJS + "\n" + Self.driverJS
         guard let json = try await webView.evaluateStringResult(script), !json.isEmpty
         else { return nil }
@@ -149,10 +156,14 @@ extension WKWebView {
 @MainActor
 final class NavigationWatcher: NSObject, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Void, Error>?
+    private var expected: WKNavigation?
 
     /// Awaits the navigation `start` kicks off (`load`, `loadHTMLString`, …) in
     /// `webView`, whose `navigationDelegate` the caller must have pointed here.
-    func awaitNavigation(in webView: WKWebView, timeout: Duration, start: () -> Void) async throws {
+    /// `start` returns that navigation so callbacks for a superseded load in the
+    /// same webview (e.g. the reader window's previous show(), cancelled by ours)
+    /// can be told apart from ours and ignored.
+    func awaitNavigation(in webView: WKWebView, timeout: Duration, start: () -> WKNavigation?) async throws {
         let watchdog = Task { @MainActor [weak self, weak webView] in
             try? await Task.sleep(for: timeout)
             guard !Task.isCancelled else { return }
@@ -163,7 +174,7 @@ final class NavigationWatcher: NSObject, WKNavigationDelegate {
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Void, Error>) in
                 self.continuation = continuation
-                start()
+                self.expected = start()
             }
         } onCancel: {
             Task { @MainActor [weak self] in self?.finish(.failure(CancellationError())) }
@@ -173,17 +184,24 @@ final class NavigationWatcher: NSObject, WKNavigationDelegate {
     private func finish(_ result: Result<Void, Error>) {
         continuation?.resume(with: result)
         continuation = nil
+        expected = nil
+    }
+
+    // WebKit occasionally hands a nil navigation — accept it rather than strand
+    // the continuation (the watchdog would still fire, but seconds later).
+    private func matches(_ navigation: WKNavigation!) -> Bool {
+        navigation == nil || expected == nil || navigation === expected
     }
 
     func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-        finish(.success(()))
+        if matches(navigation) { finish(.success(())) }
     }
 
     func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-        finish(.failure(ReaderError.fetchFailed))
+        if matches(navigation) { finish(.failure(ReaderError.fetchFailed)) }
     }
 
     func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
-        finish(.failure(ReaderError.fetchFailed))
+        if matches(navigation) { finish(.failure(ReaderError.fetchFailed)) }
     }
 }

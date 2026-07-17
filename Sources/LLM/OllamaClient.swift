@@ -181,6 +181,10 @@ final class OllamaClient: LLMClient {
         config.model = model
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
+        // The default 60s idle timeout kills non-streaming generates, which
+        // receive zero bytes until the whole generation is done — a long block
+        // on a slow tier (or a cold model load) legitimately takes minutes.
+        request.timeoutInterval = 300
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.httpBody = try JSONEncoder().encode(GenerateRequest(config: config, prompt: prompt, stream: stream))
         return request

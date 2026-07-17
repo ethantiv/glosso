@@ -1,4 +1,5 @@
 import AppKit
+import NaturalLanguage
 import WebKit
 
 /// The reader window (feature: double Cmd+C on an article URL). A normal titled,
@@ -47,9 +48,12 @@ final class ReaderController: ReaderPresenting {
             try await translate(blocks: blocks, in: webView)
         } catch is CancellationError {
         } catch let error as ReaderError {
-            setStatus(error.message, in: webView)
+            // A superseded task can reach here with a real error (cancellation is
+            // swallowed inside extract's sleeps) — it must not paint over the new
+            // show()'s content in the shared webview.
+            if !Task.isCancelled { setStatus(error.message, in: webView) }
         } catch {
-            setStatus(ReaderError.fetchFailed.message, in: webView)
+            if !Task.isCancelled { setStatus(ReaderError.fetchFailed.message, in: webView) }
         }
     }
 
@@ -66,6 +70,11 @@ final class ReaderController: ReaderPresenting {
         for (index, block) in translatable.enumerated() {
             if Task.isCancelled { return }
             setStatus("Tłumaczę… (\(index + 1)/\(translatable.count))", in: webView)
+            if Self.isConfidentlyPolish(block.html) {
+                _ = try? await webView.evaluateStringResult(
+                    ReaderTemplate.call("glossoApply", String(block.id), block.html))
+                continue
+            }
             let translated: String
             do {
                 translated = ReaderTemplate.stripFences(
@@ -76,16 +85,36 @@ final class ReaderController: ReaderPresenting {
                 return
             } catch {
                 // A mid-article model failure keeps what's done; the untranslated
-                // tail stays readable in the original language.
-                setStatus("Tłumaczenie przerwane — reszta w oryginale.", in: webView)
+                // tail stays readable in the original language — un-dimmed, or the
+                // "readable" claim is a lie. A superseded task must not paint over
+                // its successor in the shared webview.
+                if Task.isCancelled { return }
+                _ = try? await webView.evaluateStringResult("glossoAbort()")
+                let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
+                setStatus("Tłumaczenie przerwane — reszta w oryginale." + detail, in: webView)
                 return
             }
             if Task.isCancelled { return }
-            if !translated.isEmpty {
-                _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoApply", String(block.id), translated))
-            }
+            // An empty result must still un-dim its block — re-apply the original.
+            _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
+                "glossoApply", String(block.id), translated.isEmpty ? block.html : translated))
         }
-        setStatus("", in: webView)
+        if !Task.isCancelled { setStatus("", in: webView) }
+    }
+
+    // The prompt's "already Polish → unchanged" costs a full generation per block;
+    // a confident local read skips that round-trip entirely. Unconstrained
+    // recognition (not DirectionDetector's PL-vs-second constraint) so kindred
+    // Slavic languages can't masquerade as Polish, and only on text long enough
+    // to trust — short or ambiguous blocks still go to the model.
+    private static func isConfidentlyPolish(_ html: String) -> Bool {
+        let text = html
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count >= 40 else { return false }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(text)
+        return (recognizer.languageHypotheses(withMaximum: 3)[.polish] ?? 0) >= 0.8
     }
 
     private func setStatus(_ message: String, in webView: WKWebView) {
@@ -93,12 +122,15 @@ final class ReaderController: ReaderPresenting {
     }
 
     private func ensureWindow(titled title: String) -> WKWebView {
-        if let window, let webView {
-            window.title = title
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-            return webView
-        }
+        let (window, webView) = existingOrNewWindow()
+        window.title = title
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+        return webView
+    }
+
+    private func existingOrNewWindow() -> (NSWindow, WKWebView) {
+        if let window, let webView { return (window, webView) }
         let webView = WKWebView(frame: .zero)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 900),
@@ -107,19 +139,28 @@ final class ReaderController: ReaderPresenting {
             defer: false
         )
         window.contentView = webView
-        window.title = title
         window.isReleasedWhenClosed = false
         window.center()
         window.setFrameAutosaveName("GlossoReader")
         closeObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.willCloseNotification, object: window, queue: .main
         ) { [weak self] _ in
-            MainActor.assumeIsolated { self?.translationTask?.cancel() }
+            MainActor.assumeIsolated { self?.windowWillClose() }
         }
         self.window = window
         self.webView = webView
-        window.makeKeyAndOrderFront(nil)
-        NSApp.activate(ignoringOtherApps: true)
-        return webView
+        return (window, webView)
+    }
+
+    // Dropping the strong refs on close lets the window, the webview and its
+    // WebContent process (the whole rendered article) deallocate — a menu-bar
+    // app must not keep a closed page resident. The next show() recreates the
+    // pair; the frame autosave name preserves size and position.
+    private func windowWillClose() {
+        translationTask?.cancel()
+        if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
+        closeObserver = nil
+        window = nil
+        webView = nil
     }
 }
