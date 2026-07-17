@@ -1,4 +1,0 @@
-- tłumaczenie tytułu
-- tłumaczenie podpisów pod zdjęciami
-- dodanie streszczenia artykułu generowanego przez AI (tl;dr) wyświetlanego pod tytułem
-- ikona „pokaż oryginał artykułu”
