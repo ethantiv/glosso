@@ -26,7 +26,6 @@ struct FakeLLMClient: LLMClient {
         var receivedSecond: SecondLanguage?
         var receivedFormality: Formality?
         var receivedAction: Action?
-        var receivedHumanize: Bool?
         var receivedStyle: Bool?
         // Call counts/order so cache + prefetch tests can assert the model is hit the
         // expected number of times (a cache hit must not re-run it).
@@ -141,13 +140,12 @@ struct FakeLLMClient: LLMClient {
         self.summaryError = summaryError
     }
 
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
         recorder.receivedModel = model
         recorder.receivedSecond = second
         recorder.receivedFormality = formality
         recorder.receivedAction = action
-        recorder.receivedHumanize = humanize
         recorder.receivedStyle = style
         recorder.runCount += 1
         recorder.runActions.append(action)

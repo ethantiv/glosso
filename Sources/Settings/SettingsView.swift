@@ -84,13 +84,6 @@ struct SettingsView: View {
                     .fixedSize()
                 }
                 rowDivider
-                row("Naturalny styl") {
-                    Toggle("", isOn: $store.humanize)
-                        .labelsHidden()
-                        .accessibilityLabel("Naturalny styl")
-                        .toggleStyle(.switch)
-                }
-                rowDivider
                 row("Uruchamiaj przy logowaniu") {
                     Toggle("", isOn: $store.launchAtLogin)
                         .labelsHidden()

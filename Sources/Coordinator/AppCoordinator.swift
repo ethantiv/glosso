@@ -35,7 +35,7 @@ final class AppCoordinator {
     private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
     private var actionCache: [Action: ActionResult] = [:]
 
-    // model, second language and humanize also feed every cached result, but they're
+    // model and second language also feed every cached result, but they're
     // changed only in the Settings window, which can't reach in to clear actionCache
     // while the popup floats (formality/source edits clear it directly; these can't).
     // Snapshot them and drop the whole cache when they differ from when it was filled,
@@ -43,7 +43,7 @@ final class AppCoordinator {
     // result. nil until the first stream fills the cache.
     private var cacheSignature: String?
     private func currentCacheSignature() -> String {
-        "\(settings.modelName)|\(settings.secondLanguage)|\(settings.humanize)"
+        "\(settings.modelName)|\(settings.secondLanguage)"
     }
 
     // Retained so the popup's tone pill and verb strip can re-run over the same
@@ -337,7 +337,7 @@ final class AppCoordinator {
             for try await event in llm.run(
                 text, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
-                humanize: settings.humanize, style: style) {
+                style: style) {
                 if Task.isCancelled { return }
                 if case .token(let token) = event { buffer += token }
             }
@@ -590,7 +590,7 @@ final class AppCoordinator {
         let direction = action == .translate || action == .fixGrammar ? detected : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
 
-        // The model/language/humanize that fed the cache may have changed in Settings
+        // The model/language that fed the cache may have changed in Settings
         // while the popup floated; drop every cached result if so, then fill afresh.
         let signature = currentCacheSignature()
         if signature != cacheSignature {
@@ -629,7 +629,7 @@ final class AppCoordinator {
         }
         await consume(llm.run(
             text, action: action, model: settings.modelName,
-            second: second, formality: settings.formality, humanize: settings.humanize,
+            second: second, formality: settings.formality,
             style: detected.supportsStyleFix),
             bucket: action)
         if !Task.isCancelled { schedulePrefetch() }
@@ -721,7 +721,6 @@ final class AppCoordinator {
             for try await event in llm.run(
                 source, action: action, model: settings.modelName,
                 second: settings.secondLanguage, formality: settings.formality,
-                humanize: settings.humanize,
                 style: (lastCapture?.direction ?? .unknown).supportsStyleFix) {
                 if Task.isCancelled { return }
                 switch event {

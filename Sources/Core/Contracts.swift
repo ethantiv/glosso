@@ -202,15 +202,13 @@ struct LLMConfig: Sendable {
 
 protocol LLMClient: Sendable {
     /// Runs `action` over `text` and streams the result into the popup, exactly
-    /// like the original translate path (issue #23). `humanize` only affects the
-    /// `.translate` action — it folds a "natural human writing" directive into the
-    /// prompt (default-on, toggled in Settings); the other verbs ignore it.
-    /// `style` is its `.fixGrammar` twin: a moderate style pass (flow, word order
+    /// like the original translate path (issue #23).
+    /// `style` only affects `.fixGrammar`: a moderate style pass (flow, word order
     /// and word choice within sentences, never merging/splitting them) folded into
     /// the correction prompt; the other verbs ignore it. Applied automatically
     /// whenever the detected direction supports it, in the popup and the headless
     /// fix-in-place chord alike.
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
+    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
     /// Context-aware alternatives for a single word of the finished translation,
     /// for the popup's per-word dropdown (issue #17). Given the source text, the
