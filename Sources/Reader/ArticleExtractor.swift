@@ -36,8 +36,18 @@ final class ArticleExtractor {
     // Returns a JSON string, or "" when Readability found no article — never
     // null/undefined, which evaluateJavaScript reports awkwardly.
     //
-    // Two pre-passes run on the clone before Readability so content images
-    // survive extraction on real-world pages:
+    // Three pre-passes run before Readability so the extract matches what a
+    // human actually sees on real-world pages:
+    // - CSS-hidden text removal: Readability judges visibility only by inline
+    //   styles and hidden/aria-hidden attributes — stylesheet hiding (a mobile
+    //   variant under `.for-mobile { display:none }`, say) is invisible to it,
+    //   so phantom text leaks into the extract. We run in a real browser, so
+    //   mark elements the engine actually doesn't render (checkVisibility on
+    //   the LIVE document — a clone has no computed styles) and drop them from
+    //   the clone. Subtrees containing images are exempt: carousels hide
+    //   inactive slides and some lazy loaders hide images until loaded, and
+    //   losing pictures costs more than a duplicated one — phantom *text*
+    //   never contains an <img>.
     // - Lazy-loader promotion: sites park the real image URL in data-src/
     //   data-srcset until the image scrolls into view — which in this hidden,
     //   never-scrolled webview is never. Promote those attributes so the
@@ -49,7 +59,16 @@ final class ArticleExtractor {
     //   Readability keeps. Link-heavy asides ("Related Articles") still die.
     private static let driverJS = """
     (function() {
+      if (typeof document.body.checkVisibility === 'function') {
+        for (const el of document.body.querySelectorAll('*')) {
+          if (el.closest('[data-glosso-hidden]')) { continue; }
+          if (el.checkVisibility({checkVisibilityCSS: true})) { continue; }
+          if (el.tagName === 'IMG' || el.querySelector('img')) { continue; }
+          el.setAttribute('data-glosso-hidden', '');
+        }
+      }
       const doc = document.cloneNode(true);
+      for (const el of doc.querySelectorAll('[data-glosso-hidden]')) { el.remove(); }
       const LAZY = ['data-src', 'data-lazy-src', 'data-original', 'data-url'];
       for (const img of doc.querySelectorAll('img')) {
         const candidate = LAZY.map(a => img.getAttribute(a)).find(v => v && /^(https?:|\\/)/.test(v));
