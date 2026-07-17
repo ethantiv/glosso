@@ -73,6 +73,19 @@ import Testing
         #expect(files.count == 1)
     }
 
+    // Block ids are deterministic only within one build, so an entry written by
+    // another app version must miss — replaying it could land translations on the
+    // wrong blocks.
+    @Test func entryFromAnotherVersionMisses() {
+        let oldVersion = ReaderCache(directory: cache.directory, version: "0.6.0")
+        let newVersion = ReaderCache(directory: cache.directory, version: "0.6.1")
+        let entry = makeEntry()
+        oldVersion.save(entry)
+
+        #expect(newVersion.load(entry.url) == nil)
+        #expect(oldVersion.load(entry.url) != nil)
+    }
+
     @Test func distinctURLsGetDistinctFiles() throws {
         cache.save(makeEntry(url: "https://example.com/a"))
         cache.save(makeEntry(url: "https://example.com/b"))

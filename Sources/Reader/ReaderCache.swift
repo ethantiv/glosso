@@ -26,10 +26,17 @@ struct ReaderCache: Sendable {
     static let ttl: TimeInterval = 7 * 24 * 3600
 
     let directory: URL
+    private let version: String
 
+    // The app version is folded into the file key: block ids are deterministic
+    // only within one build (the template's walk/SKIP/thresholds can change), so
+    // an entry from another version must miss instead of mis-applying its
+    // translations. Orphaned old-version files age out via the TTL sweep.
     init(directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Glosso/reader", isDirectory: true)) {
+        .appendingPathComponent("Glosso/reader", isDirectory: true),
+         version: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") {
         self.directory = directory
+        self.version = version
     }
 
     /// nil on miss or decode failure; an expired entry is deleted and reported as a miss.
@@ -71,7 +78,7 @@ struct ReaderCache: Sendable {
     }
 
     private func fileURL(for url: URL) -> URL {
-        let hash = SHA256.hash(data: Data(url.absoluteString.utf8))
+        let hash = SHA256.hash(data: Data("\(version)|\(url.absoluteString)".utf8))
             .map { String(format: "%02x", $0) }.joined()
         return directory.appendingPathComponent(hash + ".json")
     }
