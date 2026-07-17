@@ -58,6 +58,19 @@ enum ReaderTemplate {
       h1#glosso-title { font-size: 1.9em; line-height: 1.25; margin-bottom: .3em; }
       #glosso-byline { color: color-mix(in srgb, CanvasText 55%, Canvas);
                        margin-bottom: 2em; }
+      #glosso-summary { border-left: 3px solid #4F5BD8; padding: .1em 0 .1em 1em;
+                        margin: 0 0 2em; font-size: .95em;
+                        color: color-mix(in srgb, CanvasText 80%, Canvas);
+                        display: none; }
+      #glosso-toggle { position: fixed; top: .8em; right: .8em; z-index: 10;
+                       display: none; align-items: center; gap: .4em;
+                       font: inherit; font-size: .8em; padding: .35em .8em;
+                       border-radius: 999px; cursor: pointer;
+                       color: color-mix(in srgb, CanvasText 75%, Canvas);
+                       background: color-mix(in srgb, CanvasText 6%, Canvas);
+                       border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
+      #glosso-toggle:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
+      #glosso-toggle svg { width: 1.1em; height: 1.1em; }
       img, video { max-width: 100%; height: auto; border-radius: 4px; }
       figure { margin: 1.5em 0; }
       figcaption { font-size: .85em; opacity: .7; }
@@ -75,8 +88,16 @@ enum ReaderTemplate {
     </style>
     </head>
     <body>
+    <button id="glosso-toggle" type="button" onclick="glossoToggleOriginal()" title="Przełącz oryginał / tłumaczenie">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+        <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
+        <circle cx="12" cy="12" r="2.6"/>
+      </svg>
+      <span id="glosso-toggle-label">Oryginał</span>
+    </button>
     <h1 id="glosso-title"></h1>
     <div id="glosso-byline"></div>
+    <div id="glosso-summary"></div>
     <div id="glosso-content"></div>
     <div id="glosso-status"></div>
     <script>
@@ -95,15 +116,45 @@ enum ReaderTemplate {
         }
       }
     }
+    // Original/translated live side by side: `original`/`translated` keep every
+    // block's two renderings, `mode` says which one the DOM shows, and the eye
+    // button flips between them without touching Swift. Translation keeps
+    // writing into `translated` while the original is on display, so toggling
+    // back shows all progress made meanwhile. Each show() reloads the template
+    // (fresh JS context), so the state never needs resetting.
+    const glosso = {
+      mode: 'translated',
+      original: {},          // id -> original innerHTML
+      translated: {},        // id -> translated innerHTML
+      pending: new Set(),    // translatable ids still awaiting a translation
+      originalTitle: '',
+      translatedTitle: '',
+      summary: ''
+    };
     function glossoSetArticle(title, byline, html) {
+      glosso.originalTitle = title;
       document.title = title;
-      document.getElementById('glosso-title').textContent = title;
+      const heading = document.getElementById('glosso-title');
+      heading.textContent = title;
+      heading.classList.add('glosso-pending');
       document.getElementById('glosso-byline').textContent = byline || '';
       const content = document.getElementById('glosso-content');
       content.innerHTML = html;
       glossoSanitize(content);
-      const SKIP = ['FIGURE', 'IMG', 'HR', 'TABLE', 'PRE', 'VIDEO', 'IFRAME'];
+      const SKIP = ['IMG', 'HR', 'TABLE', 'PRE', 'VIDEO', 'IFRAME'];
       const blocks = [];
+      const register = function(el, translatable) {
+        const id = blocks.length;
+        el.dataset.glossoId = id;
+        const text = el.textContent.trim();
+        // ponytail: 4000-char cap — an oversized block would hit the model's
+        // token ceiling and truncate; it stays untranslated instead. Split in
+        // two if it ever bites.
+        const translate = translatable && text.length > 0 && text.length < 4000;
+        if (translate) { el.classList.add('glosso-pending'); glosso.pending.add(id); }
+        glosso.original[id] = el.innerHTML;
+        blocks.push({id: id, html: el.innerHTML, translate: translate});
+      };
       (function walk(node) {
         for (const el of Array.from(node.children)) {
           // Readability wraps everything in div.page containers — recurse through
@@ -113,25 +164,25 @@ enum ReaderTemplate {
           // block instead.
           if (['DIV', 'SECTION', 'ARTICLE', 'MAIN'].includes(el.tagName)
               && el.children.length > 0) { walk(el); continue; }
-          const id = blocks.length;
-          el.dataset.glossoId = id;
-          const text = el.textContent.trim();
-          // ponytail: 4000-char cap — an oversized block would hit the model's
-          // token ceiling and truncate; it stays untranslated instead. Split in
-          // two if it ever bites.
-          const translate = !SKIP.includes(el.tagName) && text.length > 0 && text.length < 4000;
-          if (translate) el.classList.add('glosso-pending');
-          blocks.push({id: id, html: el.innerHTML, translate: translate});
+          // A figure's images stay verbatim, but its caption is translatable
+          // content — register each non-empty figcaption as its own block.
+          if (el.tagName === 'FIGURE') {
+            for (const caption of el.querySelectorAll('figcaption')) { register(caption, true); }
+            continue;
+          }
+          register(el, !SKIP.includes(el.tagName));
         }
       })(content);
+      document.getElementById('glosso-toggle').style.display = 'flex';
       return JSON.stringify(blocks);
     }
-    function glossoApply(id, html) {
+    // Renders one block's html into the DOM. The model occasionally drops an
+    // <img> while translating a mixed block; re-append any image the replacement
+    // lost so translation never costs pictures (position within the block may
+    // shift — acceptable).
+    function glossoRender(id, html) {
       const el = document.querySelector('[data-glosso-id="' + id + '"]');
       if (!el) { return; }
-      // The model occasionally drops an <img> while translating a mixed block;
-      // re-append any image the replacement lost so translation never costs
-      // pictures (position within the block may shift — acceptable).
       const had = Array.from(el.querySelectorAll('img'));
       el.innerHTML = html;
       glossoSanitize(el);
@@ -141,7 +192,51 @@ enum ReaderTemplate {
       }
       el.classList.remove('glosso-pending');
     }
+    function glossoApply(id, html) {
+      glosso.translated[id] = html;
+      glosso.pending.delete(Number(id));
+      if (glosso.mode === 'translated') { glossoRender(id, html); }
+    }
+    function glossoSetTitle(title) {
+      glosso.translatedTitle = title;
+      if (glosso.mode === 'translated') {
+        document.title = title;
+        const heading = document.getElementById('glosso-title');
+        heading.textContent = title;
+        heading.classList.remove('glosso-pending');
+      }
+    }
+    function glossoSetSummary(text) {
+      glosso.summary = text;
+      glossoRefreshSummary();
+    }
+    function glossoRefreshSummary() {
+      const summary = document.getElementById('glosso-summary');
+      summary.textContent = glosso.summary;
+      // The tl;dr is our addition, not part of the article — the original view
+      // shows the page as-published, so it hides there.
+      summary.style.display = (glosso.summary && glosso.mode === 'translated') ? 'block' : 'none';
+    }
+    function glossoToggleOriginal() {
+      const toOriginal = glosso.mode === 'translated';
+      glosso.mode = toOriginal ? 'original' : 'translated';
+      for (const id of Object.keys(glosso.original)) {
+        glossoRender(id, toOriginal ? glosso.original[id] : (glosso.translated[id] || glosso.original[id]));
+        if (!toOriginal && glosso.pending.has(Number(id))) {
+          const el = document.querySelector('[data-glosso-id="' + id + '"]');
+          if (el) { el.classList.add('glosso-pending'); }
+        }
+      }
+      const heading = document.getElementById('glosso-title');
+      const title = toOriginal ? glosso.originalTitle : (glosso.translatedTitle || glosso.originalTitle);
+      heading.textContent = title;
+      document.title = title;
+      heading.classList.toggle('glosso-pending', !toOriginal && !glosso.translatedTitle && glosso.pending.size > 0);
+      glossoRefreshSummary();
+      document.getElementById('glosso-toggle-label').textContent = toOriginal ? 'Tłumaczenie' : 'Oryginał';
+    }
     function glossoAbort() {
+      glosso.pending.clear();
       for (const el of document.querySelectorAll('.glosso-pending')) {
         el.classList.remove('glosso-pending');
       }

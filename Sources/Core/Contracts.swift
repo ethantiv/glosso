@@ -259,6 +259,11 @@ protocol LLMClient: Sendable {
     /// PL↔second pair — so there is no `second:` parameter. Non-streaming like
     /// `alternatives`; an already-Polish block comes back unchanged.
     func translateBlock(html: String, model: String) async throws -> String
+    /// A 2–3 sentence Polish prose summary of an extracted article, shown as the
+    /// tl;dr under the reader window's title. Non-streaming like `translateBlock`;
+    /// best-effort in the reader (a failure hides the section, never blocks the
+    /// block translation).
+    func readerSummary(of text: String, model: String) async throws -> String
 }
 
 /// Opens the reader window for a copied article URL (double Cmd+C on a URL)

@@ -36,6 +36,10 @@ final class OllamaClient: LLMClient {
         try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html), model: model)
     }
 
+    func readerSummary(of text: String, model: String) async throws -> String {
+        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text), model: model)
+    }
+
     func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
         let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, second: second)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))

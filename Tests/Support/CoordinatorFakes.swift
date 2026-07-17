@@ -69,6 +69,9 @@ struct FakeLLMClient: LLMClient {
         // translateBlock(...)
         var blockHTMLs: [String] = []
         var blockModel: String?
+        // readerSummary(...)
+        var summaryText: String?
+        var summaryModel: String?
         // reword(...)
         var rewordOriginal: String?
         var rewordChosen: String?
@@ -91,6 +94,8 @@ struct FakeLLMClient: LLMClient {
     let replyError: TranslationError?
     let blockResult: String
     let blockError: TranslationError?
+    let summaryResult: String
+    let summaryError: TranslationError?
     let explanationResult: String
     let explanationError: TranslationError?
     let fixReasonResult: String
@@ -113,7 +118,9 @@ struct FakeLLMClient: LLMClient {
         reply: [String] = ["draft-one", "draft-two", "draft-three"],
         replyError: TranslationError? = nil,
         blockResult: String = "<b>PL</b>",
-        blockError: TranslationError? = nil
+        blockError: TranslationError? = nil,
+        summaryResult: String = "Krótkie streszczenie artykułu.",
+        summaryError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
@@ -130,6 +137,8 @@ struct FakeLLMClient: LLMClient {
         self.replyError = replyError
         self.blockResult = blockResult
         self.blockError = blockError
+        self.summaryResult = summaryResult
+        self.summaryError = summaryError
     }
 
     func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, humanize: Bool, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -237,6 +246,13 @@ struct FakeLLMClient: LLMClient {
         recorder.blockModel = model
         if let blockError { throw blockError }
         return blockResult
+    }
+
+    func readerSummary(of text: String, model: String) async throws -> String {
+        recorder.summaryText = text
+        recorder.summaryModel = model
+        if let summaryError { throw summaryError }
+        return summaryResult
     }
 
     func prewarm(model: String) async throws { recorder.prewarmModel = model }

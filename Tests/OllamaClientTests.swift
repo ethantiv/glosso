@@ -64,6 +64,19 @@ import Testing
         }
     }
 
+    @Test func readerSummaryReturnsResponseBody() async throws {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"Krótkie streszczenie.","done":true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.readerSummary(of: "A long article.", model: "m")
+        #expect(result == "Krótkie streszczenie.")
+    }
+
     @Test func unreachableHostMapsToOllamaUnreachable() async {
         MockURLProtocol.handler = { _ in
             throw URLError(.cannotConnectToHost)

@@ -45,6 +45,10 @@ final class ReaderController: ReaderPresenting {
             if Task.isCancelled { return }
             window?.title = article.title
             let blocks = try await insertArticle(article, in: webView)
+            await translateTitle(article.title, in: webView)
+            if Task.isCancelled { return }
+            await summarize(in: webView)
+            if Task.isCancelled { return }
             try await translate(blocks: blocks, in: webView)
         } catch is CancellationError {
         } catch let error as ReaderError {
@@ -63,6 +67,39 @@ final class ReaderController: ReaderPresenting {
               let blocks = try? JSONDecoder().decode([ReaderTemplate.Block].self, from: Data(json.utf8))
         else { throw ReaderError.extractionFailed }
         return blocks
+    }
+
+    // Best-effort: any failure leaves the original title in place (and un-dims
+    // it) — a title must never block the article's translation.
+    private func translateTitle(_ title: String, in webView: WKWebView) async {
+        var final = title
+        if !Self.isConfidentlyPolish(title) {
+            setStatus("Tłumaczę tytuł…", in: webView)
+            let translated = ReaderTemplate.stripFences(
+                (try? await llm.translateBlock(html: title, model: settings.modelName)) ?? "")
+            if Task.isCancelled { return }
+            if !translated.isEmpty { final = translated }
+        }
+        _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetTitle", final))
+        window?.title = final
+    }
+
+    // Best-effort tl;dr under the title: a failure just leaves the section
+    // hidden, never blocks the block translation.
+    private func summarize(in webView: WKWebView) async {
+        guard let text = try? await webView.evaluateStringResult(
+                "document.getElementById('glosso-content').textContent"),
+              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+        else { return }
+        setStatus("Streszczam…", in: webView)
+        // ponytail: 6000-char cap — the summary reads the article's head; raise
+        // it if long-article summaries come out thin.
+        guard let summary = try? await llm.readerSummary(of: String(text.prefix(6000)), model: settings.modelName) else { return }
+        if Task.isCancelled { return }
+        let cleaned = ReaderTemplate.stripFences(summary)
+        if !cleaned.isEmpty {
+            _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetSummary", cleaned))
+        }
     }
 
     private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws {
