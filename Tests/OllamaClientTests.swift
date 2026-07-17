@@ -37,6 +37,46 @@ import Testing
         #expect(tokens == ["Hel", "lo"])
     }
 
+    @Test func translateBlockReturnsResponseBody() async throws {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"<b>Cześć</b>","done":true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.translateBlock(html: "<b>Hello</b>", model: "m")
+        #expect(result == "<b>Cześć</b>")
+    }
+
+    @Test func translateBlockSurfacesOllamaErrorBody() async {
+        MockURLProtocol.handler = { request in
+            let body = #"{"error":"model 'm' not found"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.ollamaError("model 'm' not found")) {
+            _ = try await client.translateBlock(html: "<b>Hello</b>", model: "m")
+        }
+    }
+
+    @Test func readerSummaryReturnsResponseBody() async throws {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"Krótkie streszczenie.","done":true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.readerSummary(of: "A long article.", model: "m")
+        #expect(result == "Krótkie streszczenie.")
+    }
+
     @Test func unreachableHostMapsToOllamaUnreachable() async {
         MockURLProtocol.handler = { _ in
             throw URLError(.cannotConnectToHost)

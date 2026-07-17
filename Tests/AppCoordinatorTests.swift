@@ -21,6 +21,7 @@ import Testing
         popup: FakePopup,
         settings: SettingsStore? = nil,
         axReader: any AXSelectionReading = FakeAXSelectionReader(),
+        articleReader: (any ReaderPresenting)? = nil,
         prefetchLingerMs: Int = 0
     ) -> AppCoordinator {
         AppCoordinator(
@@ -30,6 +31,7 @@ import Testing
             axReader: axReader,
             popup: popup,
             settings: settings ?? makeSettings(),
+            articleReader: articleReader,
             pollStepMs: 1,
             pollMaxAttempts: 5,
             prefetchLingerMs: prefetchLingerMs
@@ -64,6 +66,78 @@ import Testing
         #expect(popup.presented)
         #expect(popup.presentedFormality == .formal)
         #expect(popup.presentedDirection == .fromPolish(.english))
+    }
+
+    // MARK: URL reader routing
+
+    // A copied article URL must open the reader window, not translate the URL
+    // string: the model is never hit and the skeleton popup is torn down.
+    @Test func copiedURLRoutesToTheReaderInsteadOfTranslating() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "https://example.com/artykul"
+        let popup = FakePopup()
+        let presenter = FakeReaderPresenter()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, articleReader: presenter)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(presenter.shownURLs == [URL(string: "https://example.com/artykul")!])
+        #expect(llm.recorder.runCount == 0)
+        #expect(popup.dismissCount == 1)
+    }
+
+    // A URL merely contained in prose is ordinary text — normal translation, the
+    // reader stays untouched.
+    @Test func urlInsideProseTranslatesNormally() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "zobacz https://example.com/artykul proszę"
+        let popup = FakePopup()
+        let presenter = FakeReaderPresenter()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, articleReader: presenter)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(presenter.shownURLs.isEmpty)
+        #expect(llm.recorder.receivedText == "zobacz https://example.com/artykul proszę")
+    }
+
+    // Without an injected reader (tests, or a build wiring none) a URL falls back
+    // to plain translation instead of dropping the capture.
+    @Test func copiedURLWithoutReaderFallsBackToTranslation() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "https://example.com/artykul"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(llm.recorder.receivedText == "https://example.com/artykul")
+    }
+
+    // The AX fallback path (the app never copied on Cmd+C) must route URLs to the
+    // reader exactly like the pasteboard path.
+    @Test func axFallbackAlsoRoutesURLsToTheReader() async {
+        let llm = FakeLLMClient()
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = nil   // pasteboard never delivers
+        let axReader = FakeAXSelectionReader()
+        axReader.text = "https://example.com/artykul"
+        let popup = FakePopup()
+        let presenter = FakeReaderPresenter()
+        let coordinator = makeCoordinator(
+            llm: llm, reader: reader, popup: popup,
+            axReader: axReader, articleReader: presenter)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+
+        #expect(presenter.shownURLs == [URL(string: "https://example.com/artykul")!])
+        #expect(llm.recorder.runCount == 0)
     }
 
     // The popup now shows the source alongside the translation, so the coordinator

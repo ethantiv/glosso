@@ -253,6 +253,25 @@ protocol LLMClient: Sendable {
     /// few to choose from. Replies in the language `text` is written in. Non-streaming
     /// like `alternatives` (all drafts arrive together); parsed by `ReplyParser`.
     func reply(to text: String, model: String) async throws -> [String]
+    /// Translates one HTML block of an extracted web article into Polish,
+    /// preserving its inline tags verbatim (the URL reader window). The target is
+    /// unconditionally Polish — an article can be in any language, not just the
+    /// PL↔second pair — so there is no `second:` parameter. Non-streaming like
+    /// `alternatives`; an already-Polish block comes back unchanged.
+    func translateBlock(html: String, model: String) async throws -> String
+    /// A 2–3 sentence Polish prose summary of an extracted article, shown as the
+    /// tl;dr under the reader window's title. Non-streaming like `translateBlock`;
+    /// best-effort in the reader (a failure hides the section, never blocks the
+    /// block translation).
+    func readerSummary(of text: String, model: String) async throws -> String
+}
+
+/// Opens the reader window for a copied article URL (double Cmd+C on a URL)
+/// and drives its progressive block-by-block translation. One window: a new
+/// `show` cancels the in-flight translation and reuses it.
+@MainActor
+protocol ReaderPresenting: AnyObject {
+    func show(_ url: URL)
 }
 
 /// Lists the models actually installed in Ollama, so Settings can offer a live
