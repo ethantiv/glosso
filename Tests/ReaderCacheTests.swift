@@ -73,6 +73,19 @@ import Testing
         #expect(files.count == 1)
     }
 
+    // Refresh must force a full re-run: after remove the next load is a miss,
+    // and removing an absent entry must not disturb its siblings.
+    @Test func removeDeletesEntryAndMissesUnknownURL() {
+        let entry = makeEntry()
+        cache.save(entry)
+
+        cache.remove(URL(string: "https://example.com/absent")!)
+        #expect(cache.load(entry.url) != nil)
+
+        cache.remove(entry.url)
+        #expect(cache.load(entry.url) == nil)
+    }
+
     // Block ids are deterministic only within one build, so an entry written by
     // another app version must miss — replaying it could land translations on the
     // wrong blocks.

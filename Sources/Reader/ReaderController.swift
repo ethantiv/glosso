@@ -18,6 +18,7 @@ final class ReaderController: ReaderPresenting {
     private var webView: WKWebView?
     private var translationTask: Task<Void, Never>?
     private var closeObserver: NSObjectProtocol?
+    private var currentURL: URL?
 
     init(llm: any LLMClient, settings: SettingsStore) {
         self.llm = llm
@@ -25,11 +26,20 @@ final class ReaderController: ReaderPresenting {
     }
 
     func show(_ url: URL) {
+        currentURL = url
         translationTask?.cancel()
         let webView = ensureWindow(titled: url.host() ?? "Artykuł")
         translationTask = Task { @MainActor [weak self] in
             await self?.run(url: url, in: webView)
         }
+    }
+
+    // The template's re-translate pill: drop the cached entry and re-run the
+    // full pipeline (show() cancels the in-flight task; post-remove it's a miss).
+    fileprivate func refreshCurrentArticle() {
+        guard let currentURL else { return }
+        cache.remove(currentURL)
+        show(currentURL)
     }
 
     private func run(url: URL, in webView: WKWebView) async {
@@ -217,7 +227,9 @@ final class ReaderController: ReaderPresenting {
 
     private func existingOrNewWindow() -> (NSWindow, WKWebView) {
         if let window, let webView { return (window, webView) }
-        let webView = WKWebView(frame: .zero)
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.add(ReaderScriptMessageProxy(controller: self), name: "glosso")
+        let webView = WKWebView(frame: .zero, configuration: configuration)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 900),
             styleMask: [.titled, .closable, .miniaturizable, .resizable],
@@ -246,7 +258,24 @@ final class ReaderController: ReaderPresenting {
         translationTask?.cancel()
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso")
         window = nil
         webView = nil
+    }
+}
+
+// WKUserContentController retains its handler strongly — this proxy holds the
+// controller weakly so the pair can't retain-cycle.
+@MainActor
+private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
+    private weak var controller: ReaderController?
+
+    init(controller: ReaderController) {
+        self.controller = controller
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        guard message.body as? String == "refresh" else { return }
+        controller?.refreshCurrentArticle()
     }
 }

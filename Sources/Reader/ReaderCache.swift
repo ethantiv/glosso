@@ -52,6 +52,12 @@ struct ReaderCache: Sendable {
         return entry
     }
 
+    /// Deletes the entry for a URL (no-op on miss) — backs the reader's
+    /// re-translate button.
+    func remove(_ url: URL) {
+        try? FileManager.default.removeItem(at: fileURL(for: url))
+    }
+
     /// Best-effort (all throws swallowed): creates the directory, writes the entry,
     /// then sweeps expired sibling files so never-revisited URLs don't pile up.
     func save(_ entry: Entry) {

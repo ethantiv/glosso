@@ -62,15 +62,16 @@ enum ReaderTemplate {
                         margin: 0 0 2em; font-size: .95em;
                         color: color-mix(in srgb, CanvasText 80%, Canvas);
                         display: none; }
-      #glosso-toggle { position: fixed; top: .8em; right: .8em; z-index: 10;
-                       display: none; align-items: center; gap: .4em;
-                       font: inherit; font-size: .8em; padding: .35em .8em;
-                       border-radius: 999px; cursor: pointer;
-                       color: color-mix(in srgb, CanvasText 75%, Canvas);
-                       background: color-mix(in srgb, CanvasText 6%, Canvas);
-                       border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
-      #glosso-toggle:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
-      #glosso-toggle svg { width: 1.1em; height: 1.1em; }
+      #glosso-pills { position: fixed; top: .8em; right: .8em; z-index: 10;
+                      display: none; gap: .5em; }
+      .glosso-pill { display: flex; align-items: center; gap: .4em;
+                     font: inherit; font-size: .8em; padding: .35em .8em;
+                     border-radius: 999px; cursor: pointer;
+                     color: color-mix(in srgb, CanvasText 75%, Canvas);
+                     background: color-mix(in srgb, CanvasText 6%, Canvas);
+                     border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
+      .glosso-pill:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
+      .glosso-pill svg { width: 1.1em; height: 1.1em; }
       img, video { max-width: 100%; height: auto; border-radius: 4px; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
@@ -94,13 +95,21 @@ enum ReaderTemplate {
     </style>
     </head>
     <body>
-    <button id="glosso-toggle" type="button" title="Przełącz oryginał / tłumaczenie">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-        <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
-        <circle cx="12" cy="12" r="2.6"/>
-      </svg>
-      <span id="glosso-toggle-label">Oryginał</span>
-    </button>
+    <div id="glosso-pills">
+      <button id="glosso-refresh" class="glosso-pill" type="button" title="Przetłumacz ponownie">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 12a9 9 0 1 1-2.6-6.4"/>
+          <path d="M21 3v6h-6"/>
+        </svg>
+      </button>
+      <button id="glosso-toggle" class="glosso-pill" type="button" title="Przełącz oryginał / tłumaczenie">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
+          <circle cx="12" cy="12" r="2.6"/>
+        </svg>
+        <span id="glosso-toggle-label">Oryginał</span>
+      </button>
+    </div>
     <h1 id="glosso-title"></h1>
     <div id="glosso-byline"></div>
     <div id="glosso-summary"></div>
@@ -164,7 +173,7 @@ enum ReaderTemplate {
       (function walk(node) {
         for (const el of Array.from(node.children)) {
           // Readability wraps everything in div.page containers — recurse through
-          // structural wrappers, treat everything else (whole ul/ol/blockquote
+          // structural wrappers, treat everything else (whole blockquote
           // included) as one block. A wrapper with no element children only has
           // bare text nodes, which recursion would silently skip — treat it as a
           // block instead.
@@ -176,10 +185,20 @@ enum ReaderTemplate {
             for (const caption of el.querySelectorAll('figcaption')) { register(caption, true); }
             continue;
           }
+          // A list translated as one block loses its <li> tags in the model's
+          // output and innerHTML on the <ol> drops the numbering — register each
+          // direct <li> instead, so the ol/li skeleton stays in the DOM and only
+          // li content is translated. Nested lists stay inside their parent li's
+          // block: registering nested li would let a parent apply wipe the
+          // children's data-glosso-id.
+          if (['UL', 'OL'].includes(el.tagName)) {
+            for (const li of el.querySelectorAll(':scope > li')) { register(li, true); }
+            continue;
+          }
           register(el, !SKIP.includes(el.tagName));
         }
       })(content);
-      document.getElementById('glosso-toggle').style.display = 'flex';
+      document.getElementById('glosso-pills').style.display = 'flex';
       return JSON.stringify(blocks);
     }
     // Renders one block's html into the DOM. The model occasionally drops an
@@ -261,6 +280,11 @@ enum ReaderTemplate {
     // Bound here rather than as an inline onclick: glossoSanitize strips on*
     // attributes, so an inline handler would die the day it runs any wider.
     document.getElementById('glosso-toggle').addEventListener('click', glossoToggleOriginal);
+    // Optional chaining: the bridge only exists inside the app's WKWebView, and
+    // the template must not throw when opened standalone (file://).
+    document.getElementById('glosso-refresh').addEventListener('click', function() {
+      window.webkit?.messageHandlers?.glosso?.postMessage('refresh');
+    });
     </script>
     </body>
     </html>
