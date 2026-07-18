@@ -102,6 +102,61 @@ import Testing
         #expect(result == "Krótkie streszczenie.")
     }
 
+    @Test func askArticleReturnsResponseBody() async throws {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"Autor mówi, że tak.","done":true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.askArticle(question: "Co mówi autor?", article: "A long article.", into: .polish, model: "m")
+        #expect(result == "Autor mówi, że tak.")
+    }
+
+    @Test func askArticleSurfacesOllamaErrorBody() async {
+        MockURLProtocol.handler = { request in
+            let body = #"{"error":"model 'm' not found"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.ollamaError("model 'm' not found")) {
+            _ = try await client.askArticle(question: "Co mówi autor?", article: "A long article.", into: .polish, model: "m")
+        }
+    }
+
+    @Test func articleQuestionsParsesOnePerLineAndStripsMarkers() async throws {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"1. Jak działa bateria?\n- Kto ją wynalazł?\nCo dalej?","done":true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.articleQuestions(about: "A long article.", into: .polish, model: "m")
+        #expect(result == ["Jak działa bateria?", "Kto ją wynalazł?", "Co dalej?"])
+    }
+
+    @Test func articleQuestionsCapsAtFive() async throws {
+        MockURLProtocol.handler = { request in
+            let lines = (1...7).map { "Pytanie numer \($0)?" }.joined(separator: #"\n"#)
+            let body = #"{"model":"m","response":""#.appending(lines).appending(#"","done":true}"#).data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.articleQuestions(about: "A long article.", into: .polish, model: "m")
+        #expect(result.count == 5)
+        #expect(result.first == "Pytanie numer 1?")
+    }
+
     @Test func unreachableHostMapsToOllamaUnreachable() async {
         MockURLProtocol.handler = { _ in
             throw URLError(.cannotConnectToHost)

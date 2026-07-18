@@ -49,6 +49,21 @@ final class OllamaClient: LLMClient {
                            model: model, timeout: Self.longFormTimeout, numPredict: 512)
     }
 
+    func askArticle(question: String, article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
+        // 1024: an answer is a short paragraph; double the summary's 512 so a
+        // multi-sentence answer never trips the length guard, still bounded.
+        try await generate(prompt: PromptBuilder.buildAskArticle(question: question, article: article, into: primary),
+                           model: model, timeout: Self.longFormTimeout, numPredict: 1024)
+    }
+
+    func articleQuestions(about article: String, into primary: PrimaryLanguage, model: String) async throws -> [String] {
+        let raw = try await generate(prompt: PromptBuilder.buildArticleQuestions(article: article, into: primary),
+                                     model: model, timeout: Self.longFormTimeout, numPredict: 256)
+        // original: "" — nothing to de-echo; the parser's bullet/number
+        // stripping and de-dup are what we want. Cap at 5 (the parser allows 6).
+        return Array(AlternativesParser.parse(raw, original: "").prefix(5))
+    }
+
     func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
         let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, primary: primary, second: second)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))

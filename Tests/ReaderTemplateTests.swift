@@ -33,4 +33,13 @@ import Testing
 
         #expect(call == #"glossoApply("1", "a \"quoted\" <\/script> line")"#)
     }
+
+    // The chat's question list travels as ONE JSON-array string (call takes only
+    // String args); JS JSON.parses it back. Pins the double-encoding contract
+    // the controller and glossoSetQuestions rely on.
+    @Test func callDoubleEncodesAJSONArrayArgument() {
+        let call = ReaderTemplate.call("glossoSetQuestions", #"["A?","B?"]"#)
+
+        #expect(call == #"glossoSetQuestions("[\"A?\",\"B?\"]")"#)
+    }
 }
