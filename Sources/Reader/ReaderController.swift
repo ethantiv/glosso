@@ -21,6 +21,7 @@ final class ReaderController: ReaderPresenting {
     // cancel the running translation pipeline, and vice versa.
     private var suggestTask: Task<Void, Never>?
     private var askTask: Task<Void, Never>?
+    private var chatHistory: [(question: String, answer: String)] = []
     private var chatPanelOpen = false
     private var chatWidthDelta: CGFloat = 0
     private static let chatPanelWidth: CGFloat = 340
@@ -37,6 +38,7 @@ final class ReaderController: ReaderPresenting {
         translationTask?.cancel()
         suggestTask?.cancel()
         askTask?.cancel()
+        chatHistory = []
         // The template reload closes the panel in JS; the window must shrink
         // back with it or a new article opens in a widened window.
         setChatPanel(open: false)
@@ -265,7 +267,7 @@ final class ReaderController: ReaderPresenting {
     // shrinks it back), so the article column keeps its size — the panel gets
     // new screen space instead of squeezing the text. Clamped to the screen:
     // when there's no room on the right, the window slides left instead.
-    fileprivate func setChatPanel(open: Bool) {
+    fileprivate func setChatPanel(open: Bool, animated: Bool = true) {
         guard open != chatPanelOpen, let window else { return }
         chatPanelOpen = open
         var frame = window.frame
@@ -285,7 +287,7 @@ final class ReaderController: ReaderPresenting {
             frame.size.width -= chatWidthDelta
             chatWidthDelta = 0
         }
-        window.setFrame(frame, display: true, animate: true)
+        window.setFrame(frame, display: true, animate: animated)
     }
 
     // ponytail: 12000-char cap, double the summary's — answers reach deeper into
@@ -324,9 +326,12 @@ final class ReaderController: ReaderPresenting {
             guard let self else { return }
             let context = await self.chatContext(in: webView)
             do {
+                // ponytail: last 4 turns cap the prompt; raise if follow-ups lose thread
                 let answer = ReaderTemplate.stripFences(try await self.llm.askArticle(
-                    question: question, article: context, into: self.settings.primaryLanguage, model: self.settings.modelName))
+                    question: question, history: Array(self.chatHistory.suffix(4)), article: context,
+                    into: self.settings.primaryLanguage, model: self.settings.modelName))
                 if Task.isCancelled { return }
+                self.chatHistory.append((question, answer))
                 _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoAnswer", answer, ""))
             } catch {
                 // A superseded task must not paint into the reloaded page's chat —
@@ -384,9 +389,13 @@ final class ReaderController: ReaderPresenting {
         translationTask?.cancel()
         suggestTask?.cancel()
         askTask?.cancel()
-        // ponytail: the autosaved frame may keep the widened width when the
-        // window closes with the panel open — cosmetic; fix if it ever annoys.
-        chatPanelOpen = false
+        chatHistory = []
+        // The window is still alive during willClose, so shrinking here is what
+        // the frame autosave records — otherwise every close-with-open-panel
+        // would compound the widened width into the next launch. Not animated:
+        // an in-flight animation would let the window deallocate mid-resize and
+        // autosave an intermediate frame.
+        setChatPanel(open: false, animated: false)
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso")

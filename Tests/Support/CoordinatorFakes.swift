@@ -76,6 +76,7 @@ struct FakeLLMClient: LLMClient {
         var summaryModel: String?
         // askArticle(...)
         var askQuestion: String?
+        var askHistory: [(question: String, answer: String)]?
         var askArticleText: String?
         var askPrimary: PrimaryLanguage?
         var askModel: String?
@@ -280,8 +281,9 @@ struct FakeLLMClient: LLMClient {
         return summaryResult
     }
 
-    func askArticle(question: String, article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
+    func askArticle(question: String, history: [(question: String, answer: String)], article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         recorder.askQuestion = question
+        recorder.askHistory = history
         recorder.askArticleText = article
         recorder.askPrimary = primary
         recorder.askModel = model

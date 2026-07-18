@@ -111,8 +111,23 @@ import Testing
         defer { MockURLProtocol.handler = nil }
 
         let client = makeClient()
-        let result = try await client.askArticle(question: "Co mówi autor?", article: "A long article.", into: .polish, model: "m")
+        let result = try await client.askArticle(question: "Co mówi autor?", history: [], article: "A long article.", into: .polish, model: "m")
         #expect(result == "Autor mówi, że tak.")
+    }
+
+    @Test func askArticleWithHistoryReturnsResponseBody() async throws {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"Tak, nawiązuje do poprzedniej odpowiedzi.","done":true}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        let result = try await client.askArticle(
+            question: "A dlaczego?", history: [("Co mówi autor?", "Autor mówi, że tak.")],
+            article: "A long article.", into: .polish, model: "m")
+        #expect(result == "Tak, nawiązuje do poprzedniej odpowiedzi.")
     }
 
     @Test func askArticleSurfacesOllamaErrorBody() async {
@@ -125,7 +140,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'm' not found")) {
-            _ = try await client.askArticle(question: "Co mówi autor?", article: "A long article.", into: .polish, model: "m")
+            _ = try await client.askArticle(question: "Co mówi autor?", history: [], article: "A long article.", into: .polish, model: "m")
         }
     }
 

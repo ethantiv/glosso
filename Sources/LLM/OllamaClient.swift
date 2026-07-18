@@ -49,10 +49,10 @@ final class OllamaClient: LLMClient {
                            model: model, timeout: Self.longFormTimeout, numPredict: 512)
     }
 
-    func askArticle(question: String, article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
+    func askArticle(question: String, history: [(question: String, answer: String)], article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         // 1024: an answer is a short paragraph; double the summary's 512 so a
         // multi-sentence answer never trips the length guard, still bounded.
-        try await generate(prompt: PromptBuilder.buildAskArticle(question: question, article: article, into: primary),
+        try await generate(prompt: PromptBuilder.buildAskArticle(question: question, history: history, article: article, into: primary),
                            model: model, timeout: Self.longFormTimeout, numPredict: 1024)
     }
 

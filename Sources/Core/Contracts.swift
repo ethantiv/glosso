@@ -283,9 +283,11 @@ protocol LLMClient: Sendable {
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String
     /// Answers the user's question about the reader window's article, in the
     /// primary language regardless of the article's or question's language
-    /// ("Zapytaj artykuł"). Non-streaming like `readerSummary`; best-effort in
-    /// the reader (a failure shows an error bubble, never touches the article).
-    func askArticle(question: String, article: String, into primary: PrimaryLanguage, model: String) async throws -> String
+    /// ("Zapytaj artykuł"). `history` is the conversation so far (oldest first)
+    /// so follow-up questions keep their thread. Non-streaming like
+    /// `readerSummary`; best-effort in the reader (a failure shows an error
+    /// bubble, never touches the article).
+    func askArticle(question: String, history: [(question: String, answer: String)], article: String, into primary: PrimaryLanguage, model: String) async throws -> String
     /// 3–5 suggested questions about the article, in the primary language, for
     /// the chat panel's clickable chips — generated lazily on first panel open.
     /// Non-streaming; one question per line, parsed by `AlternativesParser`.
