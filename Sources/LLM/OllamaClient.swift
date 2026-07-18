@@ -33,11 +33,13 @@ final class OllamaClient: LLMClient {
     }
 
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        // The cap scales with the input: a faithful translation is about the
-        // block's own size in tokens (~4 chars each), so 2× that is generous —
-        // and a small model looping on a small block dies in seconds instead of
-        // grinding to a flat ceiling for a minute.
-        let cap = max(256, min(2048, html.utf8.count / 2))
+        // The cap scales with the input and has no flat ceiling: a faithful
+        // translation re-emits the markup plus the text at ~3 bytes/token, so
+        // one token per input byte is a ~3× margin even for Polish — a flat
+        // ceiling falsely truncated near-cap blocks with heavy markup. Small
+        // junk blocks still die in seconds; oversized legitimate ones stay
+        // bounded by longFormTimeout, exactly as before this cap existed.
+        let cap = max(256, html.utf8.count)
         return try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
                                   model: model, timeout: Self.longFormTimeout, numPredict: cap)
     }
