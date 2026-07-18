@@ -51,6 +51,19 @@ import Testing
         #expect(store.secondLanguage == .english)
     }
 
+    // The seed must be persisted during init (didSet doesn't fire there): after
+    // onboarding completes without the user touching the primary picker, the next
+    // launch would otherwise see the key absent and migration-revert to Polish.
+    @Test func seededPrimarySurvivesOnboardingCompletion() {
+        let defaults = transientDefaults()
+        let first = SettingsStore(defaults: defaults, systemLanguages: ["en-US"])
+        #expect(first.primaryLanguage == .english)
+        first.hasCompletedOnboarding = true
+
+        let secondLaunch = SettingsStore(defaults: defaults, systemLanguages: ["en-US"])
+        #expect(secondLaunch.primaryLanguage == .english)
+    }
+
     @Test func persistsPrimaryLanguageAcrossReload() {
         let defaults = transientDefaults()
         SettingsStore(defaults: defaults).primaryLanguage = .english

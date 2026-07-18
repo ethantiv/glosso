@@ -101,6 +101,10 @@ final class SettingsStore {
             ?? (defaults.object(forKey: Key.hasCompletedOnboarding) != nil
                 ? .polish
                 : (systemLanguages.first?.hasPrefix("pl") == true ? .polish : .english))
+        // didSet doesn't fire during init, so persist the resolved value here —
+        // otherwise a fresh install's seed is absent on the second launch and the
+        // migration branch above would silently revert it to Polish.
+        defaults.set(primary.rawValue, forKey: Key.primaryLanguage)
         self.primaryLanguage = primary
         let storedSecond = defaults.string(forKey: Key.secondLanguage)
         let second: SecondLanguage? = storedSecond == Self.autoSecond
