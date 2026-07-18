@@ -46,10 +46,10 @@ struct PopupView: View {
 
     private var resultLabel: String {
         switch model.action {
-        case .translate: "Tłumaczenie"
-        case .summarize: "Streszczenie"
-        case .fixGrammar: "Poprawka"
-        case .reply: "Odpowiedź"
+        case .translate: loc("Tłumaczenie", "Translation")
+        case .summarize: loc("Streszczenie", "Summary")
+        case .fixGrammar: loc("Poprawka", "Correction")
+        case .reply: loc("Odpowiedź", "Reply")
         }
     }
 
@@ -173,7 +173,7 @@ struct PopupView: View {
                 .allowsHitTesting(false)
             )
             .onHover { hoverGrip = $0 }
-            .accessibilityLabel("Zmień rozmiar okna")
+            .accessibilityLabel(loc("Zmień rozmiar okna", "Resize window"))
     }
 
     // MARK: Header
@@ -232,23 +232,23 @@ struct PopupView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help("\(action.displayName) zaznaczenie")
-        .accessibilityLabel("\(action.displayName) zaznaczenie")
+        .help(loc("\(action.displayName) zaznaczenie", "\(action.displayName) the selection"))
+        .accessibilityLabel(loc("\(action.displayName) zaznaczenie", "\(action.displayName) the selection"))
         .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     @ViewBuilder
     private var languagePair: some View {
         switch model.direction {
-        case .fromPolish(let second):
+        case .fromPrimary(let primary, let second):
             HStack(spacing: 7) {
-                pill("PL", accent: false)
+                pill(primary.code, accent: false)
                 directionArrow(reversed: false)
                 pill(second.code, accent: true)
             }
-        case .toPolish(let second):
+        case .toPrimary(let primary, let second):
             HStack(spacing: 7) {
-                pill("PL", accent: true)
+                pill(primary.code, accent: true)
                 directionArrow(reversed: true)
                 pill(second.code, accent: false)
             }
@@ -286,8 +286,8 @@ struct PopupView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.")
-        .accessibilityLabel("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.")
+        .help(loc("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.", "Tone: \(model.formality.displayName). Click to change."))
+        .accessibilityLabel(loc("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.", "Tone: \(model.formality.displayName). Click to change."))
     }
 
     // "Co się zmieniło?" — the register coach (issue #53). Appears only after a tone
@@ -297,7 +297,7 @@ struct PopupView: View {
             HStack(spacing: 4) {
                 Image(systemName: "arrow.left.arrow.right")
                     .font(.system(size: 11.5, weight: .semibold))
-                Text("Co się zmieniło?")
+                Text(loc("Co się zmieniło?", "What changed?"))
                     .font(PopupTheme.fontControl)
             }
             .padding(.horizontal, 8)
@@ -307,8 +307,8 @@ struct PopupView: View {
             .contentShape(Capsule())
         }
         .buttonStyle(.plain)
-        .help("Pokaż, co zmieniła zmiana tonu wypowiedzi.")
-        .accessibilityLabel("Pokaż, co zmieniła zmiana tonu wypowiedzi.")
+        .help(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
+        .accessibilityLabel(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
         .accessibilityAddTraits(model.toneNoteVisible ? .isSelected : [])
     }
 
@@ -319,11 +319,11 @@ struct PopupView: View {
                 .foregroundStyle(PopupTheme.accent)
             if model.toneNoteLoading {
                 ProgressView().controlSize(.small)
-                Text("Analizuję zmianę tonu…")
+                Text(loc("Analizuję zmianę tonu…", "Analyzing the tone change…"))
                     .font(PopupTheme.fontControl)
                     .foregroundStyle(.secondary)
             } else {
-                Text(model.toneNoteText.isEmpty ? "Nie udało się pobrać wyjaśnienia." : model.toneNoteText)
+                Text(model.toneNoteText.isEmpty ? loc("Nie udało się pobrać wyjaśnienia.", "Couldn't fetch the explanation.") : model.toneNoteText)
                     .font(PopupTheme.fontControl)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -352,7 +352,7 @@ struct PopupView: View {
         // wording identical; state that instead of asking the model to explain a
         // difference that isn't there — it would invent one.
         guard change.previous != model.text else {
-            model.toneNoteText = "Tłumaczenie nie zmieniło się po zmianie tonu."
+            model.toneNoteText = loc("Tłumaczenie nie zmieniło się po zmianie tonu.", "The translation didn't change with the tone.")
             return
         }
         model.toneNoteLoading = true
@@ -393,8 +393,8 @@ struct PopupView: View {
                         .foregroundStyle(Color.secondary)
                 }
                 .buttonStyle(IconButtonStyle())
-                .help("Zastąp zaznaczenie tłumaczeniem")
-                .accessibilityLabel("Zastąp zaznaczenie tłumaczeniem")
+                .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
+                .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
             }
             if canCopy {
                 Button(action: copy) {
@@ -403,8 +403,8 @@ struct PopupView: View {
                         .foregroundStyle(copied ? PopupTheme.copied : Color.secondary)
                 }
                 .buttonStyle(IconButtonStyle())
-                .help("Kopiuj tłumaczenie")
-                .accessibilityLabel("Kopiuj tłumaczenie")
+                .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
+                .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
                 .animation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast), value: copied)
             }
             if canUndo {
@@ -413,16 +413,16 @@ struct PopupView: View {
                         .foregroundStyle(Color.secondary)
                 }
                 .buttonStyle(IconButtonStyle())
-                .help("Przywróć poprzednie tłumaczenie")
-                .accessibilityLabel("Przywróć poprzednie tłumaczenie")
+                .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
+                .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
             }
             Button(action: close) {
                 iconLabel("xmark")
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(IconButtonStyle())
-            .help("Zamknij")
-            .accessibilityLabel("Zamknij")
+            .help(loc("Zamknij", "Close"))
+            .accessibilityLabel(loc("Zamknij", "Close"))
         }
     }
 
@@ -448,7 +448,7 @@ struct PopupView: View {
     private var sourcePane: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                label("Oryginał")
+                label(loc("Oryginał", "Original"))
                 Spacer(minLength: 0)
                 retranslateButton
             }
@@ -516,8 +516,8 @@ struct PopupView: View {
         .buttonStyle(.plain)
         .disabled(!canRetranslate)
         .opacity(canRetranslate ? 1 : 0)
-        .help("Uruchom ponownie na poprawionym tekście (⌘↩)")
-        .accessibilityLabel("Uruchom ponownie na poprawionym tekście")
+        .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
+        .accessibilityLabel(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"))
     }
 
     // Editing re-runs from scratch, so the open word dropdown, the pre-edit undo
@@ -706,14 +706,14 @@ struct PopupView: View {
     private var fixSplitContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
-                label("Zmiany (\(model.diffChangeCount))")
+                label(loc("Zmiany (\(model.diffChangeCount))", "Changes (\(model.diffChangeCount))"))
                 Spacer(minLength: 0)
                 diffEyeButton
             }
             if !model.diffHidden {
                 grammarDiffFlow
                 Divider()
-                label("Poprawiona wersja")
+                label(loc("Poprawiona wersja", "Corrected version"))
             }
             plainResultText
         }
@@ -741,8 +741,8 @@ struct PopupView: View {
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
-        .help(model.diffHidden ? "Pokaż zmiany" : "Ukryj zmiany")
-        .accessibilityLabel(model.diffHidden ? "Pokaż zmiany" : "Ukryj zmiany")
+        .help(model.diffHidden ? loc("Pokaż zmiany", "Show changes") : loc("Ukryj zmiany", "Hide changes"))
+        .accessibilityLabel(model.diffHidden ? loc("Pokaż zmiany", "Show changes") : loc("Ukryj zmiany", "Hide changes"))
     }
 
     // Grammar-diff for fixGrammar results (issue #51): the corrected text rendered
@@ -918,7 +918,7 @@ struct PopupView: View {
     private var truncatedFooter: some View {
         HStack(spacing: 7) {
             Image(systemName: "exclamationmark.triangle.fill")
-            Text("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.")
+            Text(loc("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.", "Translation truncated (model limit). Shorten the selection."))
         }
         .font(PopupTheme.fontControl)
         .foregroundStyle(PopupTheme.warn)

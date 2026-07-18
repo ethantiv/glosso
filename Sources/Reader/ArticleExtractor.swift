@@ -7,8 +7,8 @@ enum ReaderError: Error {
 
     var message: String {
         switch self {
-        case .fetchFailed: "Nie udało się wczytać strony."
-        case .extractionFailed: "Nie udało się znaleźć artykułu na tej stronie."
+        case .fetchFailed: loc("Nie udało się wczytać strony.", "Couldn't load the page.")
+        case .extractionFailed: loc("Nie udało się znaleźć artykułu na tej stronie.", "Couldn't find an article on this page.")
         }
     }
 }

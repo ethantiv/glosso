@@ -14,16 +14,16 @@ final class OllamaClient: LLMClient {
         self.endpointProvider = endpointProvider
     }
 
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
-        stream(prompt: PromptBuilder.build(for: text, action: action, second: second, formality: formality, style: style), model: model)
+    func run(_ text: String, action: Action, model: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
+        stream(prompt: PromptBuilder.build(for: text, action: action, primary: primary, second: second, formality: formality, style: style), model: model)
     }
 
-    func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
-        stream(prompt: PromptBuilder.buildReword(original: original, chosen: chosen, translation: translation, source: source, second: second, formality: formality), model: model)
+    func reword(original: String, to chosen: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+        stream(prompt: PromptBuilder.buildReword(original: original, chosen: chosen, translation: translation, source: source, primary: primary, second: second, formality: formality), model: model)
     }
 
-    func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String] {
-        let prompt = PromptBuilder.buildAlternatives(word: word, translation: translation, source: source, second: second)
+    func alternatives(for word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> [String] {
+        let prompt = PromptBuilder.buildAlternatives(word: word, translation: translation, source: source, primary: primary, second: second)
         return AlternativesParser.parse(try await generate(prompt: prompt, model: model), original: word)
     }
 
@@ -32,28 +32,28 @@ final class OllamaClient: LLMClient {
         return ReplyParser.parse(try await generate(prompt: prompt, model: model))
     }
 
-    func translateBlock(html: String, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html),
+    func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
+        try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
                            model: model, timeout: Self.longFormTimeout)
     }
 
-    func readerSummary(of text: String, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text),
+    func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {
+        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text, into: primary),
                            model: model, timeout: Self.longFormTimeout)
     }
 
-    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, second: second)
+    func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, primary: primary, second: second)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, second: second, englishRules: englishRules, style: style)
+    func explainFix(error: String, correction: String, original: String, corrected: String, primary: PrimaryLanguage, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, primary: primary, second: second, englishRules: englishRules, style: style)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 
-    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, second: SecondLanguage, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplainRegister(previous: previous, current: current, from: from, to: to, source: source, second: second)
+    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
+        let prompt = PromptBuilder.buildExplainRegister(previous: previous, current: current, from: from, to: to, source: source, primary: primary, second: second)
         return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
     }
 

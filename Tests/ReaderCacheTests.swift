@@ -26,9 +26,9 @@ import Testing
 
     @Test func saveThenLoadRoundTripsEveryField() {
         let entry = makeEntry()
-        cache.save(entry)
+        cache.save(entry, primary: .polish)
 
-        let loaded = cache.load(entry.url)
+        let loaded = cache.load(entry.url, primary: .polish)
         #expect(loaded?.url == entry.url)
         #expect(loaded?.title == "Original title")
         #expect(loaded?.translatedTitle == "Przetłumaczony tytuł")
@@ -39,17 +39,17 @@ import Testing
     }
 
     @Test func loadMissesForUnknownURL() {
-        cache.save(makeEntry())
-        #expect(cache.load(URL(string: "https://example.com/other")!) == nil)
+        cache.save(makeEntry(), primary: .polish)
+        #expect(cache.load(URL(string: "https://example.com/other")!, primary: .polish) == nil)
     }
 
     // The 7-day TTL is the whole point of the cache: a stale article must be
     // re-fetched and re-translated, and its file must not linger on disk.
     @Test func expiredEntryIsDeletedOnLoad() {
         let entry = makeEntry(savedAt: .now.addingTimeInterval(-8 * 24 * 3600))
-        cache.save(entry)
+        cache.save(entry, primary: .polish)
 
-        #expect(cache.load(entry.url) == nil)
+        #expect(cache.load(entry.url, primary: .polish) == nil)
         let files = try? FileManager.default.contentsOfDirectory(atPath: cache.directory.path)
         #expect(files?.isEmpty == true)
     }
@@ -58,17 +58,17 @@ import Testing
     // expired siblings by file modification date.
     @Test func saveSweepsExpiredSiblings() throws {
         let old = makeEntry(url: "https://example.com/old")
-        cache.save(old)
+        cache.save(old, primary: .polish)
         let oldFile = try #require(try FileManager.default
             .contentsOfDirectory(at: cache.directory, includingPropertiesForKeys: nil).first)
         try FileManager.default.setAttributes(
             [.modificationDate: Date.now.addingTimeInterval(-8 * 24 * 3600)],
             ofItemAtPath: oldFile.path)
 
-        cache.save(makeEntry(url: "https://example.com/new"))
+        cache.save(makeEntry(url: "https://example.com/new"), primary: .polish)
 
-        #expect(cache.load(old.url) == nil)
-        #expect(cache.load(URL(string: "https://example.com/new")!) != nil)
+        #expect(cache.load(old.url, primary: .polish) == nil)
+        #expect(cache.load(URL(string: "https://example.com/new")!, primary: .polish) != nil)
         let files = try FileManager.default.contentsOfDirectory(atPath: cache.directory.path)
         #expect(files.count == 1)
     }
@@ -77,13 +77,13 @@ import Testing
     // and removing an absent entry must not disturb its siblings.
     @Test func removeDeletesEntryAndMissesUnknownURL() {
         let entry = makeEntry()
-        cache.save(entry)
+        cache.save(entry, primary: .polish)
 
-        cache.remove(URL(string: "https://example.com/absent")!)
-        #expect(cache.load(entry.url) != nil)
+        cache.remove(URL(string: "https://example.com/absent")!, primary: .polish)
+        #expect(cache.load(entry.url, primary: .polish) != nil)
 
-        cache.remove(entry.url)
-        #expect(cache.load(entry.url) == nil)
+        cache.remove(entry.url, primary: .polish)
+        #expect(cache.load(entry.url, primary: .polish) == nil)
     }
 
     // Block ids are deterministic only within one build, so an entry written by
@@ -93,19 +93,29 @@ import Testing
         let oldVersion = ReaderCache(directory: cache.directory, version: "0.6.0")
         let newVersion = ReaderCache(directory: cache.directory, version: "0.6.1")
         let entry = makeEntry()
-        oldVersion.save(entry)
+        oldVersion.save(entry, primary: .polish)
 
-        #expect(newVersion.load(entry.url) == nil)
-        #expect(oldVersion.load(entry.url) != nil)
+        #expect(newVersion.load(entry.url, primary: .polish) == nil)
+        #expect(oldVersion.load(entry.url, primary: .polish) != nil)
+    }
+
+    // A cached article holds translations INTO one primary language; switching
+    // the primary must miss and re-translate, not replay the old language.
+    @Test func entryForAnotherPrimaryLanguageMisses() {
+        let entry = makeEntry()
+        cache.save(entry, primary: .polish)
+
+        #expect(cache.load(entry.url, primary: .english) == nil)
+        #expect(cache.load(entry.url, primary: .polish) != nil)
     }
 
     @Test func distinctURLsGetDistinctFiles() throws {
-        cache.save(makeEntry(url: "https://example.com/a"))
-        cache.save(makeEntry(url: "https://example.com/b"))
+        cache.save(makeEntry(url: "https://example.com/a"), primary: .polish)
+        cache.save(makeEntry(url: "https://example.com/b"), primary: .polish)
 
         let files = try FileManager.default.contentsOfDirectory(atPath: cache.directory.path)
         #expect(files.count == 2)
-        #expect(cache.load(URL(string: "https://example.com/a")!) != nil)
-        #expect(cache.load(URL(string: "https://example.com/b")!) != nil)
+        #expect(cache.load(URL(string: "https://example.com/a")!, primary: .polish) != nil)
+        #expect(cache.load(URL(string: "https://example.com/b")!, primary: .polish) != nil)
     }
 }

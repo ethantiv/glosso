@@ -23,6 +23,7 @@ struct FakeLLMClient: LLMClient {
     final class Recorder: @unchecked Sendable {
         var receivedText: String?
         var receivedModel: String?
+        var receivedPrimary: PrimaryLanguage?
         var receivedSecond: SecondLanguage?
         var receivedFormality: Formality?
         var receivedAction: Action?
@@ -67,9 +68,11 @@ struct FakeLLMClient: LLMClient {
         var replyModel: String?
         // translateBlock(...)
         var blockHTMLs: [String] = []
+        var blockPrimary: PrimaryLanguage?
         var blockModel: String?
         // readerSummary(...)
         var summaryText: String?
+        var summaryPrimary: PrimaryLanguage?
         var summaryModel: String?
         // reword(...)
         var rewordOriginal: String?
@@ -140,9 +143,10 @@ struct FakeLLMClient: LLMClient {
         self.summaryError = summaryError
     }
 
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func run(_ text: String, action: Action, model: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.receivedText = text
         recorder.receivedModel = model
+        recorder.receivedPrimary = primary
         recorder.receivedSecond = second
         recorder.receivedFormality = formality
         recorder.receivedAction = action
@@ -152,7 +156,7 @@ struct FakeLLMClient: LLMClient {
         return makeStream()
     }
 
-    func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func reword(original: String, to chosen: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         recorder.rewordOriginal = original
         recorder.rewordChosen = chosen
         recorder.rewordTranslation = translation
@@ -163,7 +167,7 @@ struct FakeLLMClient: LLMClient {
         return makeStream()
     }
 
-    func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String] {
+    func alternatives(for word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> [String] {
         recorder.altWord = word
         recorder.altTranslation = translation
         recorder.altSource = source
@@ -181,7 +185,7 @@ struct FakeLLMClient: LLMClient {
         return replyResult
     }
 
-    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String {
+    func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
         recorder.explainWord = word
         recorder.explainTranslation = translation
         recorder.explainSource = source
@@ -191,7 +195,7 @@ struct FakeLLMClient: LLMClient {
         return explanationResult
     }
 
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
+    func explainFix(error: String, correction: String, original: String, corrected: String, primary: PrimaryLanguage, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
         recorder.fixError = error
         recorder.fixCorrection = correction
         recorder.fixOriginal = original
@@ -204,7 +208,7 @@ struct FakeLLMClient: LLMClient {
         return fixReasonResult
     }
 
-    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, second: SecondLanguage, model: String) async throws -> String {
+    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
         recorder.registerPrevious = previous
         recorder.registerCurrent = current
         recorder.registerFrom = from
@@ -239,15 +243,17 @@ struct FakeLLMClient: LLMClient {
         }
     }
 
-    func translateBlock(html: String, model: String) async throws -> String {
+    func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         recorder.blockHTMLs.append(html)
+        recorder.blockPrimary = primary
         recorder.blockModel = model
         if let blockError { throw blockError }
         return blockResult
     }
 
-    func readerSummary(of text: String, model: String) async throws -> String {
+    func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         recorder.summaryText = text
+        recorder.summaryPrimary = primary
         recorder.summaryModel = model
         if let summaryError { throw summaryError }
         return summaryResult

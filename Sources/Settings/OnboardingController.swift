@@ -55,7 +55,7 @@ final class OnboardingController {
         )
 
         let window = NSWindow(contentViewController: NSHostingController(rootView: view))
-        window.title = "Witaj w Glosso"
+        window.title = loc("Witaj w Glosso", "Welcome to Glosso")
         window.styleMask = [.titled, .closable, .fullSizeContentView]
         window.titlebarAppearsTransparent = true
         window.isReleasedWhenClosed = false

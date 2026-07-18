@@ -40,8 +40,8 @@ struct ReaderCache: Sendable {
     }
 
     /// nil on miss or decode failure; an expired entry is deleted and reported as a miss.
-    func load(_ url: URL) -> Entry? {
-        let file = fileURL(for: url)
+    func load(_ url: URL, primary: PrimaryLanguage) -> Entry? {
+        let file = fileURL(for: url, primary: primary)
         guard let data = try? Data(contentsOf: file),
               let entry = try? JSONDecoder().decode(Entry.self, from: data)
         else { return nil }
@@ -54,17 +54,17 @@ struct ReaderCache: Sendable {
 
     /// Deletes the entry for a URL (no-op on miss) — backs the reader's
     /// re-translate button.
-    func remove(_ url: URL) {
-        try? FileManager.default.removeItem(at: fileURL(for: url))
+    func remove(_ url: URL, primary: PrimaryLanguage) {
+        try? FileManager.default.removeItem(at: fileURL(for: url, primary: primary))
     }
 
     /// Best-effort (all throws swallowed): creates the directory, writes the entry,
     /// then sweeps expired sibling files so never-revisited URLs don't pile up.
-    func save(_ entry: Entry) {
+    func save(_ entry: Entry, primary: PrimaryLanguage) {
         let fm = FileManager.default
         try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
         guard let data = try? JSONEncoder().encode(entry) else { return }
-        try? data.write(to: fileURL(for: entry.url))
+        try? data.write(to: fileURL(for: entry.url, primary: primary))
         sweepExpired()
     }
 
@@ -83,8 +83,11 @@ struct ReaderCache: Sendable {
         }
     }
 
-    private func fileURL(for url: URL) -> URL {
-        let hash = SHA256.hash(data: Data("\(version)|\(url.absoluteString)".utf8))
+    // The target language is folded into the key too: a cached article holds
+    // translations INTO one primary language, so switching the primary must miss
+    // and re-translate instead of replaying the old language's blocks.
+    private func fileURL(for url: URL, primary: PrimaryLanguage) -> URL {
+        let hash = SHA256.hash(data: Data("\(version)|\(primary.rawValue)|\(url.absoluteString)".utf8))
             .map { String(format: "%02x", $0) }.joined()
         return directory.appendingPathComponent(hash + ".json")
     }

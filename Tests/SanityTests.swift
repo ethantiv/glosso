@@ -3,8 +3,8 @@ import Testing
 
 @Suite struct SanityTests {
     @Test func directionLabels() {
-        #expect(TranslationDirection.fromPolish(.english).label == "PL → EN")
-        #expect(TranslationDirection.toPolish(.english).label == "EN → PL")
+        #expect(TranslationDirection.fromPrimary(.polish, .english).label == "PL → EN")
+        #expect(TranslationDirection.toPrimary(.polish, .english).label == "EN → PL")
         #expect(TranslationDirection.unknown.label == "…")
     }
 

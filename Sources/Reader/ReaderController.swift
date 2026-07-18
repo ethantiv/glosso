@@ -28,7 +28,7 @@ final class ReaderController: ReaderPresenting {
     func show(_ url: URL) {
         currentURL = url
         translationTask?.cancel()
-        let webView = ensureWindow(titled: url.host() ?? "Artykuł")
+        let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
             await self?.run(url: url, in: webView)
         }
@@ -38,7 +38,7 @@ final class ReaderController: ReaderPresenting {
     // full pipeline (show() cancels the in-flight task; post-remove it's a miss).
     fileprivate func refreshCurrentArticle() {
         guard let currentURL else { return }
-        cache.remove(currentURL)
+        cache.remove(currentURL, primary: settings.primaryLanguage)
         show(currentURL)
     }
 
@@ -51,11 +51,11 @@ final class ReaderController: ReaderPresenting {
             try await watcher.awaitNavigation(in: webView, timeout: .seconds(5)) {
                 webView.loadHTMLString(ReaderTemplate.html, baseURL: url)
             }
-            if let entry = cache.load(url) {
+            if let entry = cache.load(url, primary: settings.primaryLanguage) {
                 try await replay(entry, in: webView)
                 return
             }
-            setStatus("Wczytuję artykuł…", in: webView)
+            setStatus(loc("Wczytuję artykuł…", "Loading article…"), in: webView)
             let article = try await extractor.extract(from: url)
             if Task.isCancelled { return }
             window?.title = article.title
@@ -68,7 +68,8 @@ final class ReaderController: ReaderPresenting {
                 cache.save(.init(
                     url: url, savedAt: .now, title: article.title,
                     translatedTitle: translatedTitle, byline: article.byline ?? "",
-                    content: article.content, summary: summary, translations: translations))
+                    content: article.content, summary: summary, translations: translations),
+                    primary: settings.primaryLanguage)
             }
         } catch is CancellationError {
         } catch let error as ReaderError {
@@ -116,10 +117,10 @@ final class ReaderController: ReaderPresenting {
         // An empty title must not reach the model: it answers an empty block with
         // whatever it likes, and that would become the article's heading.
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if hasTitle, !Self.isConfidentlyPolish(title) {
-            setStatus("Tłumaczę tytuł…", in: webView)
+        if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
+            setStatus(loc("Tłumaczę tytuł…", "Translating title…"), in: webView)
             let translated = ReaderTemplate.stripFences(
-                (try? await llm.translateBlock(html: title, model: settings.modelName)) ?? "")
+                (try? await llm.translateBlock(html: title, into: settings.primaryLanguage, model: settings.modelName)) ?? "")
             if Task.isCancelled { return final }
             if !translated.isEmpty { final = translated }
         }
@@ -143,8 +144,8 @@ final class ReaderController: ReaderPresenting {
                 "document.getElementById('glosso-content').textContent.slice(0, 6000)"),
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return "" }
-        setStatus("Streszczam…", in: webView)
-        guard let summary = try? await llm.readerSummary(of: text, model: settings.modelName) else { return "" }
+        setStatus(loc("Streszczam…", "Summarizing…"), in: webView)
+        guard let summary = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.modelName) else { return "" }
         if Task.isCancelled { return "" }
         let cleaned = ReaderTemplate.stripFences(summary)
         if !cleaned.isEmpty {
@@ -160,8 +161,9 @@ final class ReaderController: ReaderPresenting {
         let translatable = blocks.filter(\.translate)
         for (index, block) in translatable.enumerated() {
             if Task.isCancelled { return nil }
-            setStatus("Tłumaczę… (\(index + 1)/\(translatable.count))", in: webView)
-            if Self.isConfidentlyPolish(block.html) {
+            setStatus(loc("Tłumaczę… (\(index + 1)/\(translatable.count))",
+                          "Translating… (\(index + 1)/\(translatable.count))"), in: webView)
+            if Self.isConfidently(in: settings.primaryLanguage, block.html) {
                 _ = try? await webView.evaluateStringResult(
                     ReaderTemplate.call("glossoApply", String(block.id), block.html))
                 applied[block.id] = block.html
@@ -170,7 +172,7 @@ final class ReaderController: ReaderPresenting {
             let translated: String
             do {
                 translated = ReaderTemplate.stripFences(
-                    try await llm.translateBlock(html: block.html, model: settings.modelName))
+                    try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.modelName))
             } catch is CancellationError {
                 return nil
             } catch TranslationError.cancelled {
@@ -183,7 +185,8 @@ final class ReaderController: ReaderPresenting {
                 if Task.isCancelled { return nil }
                 _ = try? await webView.evaluateStringResult("glossoAbort()")
                 let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
-                setStatus("Tłumaczenie przerwane — reszta w oryginale." + detail, in: webView)
+                setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
+                              "Translation stopped — the rest stays in the original language.") + detail, in: webView)
                 return nil
             }
             if Task.isCancelled { return nil }
@@ -198,19 +201,19 @@ final class ReaderController: ReaderPresenting {
         return applied
     }
 
-    // The prompt's "already Polish → unchanged" costs a full generation per block;
-    // a confident local read skips that round-trip entirely. Unconstrained
-    // recognition (not DirectionDetector's PL-vs-second constraint) so kindred
-    // Slavic languages can't masquerade as Polish, and only on text long enough
-    // to trust — short or ambiguous blocks still go to the model.
-    private static func isConfidentlyPolish(_ html: String) -> Bool {
+    // The prompt's "already in the target → unchanged" costs a full generation per
+    // block; a confident local read skips that round-trip entirely. Unconstrained
+    // recognition (not DirectionDetector's constrained set) so kindred languages
+    // can't masquerade as the target, and only on text long enough to trust —
+    // short or ambiguous blocks still go to the model.
+    private static func isConfidently(in primary: PrimaryLanguage, _ html: String) -> Bool {
         let text = html
             .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count >= 40 else { return false }
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(text)
-        return (recognizer.languageHypotheses(withMaximum: 3)[.polish] ?? 0) >= 0.8
+        return (recognizer.languageHypotheses(withMaximum: 3)[primary.nl] ?? 0) >= 0.8
     }
 
     private func setStatus(_ message: String, in webView: WKWebView) {

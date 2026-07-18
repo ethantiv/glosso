@@ -12,11 +12,12 @@ enum EmbeddedModelCatalog {
         let icon: String
     }
 
-    static let models: [Entry] = [
-        Entry(id: "gemma4:12b-mlx", displayName: "Szybki", size: "6,8 GB", icon: "gauge.with.dots.needle.33percent"),
-        Entry(id: "gemma4:26b-mlx", displayName: "Zrównoważony", size: "17 GB", icon: "gauge.with.dots.needle.67percent"),
-        Entry(id: "gemma4:31b-mlx", displayName: "Najdokładniejszy", size: "20 GB", icon: "gauge.with.dots.needle.100percent"),
-    ]
+    // Computed so displayName resolves in the app's current UI language.
+    static var models: [Entry] { [
+        Entry(id: "gemma4:12b-mlx", displayName: loc("Szybki", "Fast"), size: loc("6,8 GB", "6.8 GB"), icon: "gauge.with.dots.needle.33percent"),
+        Entry(id: "gemma4:26b-mlx", displayName: loc("Zrównoważony", "Balanced"), size: "17 GB", icon: "gauge.with.dots.needle.67percent"),
+        Entry(id: "gemma4:31b-mlx", displayName: loc("Najdokładniejszy", "Most accurate"), size: "20 GB", icon: "gauge.with.dots.needle.100percent"),
+    ] }
 
     /// The largest model that comfortably fits in this Mac's unified memory. The
     /// model shares RAM with the GPU and stays resident via `keep_alive`, so a model

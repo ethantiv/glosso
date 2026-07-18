@@ -1,9 +1,11 @@
 import Foundation
 import CoreGraphics
 
-/// The non-Polish side of the PL↔X translation pair, user-selectable in
-/// Settings. Polish is the fixed axis; this is the "other" language a copied
-/// selection is translated to (when the selection is Polish) or from.
+/// The non-primary side of the translation pair, user-selectable in Settings.
+/// The primary language (`PrimaryLanguage`) is the fixed axis; this is the
+/// "other" language a copied selection is translated to (when the selection is
+/// in the primary language) or from. `.polish` is offered only when the primary
+/// is English — the pair is never X↔X.
 enum SecondLanguage: String, CaseIterable, Sendable {
     case english = "en"
     case german = "de"
@@ -11,20 +13,22 @@ enum SecondLanguage: String, CaseIterable, Sendable {
     case spanish = "es"
     case dutch = "nl"
     case french = "fr"
+    case polish = "pl"
 
-    /// Polish display name for the Settings picker.
+    /// Display name for the Settings picker, in the app's UI language.
     var displayName: String {
         switch self {
-        case .english: "angielski"
-        case .german: "niemiecki"
-        case .russian: "rosyjski"
-        case .spanish: "hiszpański"
-        case .dutch: "niderlandzki"
-        case .french: "francuski"
+        case .english: loc("angielski", "English")
+        case .german: loc("niemiecki", "German")
+        case .russian: loc("rosyjski", "Russian")
+        case .spanish: loc("hiszpański", "Spanish")
+        case .dutch: loc("niderlandzki", "Dutch")
+        case .french: loc("francuski", "French")
+        case .polish: loc("polski", "Polish")
         }
     }
 
-    /// English name the prompt instructs the model to translate Polish into.
+    /// English name the prompt instructs the model to translate into.
     var englishName: String {
         switch self {
         case .english: "English"
@@ -33,6 +37,7 @@ enum SecondLanguage: String, CaseIterable, Sendable {
         case .spanish: "Spanish"
         case .dutch: "Dutch"
         case .french: "French"
+        case .polish: "Polish"
         }
     }
 
@@ -45,6 +50,7 @@ enum SecondLanguage: String, CaseIterable, Sendable {
         case .spanish: "ES"
         case .dutch: "NL"
         case .french: "FR"
+        case .polish: "PL"
         }
     }
 }
@@ -59,12 +65,12 @@ enum Formality: String, CaseIterable, Sendable {
     case formal = "formal"
     case informal = "informal"
 
-    /// Polish display name for the popup's tone pill.
+    /// Display name for the popup's tone pill, in the app's UI language.
     var displayName: String {
         switch self {
-        case .automatic: "Automatyczny"
-        case .formal: "Formalny"
-        case .informal: "Nieformalny"
+        case .automatic: loc("Automatyczny", "Automatic")
+        case .formal: loc("Formalny", "Formal")
+        case .informal: loc("Nieformalny", "Informal")
         }
     }
 
@@ -96,13 +102,13 @@ enum Action: String, CaseIterable, Sendable {
     case reply
     case summarize
 
-    /// Polish label for the verb strip pill.
+    /// Label for the verb strip pill, in the app's UI language.
     var displayName: String {
         switch self {
-        case .translate: "Tłumacz"
-        case .summarize: "Streść"
-        case .fixGrammar: "Popraw"
-        case .reply: "Odpowiedz"
+        case .translate: loc("Tłumacz", "Translate")
+        case .summarize: loc("Streść", "Summarize")
+        case .fixGrammar: loc("Popraw", "Fix")
+        case .reply: loc("Odpowiedz", "Reply")
         }
     }
 
@@ -120,26 +126,28 @@ enum Action: String, CaseIterable, Sendable {
 }
 
 enum TranslationDirection: Sendable, Equatable {
-    case fromPolish(SecondLanguage)   // PL → second language
-    case toPolish(SecondLanguage)     // second language → PL
+    case fromPrimary(PrimaryLanguage, SecondLanguage)   // primary → second language
+    case toPrimary(PrimaryLanguage, SecondLanguage)     // second language → primary
     case unknown
 
     var label: String {
         switch self {
-        case .fromPolish(let second): "PL → \(second.code)"
-        case .toPolish(let second): "\(second.code) → PL"
+        case .fromPrimary(let primary, let second): "\(primary.code) → \(second.code)"
+        case .toPrimary(let primary, let second): "\(second.code) → \(primary.code)"
         case .unknown: "…"
         }
     }
 
-    /// Whether the fixGrammar style pass covers this text's language: Polish (any
-    /// second language) or English under an English second language — the two rule
-    /// bases that exist. `.unknown` (empty/ambiguous text) stays permissive. This is
-    /// the gate for the automatic style pass, applied whenever the direction supports it.
+    /// Whether the fixGrammar style pass covers this text's language: Polish or
+    /// English — the two rule bases that exist. The primary is always one of the
+    /// two, so `fromPrimary` always qualifies; `toPrimary` only when the source
+    /// side is Polish or English. `.unknown` (empty/ambiguous text) stays
+    /// permissive. This is the gate for the automatic style pass, applied
+    /// whenever the direction supports it.
     var supportsStyleFix: Bool {
         switch self {
-        case .fromPolish: true
-        case .toPolish(let second): second == .english
+        case .fromPrimary: true
+        case .toPrimary(_, let second): second == .english || second == .polish
         case .unknown: true
         }
     }
@@ -162,19 +170,26 @@ enum TranslationError: Error, Sendable, Equatable {
     var userMessage: String {
         switch self {
         case .ollamaUnreachable:
-            "Nie mogę połączyć się z Ollamą (localhost:11434). Sprawdź, czy działa."
+            loc("Nie mogę połączyć się z Ollamą (localhost:11434). Sprawdź, czy działa.",
+                "Can't connect to Ollama (localhost:11434). Check that it is running.")
         case .engineUnavailable:
-            "Brak silnika tłumaczenia. Pobierz go w Ustawieniach Glosso."
+            loc("Brak silnika tłumaczenia. Pobierz go w Ustawieniach Glosso.",
+                "No translation engine. Download it in Glosso Settings.")
         case .httpStatus(let code):
-            "Ollama zwróciła błąd HTTP \(code)."
+            loc("Ollama zwróciła błąd HTTP \(code).",
+                "Ollama returned HTTP error \(code).")
         case .ollamaError(let message):
-            "Ollama zgłosiła błąd: \(message)"
+            loc("Ollama zgłosiła błąd: \(message)",
+                "Ollama reported an error: \(message)")
         case .malformedStream:
-            "Otrzymałem nieprawidłową odpowiedź z modelu."
+            loc("Otrzymałem nieprawidłową odpowiedź z modelu.",
+                "Received a malformed response from the model.")
         case .emptyInput:
-            "Nic nie zaznaczono do tłumaczenia."
+            loc("Nic nie zaznaczono do tłumaczenia.",
+                "Nothing selected to translate.")
         case .cancelled:
-            "Tłumaczenie przerwane."
+            loc("Tłumaczenie przerwane.",
+                "Translation cancelled.")
         }
     }
 }
@@ -208,25 +223,25 @@ protocol LLMClient: Sendable {
     /// the correction prompt; the other verbs ignore it. Applied automatically
     /// whenever the detected direction supports it, in the popup and the headless
     /// fix-in-place chord alike.
-    func run(_ text: String, action: Action, model: String, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
+    func run(_ text: String, action: Action, model: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error>
     func prewarm(model: String) async throws
     /// Context-aware alternatives for a single word of the finished translation,
     /// for the popup's per-word dropdown (issue #17). Given the source text, the
     /// current full translation and the clicked word (in the target language),
     /// returns N distinct renderings of that word that fit the context.
-    func alternatives(for word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> [String]
+    func alternatives(for word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> [String]
     /// Re-translates so the clicked word is rendered as `chosen`, adjusting only
     /// the surrounding clause for grammatical agreement and leaving the rest
     /// unchanged. Streams the revised translation exactly like `translate`, so the
     /// coordinator can feed it into the same popup pane.
-    func reword(original: String, to chosen: String, in translation: String, source: String, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
-    /// A single short Polish sentence explaining why the clicked word of the
+    func reword(original: String, to chosen: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
+    /// A single short sentence, in the primary language, explaining why the clicked word of the
     /// finished translation was rendered that way — its literal sense in context,
     /// the nuance separating it from alternatives, or the grammatical form — for
     /// the learner-facing "Dlaczego tak?" row in the per-word dropdown (issue #39).
     /// Non-streaming like `alternatives`; the source and full translation give context.
-    func explain(word: String, in translation: String, source: String, second: SecondLanguage, model: String) async throws -> String
-    /// A single short Polish sentence naming why the learner's text was corrected
+    func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String
+    /// A single short sentence, in the primary language, naming why the learner's text was corrected
     /// from `error` to `correction` (issue #51) — the grammar, spelling or
     /// punctuation rule behind the fix ("brak rodzajnika", "zła forma czasu
     /// przeszłego"). Non-streaming like `explain`; the full original and corrected
@@ -234,34 +249,38 @@ protocol LLMClient: Sendable {
     /// or deletion). `englishRules` picks the rule base grounding the explanation:
     /// the English-grammar cards (for an English text corrected under an English
     /// second language) instead of the default Polish RJP cards — decided by
-    /// the caller, which detects the corrected text's language. `style` mirrors the
+    /// the caller, which detects the corrected text's language. Both card sets are
+    /// written in Polish for Polish learners, so grounding applies only when the
+    /// primary language is Polish; under an English primary the explanation is a
+    /// plain rule-naming sentence in English. `style` mirrors the
     /// correction that produced the diff: only a grammar+style run can produce
     /// style-driven changes, so only then do the Polish style cards join the base
     /// (a grammar-only correction grounded in style cards could cite a rule that
     /// cannot govern any of its changes).
-    func explainFix(error: String, correction: String, original: String, corrected: String, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String
-    /// A few short Polish bullets naming what the tone pill actually did to the
+    func explainFix(error: String, correction: String, original: String, corrected: String, primary: PrimaryLanguage, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String
+    /// A few short bullets, in the primary language, naming what the tone pill actually did to the
     /// translation (issue #53): which words, pronouns and verb forms shifted between
     /// the `from`-register rendering (`previous`) and the `to`-register one
     /// (`current`), and why — German Sie→du, French vous→tu, a dropped hedge.
     /// Non-streaming like `explain`; `source` gives the shared original for context.
-    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, second: SecondLanguage, model: String) async throws -> String
+    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String
     /// Generates several distinct reply drafts to `text` (issue #60) — a reply, not
     /// a transformation, so there's no single "right" answer and the popup offers a
     /// few to choose from. Replies in the language `text` is written in. Non-streaming
     /// like `alternatives` (all drafts arrive together); parsed by `ReplyParser`.
     func reply(to text: String, model: String) async throws -> [String]
-    /// Translates one HTML block of an extracted web article into Polish,
-    /// preserving its inline tags verbatim (the URL reader window). The target is
-    /// unconditionally Polish — an article can be in any language, not just the
-    /// PL↔second pair — so there is no `second:` parameter. Non-streaming like
-    /// `alternatives`; an already-Polish block comes back unchanged.
-    func translateBlock(html: String, model: String) async throws -> String
-    /// A 2–3 sentence Polish prose summary of an extracted article, shown as the
-    /// tl;dr under the reader window's title. Non-streaming like `translateBlock`;
-    /// best-effort in the reader (a failure hides the section, never blocks the
-    /// block translation).
-    func readerSummary(of text: String, model: String) async throws -> String
+    /// Translates one HTML block of an extracted web article into the primary
+    /// language, preserving its inline tags verbatim (the URL reader window). The
+    /// target is unconditionally the primary — an article can be in any language,
+    /// not just the primary↔second pair — so there is no `second:` parameter.
+    /// Non-streaming like `alternatives`; an already-primary-language block comes
+    /// back unchanged.
+    func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String
+    /// A 2–3 sentence prose summary of an extracted article, in the primary
+    /// language, shown as the tl;dr under the reader window's title. Non-streaming
+    /// like `translateBlock`; best-effort in the reader (a failure hides the
+    /// section, never blocks the block translation).
+    func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String
 }
 
 /// Opens the reader window for a copied article URL (double Cmd+C on a URL)
