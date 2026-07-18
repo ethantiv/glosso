@@ -160,6 +160,17 @@ enum ReaderTemplate {
       glossoSanitize(content);
       const SKIP = ['IMG', 'HR', 'TABLE', 'PRE', 'VIDEO', 'IFRAME'];
       const blocks = [];
+      // "Related articles" link lists survive Readability and would become one
+      // markup-dense block per <a>-only element — junk in the reader and a known
+      // trigger for runaway generations in small models. Anything whose text is
+      // essentially all anchor text is boilerplate, not article content.
+      const isLinkDominated = function(el) {
+        const text = el.textContent.trim();
+        if (text.length === 0 || !el.querySelector('a')) { return false; }
+        let linkText = 0;
+        for (const a of el.querySelectorAll('a')) { linkText += a.textContent.trim().length; }
+        return linkText / text.length >= 0.8;
+      };
       const register = function(el, translatable) {
         const id = blocks.length;
         el.dataset.glossoId = id;
@@ -194,9 +205,13 @@ enum ReaderTemplate {
           // block: registering nested li would let a parent apply wipe the
           // children's data-glosso-id.
           if (['UL', 'OL'].includes(el.tagName)) {
-            for (const li of el.querySelectorAll(':scope > li')) { register(li, true); }
+            for (const li of el.querySelectorAll(':scope > li')) {
+              if (isLinkDominated(li)) { li.remove(); } else { register(li, true); }
+            }
+            if (el.querySelectorAll(':scope > li').length === 0) { el.remove(); }
             continue;
           }
+          if (isLinkDominated(el)) { el.remove(); continue; }
           register(el, !SKIP.includes(el.tagName));
         }
       })(content);

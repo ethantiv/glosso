@@ -34,12 +34,12 @@ final class OllamaClient: LLMClient {
 
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
-                           model: model, timeout: Self.longFormTimeout)
+                           model: model, timeout: Self.longFormTimeout, numPredict: 2048)
     }
 
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         try await generate(prompt: PromptBuilder.buildReaderSummary(text: text, into: primary),
-                           model: model, timeout: Self.longFormTimeout)
+                           model: model, timeout: Self.longFormTimeout, numPredict: 512)
     }
 
     func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
@@ -60,16 +60,19 @@ final class OllamaClient: LLMClient {
     // A non-streaming generate receives no bytes until the whole generation is
     // done, so the request timeout is its total budget. The reader's article
     // blocks and summaries legitimately run for minutes on a big model; the
-    // popup lookups behind a spinner must fail fast instead.
+    // popup lookups behind a spinner must fail fast instead. The reader calls
+    // also cap the output tokens (num_predict): a small model looping on a
+    // markup-dense block would otherwise burn the whole 300 s with the UI
+    // frozen — a bounded generation fails in minutes, not the full timeout.
     private static let longFormTimeout: TimeInterval = 300
 
     // One non-streaming generate, shared by alternatives() and explain() (issue
     // #17/#39). Same locked invariants as translate; only the model is
     // user-selectable per call. Returns the model's raw `response` body; each
     // caller parses it (AlternativesParser / ExplanationParser).
-    private func generate(prompt: String, model: String, timeout: TimeInterval? = nil) async throws -> String {
+    private func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
         let endpoint = try await endpointProvider()
-        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint, timeout: timeout)
+        let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint, timeout: timeout, numPredict: numPredict)
         let (data, response): (Data, URLResponse)
         do {
             (data, response) = try await session.data(for: request)
@@ -85,6 +88,9 @@ final class OllamaClient: LLMClient {
         if let message = chunk?.error { throw TranslationError.ollamaError(message) }
         guard http.statusCode == 200 else { throw TranslationError.httpStatus(http.statusCode) }
         guard let body = chunk?.response else { throw TranslationError.malformedStream }
+        // A generation cut off by num_predict is a runaway, not a result — a
+        // truncated HTML fragment must never reach the DOM.
+        guard chunk?.doneReason != "length" else { throw TranslationError.malformedStream }
         return body
     }
 
@@ -188,14 +194,14 @@ final class OllamaClient: LLMClient {
     // — think:false, temperature:0, keep_alive — stay locked) in one place, so no
     // caller hand-copies the config to swap the model. The endpoint is resolved by
     // the caller via `endpointProvider`, not taken from the config.
-    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool, endpoint: URL, timeout: TimeInterval? = nil) throws -> URLRequest {
+    private static func makeRequest(config baseConfig: LLMConfig, model: String, prompt: String, stream: Bool, endpoint: URL, timeout: TimeInterval? = nil, numPredict: Int? = nil) throws -> URLRequest {
         var config = baseConfig
         config.model = model
         var request = URLRequest(url: endpoint)
         request.httpMethod = "POST"
         if let timeout { request.timeoutInterval = timeout }
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        request.httpBody = try JSONEncoder().encode(GenerateRequest(config: config, prompt: prompt, stream: stream))
+        request.httpBody = try JSONEncoder().encode(GenerateRequest(config: config, prompt: prompt, stream: stream, numPredict: numPredict))
         return request
     }
 }
