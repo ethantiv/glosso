@@ -74,6 +74,15 @@ struct FakeLLMClient: LLMClient {
         var summaryText: String?
         var summaryPrimary: PrimaryLanguage?
         var summaryModel: String?
+        // askArticle(...)
+        var askQuestion: String?
+        var askArticleText: String?
+        var askPrimary: PrimaryLanguage?
+        var askModel: String?
+        // articleQuestions(...)
+        var questionsArticleText: String?
+        var questionsPrimary: PrimaryLanguage?
+        var questionsModel: String?
         // reword(...)
         var rewordOriginal: String?
         var rewordChosen: String?
@@ -98,6 +107,10 @@ struct FakeLLMClient: LLMClient {
     let blockError: TranslationError?
     let summaryResult: String
     let summaryError: TranslationError?
+    let askResult: String
+    let askError: TranslationError?
+    let questionsResult: [String]
+    let questionsError: TranslationError?
     let explanationResult: String
     let explanationError: TranslationError?
     let fixReasonResult: String
@@ -122,7 +135,11 @@ struct FakeLLMClient: LLMClient {
         blockResult: String = "<b>PL</b>",
         blockError: TranslationError? = nil,
         summaryResult: String = "Krótkie streszczenie artykułu.",
-        summaryError: TranslationError? = nil
+        summaryError: TranslationError? = nil,
+        askResult: String = "Odpowiedź z artykułu.",
+        askError: TranslationError? = nil,
+        questionsResult: [String] = ["Pytanie 1?", "Pytanie 2?", "Pytanie 3?"],
+        questionsError: TranslationError? = nil
     ) {
         self.events = events
         self.error = error
@@ -141,6 +158,10 @@ struct FakeLLMClient: LLMClient {
         self.blockError = blockError
         self.summaryResult = summaryResult
         self.summaryError = summaryError
+        self.askResult = askResult
+        self.askError = askError
+        self.questionsResult = questionsResult
+        self.questionsError = questionsError
     }
 
     func run(_ text: String, action: Action, model: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
@@ -257,6 +278,23 @@ struct FakeLLMClient: LLMClient {
         recorder.summaryModel = model
         if let summaryError { throw summaryError }
         return summaryResult
+    }
+
+    func askArticle(question: String, article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
+        recorder.askQuestion = question
+        recorder.askArticleText = article
+        recorder.askPrimary = primary
+        recorder.askModel = model
+        if let askError { throw askError }
+        return askResult
+    }
+
+    func articleQuestions(about article: String, into primary: PrimaryLanguage, model: String) async throws -> [String] {
+        recorder.questionsArticleText = article
+        recorder.questionsPrimary = primary
+        recorder.questionsModel = model
+        if let questionsError { throw questionsError }
+        return questionsResult
     }
 
     func prewarm(model: String) async throws { recorder.prewarmModel = model }

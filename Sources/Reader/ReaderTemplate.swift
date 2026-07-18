@@ -12,6 +12,10 @@ import Foundation
 /// - `glossoApply(id, html)` swaps in one block's translation.
 /// - `glossoAbort()` un-dims every still-pending block (translation gave up).
 /// - `glossoStatus(msg)` shows progress/errors in the bottom bar ('' hides it).
+/// - `glossoSetQuestions(json)` fills the chat panel's suggested-question chips
+///   (one JSON-encoded array argument — `call` only passes strings).
+/// - `glossoAnswer(answer, error)` resolves the pending chat bubble; empty
+///   `error` means success, empty `answer` means failure.
 enum ReaderTemplate {
     /// One tagged block of the rendered article, as returned by glossoSetArticle.
     /// `translate == false` marks blocks kept verbatim (figures, code, empty).
@@ -90,6 +94,34 @@ enum ReaderTemplate {
       code { font-family: ui-monospace, monospace; }
       a { color: #4F5BD8; }
       .glosso-pending { opacity: .45; }
+      #glosso-chat-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 320px;
+                           display: none; flex-direction: column; gap: .8em;
+                           background: Canvas; z-index: 5; box-sizing: border-box;
+                           border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+                           padding: 3.2em 1em 1em; font-size: .9em; }
+      /* Shift the article column out from under the open panel; margin-left stays
+         auto, so the column keeps all remaining slack on the left. */
+      body.glosso-chat-open { margin-right: 340px; }
+      #glosso-chat-messages { flex: 1; overflow-y: auto; }
+      .glosso-chat-q { font-weight: 600; margin: 1em 0 .25em; }
+      .glosso-chat-a { white-space: pre-wrap; }
+      .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
+      #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
+      .glosso-chip { font: inherit; font-size: .85em; text-align: left; padding: .35em .7em;
+                     border-radius: 12px; cursor: pointer;
+                     color: color-mix(in srgb, CanvasText 80%, Canvas);
+                     background: color-mix(in srgb, CanvasText 6%, Canvas);
+                     border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
+      .glosso-chip:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
+      .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
+      #glosso-chat-form { display: flex; gap: .5em; }
+      #glosso-chat-input { flex: 1; font: inherit; padding: .4em .6em; border-radius: 8px;
+                           border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
+                           background: Canvas; color: CanvasText; }
+      .glosso-spin { display: inline-block; width: 1em; height: 1em; border-radius: 50%;
+                     border: 2px solid color-mix(in srgb, CanvasText 25%, Canvas);
+                     border-top-color: transparent; animation: glosso-spin 1s linear infinite; }
+      @keyframes glosso-spin { to { transform: rotate(360deg); } }
       #glosso-status { position: fixed; bottom: 0; left: 0; right: 0;
                        padding: .5em 1em; font-size: .85em; background: Canvas;
                        border-top: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
@@ -111,11 +143,24 @@ enum ReaderTemplate {
         </svg>
         <span id="glosso-toggle-label">\(loc("Oryginał", "Original"))</span>
       </button>
+      <button id="glosso-chat" class="glosso-pill" type="button" title="\(loc("Zapytaj artykuł", "Ask the article"))">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+          <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.9 8.9 0 0 1-3.2-.6L3 21l1.8-5.1a8.1 8.1 0 0 1-1.3-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3Z"/>
+        </svg>
+      </button>
     </div>
     <h1 id="glosso-title"></h1>
     <div id="glosso-byline"></div>
     <div id="glosso-summary"></div>
     <div id="glosso-content"></div>
+    <div id="glosso-chat-panel">
+      <div id="glosso-chat-messages"></div>
+      <div id="glosso-chat-suggestions"></div>
+      <form id="glosso-chat-form">
+        <input id="glosso-chat-input" type="text" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))">
+        <button type="submit" class="glosso-pill">\(loc("Wyślij", "Send"))</button>
+      </form>
+    </div>
     <div id="glosso-status"></div>
     <script>
     // Readability strips <script> but keeps on* handler attributes and
@@ -146,7 +191,9 @@ enum ReaderTemplate {
       pending: new Set(),    // translatable ids still awaiting a translation
       originalTitle: '',
       translatedTitle: '',
-      summary: ''
+      summary: '',
+      chatBusy: false,          // one question in flight at a time
+      questionsRequested: false // suggestions are generated once, lazily
     };
     function glossoSetArticle(title, byline, html) {
       glosso.originalTitle = title;
@@ -279,9 +326,86 @@ enum ReaderTemplate {
       status.textContent = msg;
       status.style.display = msg ? 'block' : 'none';
     }
+    function glossoToggleChat() {
+      const panel = document.getElementById('glosso-chat-panel');
+      const open = panel.style.display !== 'flex';
+      panel.style.display = open ? 'flex' : 'none';
+      document.body.classList.toggle('glosso-chat-open', open);
+      if (open && !glosso.questionsRequested) {
+        glosso.questionsRequested = true;
+        const spin = document.createElement('span');
+        spin.className = 'glosso-spin';
+        document.getElementById('glosso-chat-suggestions').appendChild(spin);
+        window.webkit?.messageHandlers?.glosso?.postMessage({action: 'suggest'});
+      }
+      if (open) { document.getElementById('glosso-chat-input').focus(); }
+    }
+    // One JSON-encoded array argument: ReaderTemplate.call only passes strings.
+    // Chips render via textContent — model output never becomes markup here.
+    function glossoSetQuestions(json) {
+      const box = document.getElementById('glosso-chat-suggestions');
+      box.textContent = '';
+      let questions = [];
+      try { questions = JSON.parse(json); } catch (e) {}
+      for (const q of questions) {
+        const chip = document.createElement('button');
+        chip.type = 'button';
+        chip.className = 'glosso-chip';
+        chip.textContent = q;
+        chip.addEventListener('click', function() { glossoAsk(q); });
+        box.appendChild(chip);
+      }
+    }
+    function glossoChatBusy(busy) {
+      glosso.chatBusy = busy;
+      document.querySelector('#glosso-chat-form button').disabled = busy;
+      for (const chip of document.querySelectorAll('.glosso-chip')) { chip.disabled = busy; }
+    }
+    function glossoAsk(question) {
+      question = question.trim();
+      // No queue: while an answer is pending, asking is a no-op (send + chips
+      // are disabled too — this guard covers Enter in the input).
+      if (!question || glosso.chatBusy) { return; }
+      const messages = document.getElementById('glosso-chat-messages');
+      const q = document.createElement('div');
+      q.className = 'glosso-chat-q';
+      q.textContent = question;
+      const a = document.createElement('div');
+      a.className = 'glosso-chat-a glosso-chat-pending';
+      const spin = document.createElement('span');
+      spin.className = 'glosso-spin';
+      a.appendChild(spin);
+      messages.appendChild(q);
+      messages.appendChild(a);
+      messages.scrollTop = messages.scrollHeight;
+      glossoChatBusy(true);
+      window.webkit?.messageHandlers?.glosso?.postMessage({action: 'ask', question: question});
+    }
+    // Empty error = success. Answers land via textContent (pre-wrap CSS keeps
+    // paragraphs) — no innerHTML, so no glossoSanitize needed on this path.
+    // A stale call after a template reload finds no pending bubble and no-ops.
+    function glossoAnswer(answer, error) {
+      const pending = document.querySelector('.glosso-chat-pending');
+      if (!pending) { return; }
+      pending.classList.remove('glosso-chat-pending');
+      pending.textContent = answer || error;
+      if (!answer) { pending.classList.add('glosso-chat-error'); }
+      glossoChatBusy(false);
+      const messages = document.getElementById('glosso-chat-messages');
+      messages.scrollTop = messages.scrollHeight;
+      document.getElementById('glosso-chat-input').focus();
+    }
     // Bound here rather than as an inline onclick: glossoSanitize strips on*
     // attributes, so an inline handler would die the day it runs any wider.
     document.getElementById('glosso-toggle').addEventListener('click', glossoToggleOriginal);
+    document.getElementById('glosso-chat').addEventListener('click', glossoToggleChat);
+    document.getElementById('glosso-chat-form').addEventListener('submit', function(e) {
+      e.preventDefault();
+      const input = document.getElementById('glosso-chat-input');
+      if (glosso.chatBusy) { return; }
+      glossoAsk(input.value);
+      input.value = '';
+    });
     // Optional chaining: the bridge only exists inside the app's WKWebView, and
     // the template must not throw when opened standalone (file://).
     document.getElementById('glosso-refresh').addEventListener('click', function() {
