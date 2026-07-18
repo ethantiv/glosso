@@ -114,10 +114,11 @@ enum ReaderTemplate {
                      border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
       .glosso-chip:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
-      #glosso-chat-form { display: flex; gap: .5em; }
+      #glosso-chat-form { display: flex; gap: .5em; align-items: flex-end; }
       #glosso-chat-input { flex: 1; font: inherit; padding: .4em .6em; border-radius: 8px;
                            border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
-                           background: Canvas; color: CanvasText; }
+                           background: Canvas; color: CanvasText;
+                           resize: none; max-height: 8em; overflow-y: auto; line-height: 1.4; }
       .glosso-spin { display: inline-block; width: 1em; height: 1em; border-radius: 50%;
                      border: 2px solid color-mix(in srgb, CanvasText 25%, Canvas);
                      border-top-color: transparent; animation: glosso-spin 1s linear infinite; }
@@ -157,7 +158,7 @@ enum ReaderTemplate {
       <div id="glosso-chat-messages"></div>
       <div id="glosso-chat-suggestions"></div>
       <form id="glosso-chat-form">
-        <input id="glosso-chat-input" type="text" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))">
+        <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
         <button type="submit" class="glosso-pill">\(loc("Wyślij", "Send"))</button>
       </form>
     </div>
@@ -405,12 +406,29 @@ enum ReaderTemplate {
     // attributes, so an inline handler would die the day it runs any wider.
     document.getElementById('glosso-toggle').addEventListener('click', glossoToggleOriginal);
     document.getElementById('glosso-chat').addEventListener('click', glossoToggleChat);
+    // Auto-grow: reset to auto first so shrinking works too; max-height + CSS
+    // overflow take over past ~8em.
+    function glossoGrowInput() {
+      const input = document.getElementById('glosso-chat-input');
+      input.style.height = 'auto';
+      input.style.height = input.scrollHeight + 'px';
+    }
     document.getElementById('glosso-chat-form').addEventListener('submit', function(e) {
       e.preventDefault();
       const input = document.getElementById('glosso-chat-input');
       if (glosso.chatBusy) { return; }
       glossoAsk(input.value);
       input.value = '';
+      glossoGrowInput();
+    });
+    document.getElementById('glosso-chat-input').addEventListener('input', glossoGrowInput);
+    // A textarea never submits its form on Enter — without this, Enter would
+    // stop sending. Shift+Enter keeps the native newline.
+    document.getElementById('glosso-chat-input').addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && !e.shiftKey) {
+        e.preventDefault();
+        document.getElementById('glosso-chat-form').requestSubmit();
+      }
     });
     // Optional chaining: the bridge only exists inside the app's WKWebView, and
     // the template must not throw when opened standalone (file://).
