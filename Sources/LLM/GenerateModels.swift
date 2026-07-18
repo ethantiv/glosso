@@ -3,6 +3,12 @@ import Foundation
 struct GenerateRequest: Encodable, Sendable {
     struct Options: Encodable, Sendable {
         var temperature: Double
+        var numPredict: Int?
+
+        enum CodingKeys: String, CodingKey {
+            case temperature
+            case numPredict = "num_predict"
+        }
     }
 
     var model: String
@@ -21,12 +27,12 @@ struct GenerateRequest: Encodable, Sendable {
         case keepAlive = "keep_alive"
     }
 
-    init(config: LLMConfig, prompt: String, stream: Bool) {
+    init(config: LLMConfig, prompt: String, stream: Bool, numPredict: Int? = nil) {
         self.model = config.model
         self.prompt = prompt
         self.stream = stream
         self.think = config.think
-        self.options = Options(temperature: config.temperature)
+        self.options = Options(temperature: config.temperature, numPredict: numPredict)
         self.keepAlive = config.keepAlive
     }
 }

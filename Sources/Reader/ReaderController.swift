@@ -159,6 +159,24 @@ final class ReaderController: ReaderPresenting {
     private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws -> [Int: String]? {
         var applied: [Int: String] = [:]
         let translatable = blocks.filter(\.translate)
+        // An article already in the primary language would go to the model block
+        // by block as a degenerate "output it unchanged" self-translation — the
+        // per-block guard below misses short blocks (<40 chars), and small models
+        // loop on exactly those calls. One confident article-level read skips the
+        // model entirely.
+        if Self.isConfidently(in: settings.primaryLanguage,
+                              String(translatable.map(\.html).joined(separator: " ").prefix(6000))) {
+            for block in translatable {
+                if Task.isCancelled { return nil }
+                _ = try? await webView.evaluateStringResult(
+                    ReaderTemplate.call("glossoApply", String(block.id), block.html))
+                applied[block.id] = block.html
+            }
+            setStatus("", in: webView)
+            return applied
+        }
+        var failed = 0
+        var consecutiveFailures = 0
         for (index, block) in translatable.enumerated() {
             if Task.isCancelled { return nil }
             setStatus(loc("Tłumaczę… (\(index + 1)/\(translatable.count))",
@@ -178,17 +196,27 @@ final class ReaderController: ReaderPresenting {
             } catch TranslationError.cancelled {
                 return nil
             } catch {
-                // A mid-article model failure keeps what's done; the untranslated
-                // tail stays readable in the original language — un-dimmed, or the
-                // "readable" claim is a lie. A superseded task must not paint over
-                // its successor in the shared webview.
+                // One misbehaving block (runaway generation, truncation) must not
+                // cost the rest of the article: it keeps its original, un-dimmed,
+                // and the loop moves on. Two failures in a row mean the engine
+                // itself is gone — then stop instead of grinding through every
+                // remaining block at full timeout. A superseded task must not
+                // paint over its successor in the shared webview.
                 if Task.isCancelled { return nil }
-                _ = try? await webView.evaluateStringResult("glossoAbort()")
-                let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
-                setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
-                              "Translation stopped — the rest stays in the original language.") + detail, in: webView)
-                return nil
+                failed += 1
+                consecutiveFailures += 1
+                if consecutiveFailures >= 2 {
+                    _ = try? await webView.evaluateStringResult("glossoAbort()")
+                    let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
+                    setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
+                                  "Translation stopped — the rest stays in the original language.") + detail, in: webView)
+                    return nil
+                }
+                _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
+                    "glossoApply", String(block.id), block.html))
+                continue
             }
+            consecutiveFailures = 0
             if Task.isCancelled { return nil }
             // An empty result must still un-dim its block — re-apply the original.
             let html = translated.isEmpty ? block.html : translated
@@ -197,6 +225,11 @@ final class ReaderController: ReaderPresenting {
             applied[block.id] = html
         }
         if Task.isCancelled { return nil }
+        if failed > 0 {
+            setStatus(loc("Przetłumaczono z pominięciem \(failed) bloków (zostały w oryginale).",
+                          "Translated with \(failed) blocks skipped (kept in the original language)."), in: webView)
+            return nil
+        }
         setStatus("", in: webView)
         return applied
     }

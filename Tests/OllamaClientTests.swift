@@ -64,6 +64,31 @@ import Testing
         }
     }
 
+    // num_predict caps a runaway generation; a fragment cut off mid-markup must
+    // never be applied to the reader DOM, so a "length" finish is an error, not
+    // a result.
+    @Test func translateBlockTreatsLengthTruncationAsError() async {
+        MockURLProtocol.handler = { request in
+            let body = #"{"model":"m","response":"<b>Cześć","done":true,"done_reason":"length"}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.malformedStream) {
+            _ = try await client.translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func generateRequestEncodesNumPredictOnlyWhenSet() throws {
+        let capped = try JSONEncoder().encode(GenerateRequest(config: .default, prompt: "p", stream: false, numPredict: 2048))
+        #expect(String(decoding: capped, as: UTF8.self).contains(#""num_predict":2048"#))
+
+        let uncapped = try JSONEncoder().encode(GenerateRequest(config: .default, prompt: "p", stream: false))
+        #expect(!String(decoding: uncapped, as: UTF8.self).contains("num_predict"))
+    }
+
     @Test func readerSummaryReturnsResponseBody() async throws {
         MockURLProtocol.handler = { request in
             let body = #"{"model":"m","response":"Krótkie streszczenie.","done":true}"#.data(using: .utf8)!
