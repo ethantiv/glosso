@@ -350,6 +350,9 @@ enum ReaderTemplate {
       box.textContent = '';
       let questions = [];
       try { questions = JSON.parse(json); } catch (e) {}
+      // Empty = the suggest failed or found nothing; re-arm so reopening the
+      // panel retries instead of leaving the chips permanently blank.
+      if (!questions.length) { glosso.questionsRequested = false; return; }
       for (const q of questions) {
         const chip = document.createElement('button');
         chip.type = 'button';

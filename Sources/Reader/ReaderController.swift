@@ -22,6 +22,7 @@ final class ReaderController: ReaderPresenting {
     private var suggestTask: Task<Void, Never>?
     private var askTask: Task<Void, Never>?
     private var chatPanelOpen = false
+    private var chatWidthDelta: CGFloat = 0
     private static let chatPanelWidth: CGFloat = 340
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
@@ -268,12 +269,21 @@ final class ReaderController: ReaderPresenting {
         guard open != chatPanelOpen, let window else { return }
         chatPanelOpen = open
         var frame = window.frame
-        frame.size.width += open ? Self.chatPanelWidth : -Self.chatPanelWidth
-        if open, let screen = window.screen {
-            let visible = screen.visibleFrame
-            if frame.maxX > visible.maxX {
+        if open {
+            // Growth is capped at the screen's visible width (an already-wide
+            // window would push the right-pinned panel off-screen), and the
+            // applied delta is what closing gives back — subtracting the full
+            // panel width after a capped grow would shrink the user's window.
+            let visible = window.screen?.visibleFrame
+            let target = min(frame.width + Self.chatPanelWidth, visible?.width ?? .greatestFiniteMagnitude)
+            chatWidthDelta = target - frame.width
+            frame.size.width = target
+            if let visible, frame.maxX > visible.maxX {
                 frame.origin.x = max(visible.minX, visible.maxX - frame.width)
             }
+        } else {
+            frame.size.width -= chatWidthDelta
+            chatWidthDelta = 0
         }
         window.setFrame(frame, display: true, animate: true)
     }
