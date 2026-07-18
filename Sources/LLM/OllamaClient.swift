@@ -33,8 +33,13 @@ final class OllamaClient: LLMClient {
     }
 
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
-                           model: model, timeout: Self.longFormTimeout, numPredict: 2048)
+        // The cap scales with the input: a faithful translation is about the
+        // block's own size in tokens (~4 chars each), so 2× that is generous —
+        // and a small model looping on a small block dies in seconds instead of
+        // grinding to a flat ceiling for a minute.
+        let cap = max(256, min(2048, html.utf8.count / 2))
+        return try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
+                                  model: model, timeout: Self.longFormTimeout, numPredict: cap)
     }
 
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {

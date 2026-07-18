@@ -165,6 +165,10 @@ enum ReaderTemplate {
       // trigger for runaway generations in small models. Anything whose text is
       // essentially all anchor text is boilerplate, not article content.
       const isLinkDominated = function(el) {
+        // Image-bearing subtrees are exempt (like the extractor's gallery
+        // pre-pass): a linked content image with a credit/caption anchor would
+        // otherwise read as all-link text and lose the picture.
+        if (el.querySelector('img')) { return false; }
         const text = el.textContent.trim();
         if (text.length === 0 || !el.querySelector('a')) { return false; }
         let linkText = 0;
