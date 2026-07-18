@@ -63,6 +63,20 @@ final class ArticleExtractor {
     //   An aside dominated by images (little text, and next to none of it in
     //   links) is a gallery, not boilerplate — convert it to <figure>, which
     //   Readability keeps. Link-heavy asides ("Related Articles") still die.
+    // - Lightbox unwrap: Readability cleans every <button> with its subtree,
+    //   and sites wrap zoomable photos in buttons — unwrap image-bearing
+    //   buttons so the photo survives the clean.
+    //
+    // And two post-passes on the extracted content:
+    // - Link-dominated removal: "related articles" lists survive Readability
+    //   when they sit inside the text container. Blocks whose text is ≥80%
+    //   anchor text are boilerplate, not content — and each would become a
+    //   markup-dense translation block that small models loop on. The ratio is
+    //   text-based, so an image-only anchor (no text) is never touched.
+    // - Lead-image rescue: a hero image outside Readability's top candidate
+    //   (e.g. a separate header container) is lost entirely. If the cleaned
+    //   content has no image but the page renders its og:image, prepend it as
+    //   a figure — the render check keeps generic og:image logos out.
     private static let driverJS = """
     (function() {
       if (typeof document.body.checkVisibility === 'function') {
@@ -93,12 +107,45 @@ final class ArticleExtractor {
           aside.replaceWith(figure);
         }
       }
+      for (const button of doc.querySelectorAll('button')) {
+        if (!button.querySelector('img, picture')) { continue; }
+        while (button.firstChild) { button.parentNode.insertBefore(button.firstChild, button); }
+        button.remove();
+      }
       const article = new Readability(doc).parse();
       if (!article || !article.content) { return ""; }
+      const tmp = document.implementation.createHTMLDocument('');
+      tmp.body.innerHTML = article.content;
+      // Block containers only: an inline wrapper (<strong><a>…</a></strong>)
+      // inside a paragraph is all-anchor by definition and must stay. Figures
+      // are exempt too — a photo with a credit-link caption is content.
+      const BLOCKS = 'p, li, ul, ol, div, section, aside, blockquote, h1, h2, h3, h4, h5, h6';
+      for (const el of tmp.body.querySelectorAll(BLOCKS)) {
+        if (!el.isConnected || el.closest('figure')) { continue; }
+        const text = el.textContent.trim();
+        if (text.length === 0 || !el.querySelector('a')) { continue; }
+        let linkText = 0;
+        for (const a of el.querySelectorAll('a')) { linkText += a.textContent.trim().length; }
+        if (linkText / text.length >= 0.8) { el.remove(); }
+      }
+      for (const list of tmp.body.querySelectorAll('ul, ol')) {
+        if (!list.querySelector('li')) { list.remove(); }
+      }
+      if (!tmp.body.querySelector('img')) {
+        const og = document.querySelector('meta[property="og:image"], meta[name="twitter:image"]');
+        const url = og && og.content;
+        if (url && Array.from(document.images).some(i => i.src === url || i.currentSrc === url)) {
+          const figure = tmp.createElement('figure');
+          const img = tmp.createElement('img');
+          img.src = url;
+          figure.appendChild(img);
+          tmp.body.insertBefore(figure, tmp.body.firstChild);
+        }
+      }
       return JSON.stringify({
         title: article.title || document.title,
         byline: article.byline,
-        content: article.content
+        content: tmp.body.innerHTML
       });
     })()
     """
