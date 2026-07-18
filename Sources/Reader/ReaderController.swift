@@ -21,6 +21,8 @@ final class ReaderController: ReaderPresenting {
     // cancel the running translation pipeline, and vice versa.
     private var suggestTask: Task<Void, Never>?
     private var askTask: Task<Void, Never>?
+    private var chatPanelOpen = false
+    private static let chatPanelWidth: CGFloat = 340
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
 
@@ -34,6 +36,9 @@ final class ReaderController: ReaderPresenting {
         translationTask?.cancel()
         suggestTask?.cancel()
         askTask?.cancel()
+        // The template reload closes the panel in JS; the window must shrink
+        // back with it or a new article opens in a widened window.
+        setChatPanel(open: false)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
             await self?.run(url: url, in: webView)
@@ -255,6 +260,24 @@ final class ReaderController: ReaderPresenting {
         return (recognizer.languageHypotheses(withMaximum: 3)[primary.nl] ?? 0) >= 0.8
     }
 
+    // Opening the chat widens the window by the panel's width (and closing
+    // shrinks it back), so the article column keeps its size — the panel gets
+    // new screen space instead of squeezing the text. Clamped to the screen:
+    // when there's no room on the right, the window slides left instead.
+    fileprivate func setChatPanel(open: Bool) {
+        guard open != chatPanelOpen, let window else { return }
+        chatPanelOpen = open
+        var frame = window.frame
+        frame.size.width += open ? Self.chatPanelWidth : -Self.chatPanelWidth
+        if open, let screen = window.screen {
+            let visible = screen.visibleFrame
+            if frame.maxX > visible.maxX {
+                frame.origin.x = max(visible.minX, visible.maxX - frame.width)
+            }
+        }
+        window.setFrame(frame, display: true, animate: true)
+    }
+
     // ponytail: 12000-char cap, double the summary's — answers reach deeper into
     // the article; raise it if questions about article tails come back "not in
     // the article". Sliced in JS like summarize(), read fresh per request so the
@@ -351,6 +374,9 @@ final class ReaderController: ReaderPresenting {
         translationTask?.cancel()
         suggestTask?.cancel()
         askTask?.cancel()
+        // ponytail: the autosaved frame may keep the widened width when the
+        // window closes with the panel open — cosmetic; fix if it ever annoys.
+        chatPanelOpen = false
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso")
@@ -376,6 +402,7 @@ private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
         switch dict["action"] {
         case "suggest": controller?.suggestQuestions()
         case "ask": if let question = dict["question"], !question.isEmpty { controller?.answer(question: question) }
+        case "panel": controller?.setChatPanel(open: dict["open"] == "1")
         default: break
         }
     }

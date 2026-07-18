@@ -331,6 +331,9 @@ enum ReaderTemplate {
       const open = panel.style.display !== 'flex';
       panel.style.display = open ? 'flex' : 'none';
       document.body.classList.toggle('glosso-chat-open', open);
+      // Swift widens the window by the panel's width, so the article column
+      // keeps its size instead of being squeezed under the open panel.
+      window.webkit?.messageHandlers?.glosso?.postMessage({action: 'panel', open: open ? '1' : ''});
       if (open && !glosso.questionsRequested) {
         glosso.questionsRequested = true;
         const spin = document.createElement('span');
