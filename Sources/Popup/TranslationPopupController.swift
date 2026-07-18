@@ -68,7 +68,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         // Borderless windows have no visible title, but macOS accessibility still
         // reads NSWindow.title to name the window for VoiceOver; without it the
         // popup announces as an untitled window. Resolved to the direction in update().
-        panel.title = "Tłumaczenie"
+        panel.title = loc("Tłumaczenie", "Translation")
         let hostView = NSHostingView(rootView: PopupView(
             model: model,
             close: { [weak self] in self?.dismiss() },
@@ -201,7 +201,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.capturedSource = sourceText
         model.action = action
         panel?.title = action == .translate
-            ? "Tłumaczenie · \(direction.label)"
+            ? "\(loc("Tłumaczenie", "Translation")) · \(direction.label)"
             : action.displayName
     }
 

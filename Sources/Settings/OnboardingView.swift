@@ -59,14 +59,14 @@ struct OnboardingView: View {
     private var footer: some View {
         HStack {
             if step != .model {
-                Button("Wstecz") { advance(by: -1) }
+                Button(loc("Wstecz", "Back")) { advance(by: -1) }
             }
             Spacer()
             if step == .usage {
-                Button("Zakończ") { onFinish() }
+                Button(loc("Zakończ", "Finish")) { onFinish() }
                     .keyboardShortcut(.defaultAction)
             } else {
-                Button("Dalej") { advance(by: 1) }
+                Button(loc("Dalej", "Next")) { advance(by: 1) }
                     .keyboardShortcut(.defaultAction)
             }
         }
@@ -76,9 +76,9 @@ struct OnboardingView: View {
 
     private var title: String {
         switch step {
-        case .model: "Wybierz model"
-        case .language: "Wybierz drugi język"
-        case .usage: "Jak to działa"
+        case .model: loc("Wybierz model", "Choose a model")
+        case .language: loc("Wybierz języki", "Choose your languages")
+        case .usage: loc("Jak to działa", "How it works")
         }
     }
 
@@ -100,7 +100,8 @@ struct OnboardingView: View {
 
     private var modelStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text("Tłumaczenie dzieje się na Twoim komputerze, nic nie wysyłamy do sieci. Najlepiej wybierz ten oznaczony „Zalecany”.")
+            Text(loc("Tłumaczenie dzieje się na Twoim komputerze, nic nie wysyłamy do sieci. Najlepiej wybierz ten oznaczony „Zalecany”.",
+                     "Translation happens on your Mac; nothing is sent to the network. Your best bet is the one marked “Recommended”."))
                 .font(PopupTheme.fontSource)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -110,7 +111,8 @@ struct OnboardingView: View {
             }
 
             if isLargerThanRecommended(store.modelName) {
-                Label("Ten model jest duży jak na Twój komputer. Pobieranie zajmie więcej czasu, a praca może zwolnić.",
+                Label(loc("Ten model jest duży jak na Twój komputer. Pobieranie zajmie więcej czasu, a praca może zwolnić.",
+                          "This model is large for your Mac. The download takes longer and things may slow down."),
                       systemImage: "exclamationmark.triangle.fill")
                     .font(PopupTheme.fontMeta)
                     .foregroundStyle(PopupTheme.warn)
@@ -146,7 +148,7 @@ struct OnboardingView: View {
             Spacer(minLength: 8)
 
             if entry.id == recommended.id {
-                Text("Zalecany")
+                Text(loc("Zalecany", "Recommended"))
                     .font(PopupTheme.fontLabel)
                     .foregroundStyle(PopupTheme.accent)
                     .padding(.horizontal, 6).padding(.vertical, 2)
@@ -156,11 +158,11 @@ struct OnboardingView: View {
             if let progress = pulling[entry.id] {
                 ProgressView(value: progress).controlSize(.small).frame(width: 90)
             } else if isDownloaded {
-                Text(isActive ? "Aktywny" : "Pobrany")
+                Text(isActive ? loc("Aktywny", "Active") : loc("Pobrany", "Downloaded"))
                     .font(PopupTheme.fontMeta)
                     .foregroundStyle(.secondary)
             } else {
-                Button("Pobierz") { download(entry.id) }
+                Button(loc("Pobierz", "Download")) { download(entry.id) }
             }
         }
         .padding(.horizontal, 12).padding(.vertical, 10)
@@ -173,14 +175,30 @@ struct OnboardingView: View {
 
     private var languageStep: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text("Glosso tłumaczy w obie strony: z polskiego na wybrany język i z powrotem.")
+            Text(loc("Język główny to język aplikacji i strona pary, na którą Glosso tłumaczy obce teksty.",
+                     "The primary language is the app's language and the side of the pair Glosso translates foreign text into."))
                 .font(PopupTheme.fontSource)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Picker("Drugi język", selection: $store.secondLanguage) {
-                ForEach(SecondLanguage.allCases, id: \.self) { lang in
-                    Text(lang.displayName.capitalized).tag(lang)
+            Picker(loc("Język główny", "Primary language"), selection: $store.primaryLanguage) {
+                ForEach(PrimaryLanguage.allCases, id: \.self) { lang in
+                    Text(lang.displayName).tag(lang)
+                }
+            }
+            .pickerStyle(.menu)
+            .fixedSize()
+
+            Text(loc("Glosso tłumaczy w obie strony: z języka głównego na drugi i z powrotem. „Automatyczny” sam rozpoznaje język zaznaczenia.",
+                     "Glosso translates both ways: from the primary language to the second and back. “Automatic” detects the selection's language on its own."))
+                .font(PopupTheme.fontSource)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Picker(loc("Drugi język", "Second language"), selection: $store.secondLanguage) {
+                Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
+                ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { lang in
+                    Text(lang.displayName.capitalized).tag(SecondLanguage?.some(lang))
                 }
             }
             .pickerStyle(.menu)
@@ -190,8 +208,10 @@ struct OnboardingView: View {
 
     private var usageStep: some View {
         VStack(alignment: .leading, spacing: 14) {
-            instruction("command", "Zaznacz tekst i naciśnij dwa razy Cmd+C. Tłumaczenie pojawi się obok kursora.")
-            instruction("character.cursor.ibeam", "Chcesz poprawić tekst od razu na miejscu? Włącz skróty w Ustawieniach.")
+            instruction("command", loc("Zaznacz tekst i naciśnij dwa razy Cmd+C. Tłumaczenie pojawi się obok kursora.",
+                                       "Select text and press Cmd+C twice. The translation appears next to the cursor."))
+            instruction("character.cursor.ibeam", loc("Chcesz poprawić tekst od razu na miejscu? Włącz skróty w Ustawieniach.",
+                                                      "Want text fixed right in place? Enable the shortcuts in Settings."))
             accessibilityBox
         }
     }
@@ -210,7 +230,7 @@ struct OnboardingView: View {
 
     @ViewBuilder private var accessibilityBox: some View {
         if appState.accessibilityGranted {
-            Label("Zgoda nadana. Możesz zaczynać.", systemImage: "checkmark.circle.fill")
+            Label(loc("Zgoda nadana. Możesz zaczynać.", "Permission granted. You're all set."), systemImage: "checkmark.circle.fill")
                 .font(PopupTheme.fontSource)
                 .foregroundStyle(PopupTheme.copied)
                 .padding(12)
@@ -218,14 +238,15 @@ struct OnboardingView: View {
                 .background(PopupTheme.copied.opacity(0.10), in: RoundedRectangle(cornerRadius: PopupTheme.rControl))
         } else {
             VStack(alignment: .leading, spacing: 10) {
-                Label("Glosso potrzebuje Twojej zgody, żeby widzieć zaznaczony tekst i reagować na skróty.",
+                Label(loc("Glosso potrzebuje Twojej zgody, żeby widzieć zaznaczony tekst i reagować na skróty.",
+                          "Glosso needs your permission to see selected text and respond to shortcuts."),
                       systemImage: "exclamationmark.triangle.fill")
                     .font(PopupTheme.fontSource)
                     .foregroundStyle(PopupTheme.warn)
                     .fixedSize(horizontal: false, vertical: true)
                 HStack {
-                    Button("Otwórz ustawienia dostępności") { onOpenAccessibility() }
-                    Button("Sprawdź ponownie") { onRecheckAccessibility() }
+                    Button(loc("Otwórz ustawienia dostępności", "Open Accessibility settings")) { onOpenAccessibility() }
+                    Button(loc("Sprawdź ponownie", "Check again")) { onRecheckAccessibility() }
                 }
             }
             .padding(12)

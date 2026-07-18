@@ -65,7 +65,7 @@ import Testing
         #expect(llm.recorder.receivedFormality == .formal)
         #expect(popup.presented)
         #expect(popup.presentedFormality == .formal)
-        #expect(popup.presentedDirection == .fromPolish(.english))
+        #expect(popup.presentedDirection == .fromPrimary(.polish, .english))
     }
 
     // MARK: URL reader routing
@@ -707,7 +707,7 @@ import Testing
 
         #expect(llm.recorder.receivedAction == .translate)
         #expect(popup.presentedAction == .translate)
-        #expect(popup.presentedDirection == .fromPolish(.english))
+        #expect(popup.presentedDirection == .fromPrimary(.polish, .english))
     }
 
     // The capture threads style into the LLM call automatically for a language the
@@ -768,7 +768,7 @@ import Testing
         var spins = 0
         while popup.presentedAction != .fixGrammar && spins < 10_000 { await Task.yield(); spins += 1 }
 
-        #expect(popup.presentedDirection == .fromPolish(.english))
+        #expect(popup.presentedDirection == .fromPrimary(.polish, .english))
     }
 
     // Reply (#60) is generative, not a transform: picking it must take the

@@ -28,7 +28,7 @@ import Testing
 
         let client = makeClient()
         var tokens: [String] = []
-        for try await event in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {
+        for try await event in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {
             if case let .token(value) = event {
                 tokens.append(value)
             }
@@ -46,7 +46,7 @@ import Testing
         defer { MockURLProtocol.handler = nil }
 
         let client = makeClient()
-        let result = try await client.translateBlock(html: "<b>Hello</b>", model: "m")
+        let result = try await client.translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         #expect(result == "<b>Cześć</b>")
     }
 
@@ -60,7 +60,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'm' not found")) {
-            _ = try await client.translateBlock(html: "<b>Hello</b>", model: "m")
+            _ = try await client.translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         }
     }
 
@@ -73,7 +73,7 @@ import Testing
         defer { MockURLProtocol.handler = nil }
 
         let client = makeClient()
-        let result = try await client.readerSummary(of: "A long article.", model: "m")
+        let result = try await client.readerSummary(of: "A long article.", into: .polish, model: "m")
         #expect(result == "Krótkie streszczenie.")
     }
 
@@ -85,7 +85,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaUnreachable) {
-            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
         }
     }
 
@@ -99,7 +99,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'gemma4:26b-mlx' not found")) {
-            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
         }
     }
 
@@ -117,7 +117,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.malformedStream) {
-            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
         }
     }
 
@@ -129,7 +129,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaUnreachable) {
-            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
         }
     }
 
@@ -142,7 +142,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.httpStatus(500)) {
-            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
         }
     }
 
@@ -159,7 +159,7 @@ import Testing
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model not found, try pulling it first")) {
-            for try await _ in client.run("Cześć", action: .translate, model: "m", second: .english, formality: .automatic, style: false) {}
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
         }
     }
 }

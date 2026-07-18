@@ -222,7 +222,7 @@ struct AlternativesDropdown: View {
         HStack(spacing: 6) {
             Image(systemName: "checkmark.circle")
                 .font(.system(size: 11.5, weight: .semibold))
-            Text("Dlaczego poprawiono?")
+            Text(loc("Dlaczego poprawiono?", "Why was this corrected?"))
                 .font(PopupTheme.fontControl)
             Spacer(minLength: 0)
         }
@@ -233,7 +233,7 @@ struct AlternativesDropdown: View {
         if model.explanationLoading {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Szukam powodu…")
+                Text(loc("Szukam powodu…", "Finding the reason…"))
                     .font(PopupTheme.fontMeta)
                     .foregroundStyle(.secondary)
             }
@@ -241,7 +241,7 @@ struct AlternativesDropdown: View {
             .padding(.vertical, 9)
         } else {
             ScrollView {
-                Text(model.explanationText.isEmpty ? "Nie udało się pobrać powodu." : model.explanationText)
+                Text(model.explanationText.isEmpty ? loc("Nie udało się pobrać powodu.", "Couldn't fetch the reason.") : model.explanationText)
                     .font(PopupTheme.fontLead)
                     .foregroundStyle(model.explanationText.isEmpty ? Color.secondary : .primary)
                     .fixedSize(horizontal: false, vertical: true)
@@ -262,7 +262,7 @@ struct AlternativesDropdown: View {
             HStack(spacing: 6) {
                 Image(systemName: "chevron.left")
                     .font(.system(size: 11.5, weight: .semibold))
-                Text("Dlaczego tak?")
+                Text(loc("Dlaczego tak?", "Why this?"))
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
@@ -276,14 +276,14 @@ struct AlternativesDropdown: View {
         if model.explanationLoading {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Szukam wyjaśnienia…")
+                Text(loc("Szukam wyjaśnienia…", "Finding an explanation…"))
                     .font(PopupTheme.fontMeta)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
         } else {
-            Text(model.explanationText.isEmpty ? "Nie udało się pobrać wyjaśnienia." : model.explanationText)
+            Text(model.explanationText.isEmpty ? loc("Nie udało się pobrać wyjaśnienia.", "Couldn't fetch the explanation.") : model.explanationText)
                 .font(PopupTheme.fontLead)
                 .foregroundStyle(model.explanationText.isEmpty ? Color.secondary : .primary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -301,7 +301,7 @@ struct AlternativesDropdown: View {
             HStack(spacing: 6) {
                 Image(systemName: "lightbulb")
                     .font(.system(size: 11.5, weight: .semibold))
-                Text("Dlaczego tak?")
+                Text(loc("Dlaczego tak?", "Why this?"))
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
@@ -315,14 +315,14 @@ struct AlternativesDropdown: View {
         if model.altsLoading {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text("Szukam alternatyw…")
+                Text(loc("Szukam alternatyw…", "Finding alternatives…"))
                     .font(PopupTheme.fontMeta)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
         } else if model.alternatives.isEmpty {
-            Text("Brak alternatyw")
+            Text(loc("Brak alternatyw", "No alternatives"))
                 .font(PopupTheme.fontMeta)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)

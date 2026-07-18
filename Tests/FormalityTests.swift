@@ -12,10 +12,15 @@ import Testing
         #expect(Formality.allCases.map(\.rawValue) == ["auto", "formal", "informal"])
     }
 
-    @Test func displayNamesArePolish() {
-        #expect(Formality.automatic.displayName == "Automatyczny")
-        #expect(Formality.formal.displayName == "Formalny")
-        #expect(Formality.informal.displayName == "Nieformalny")
+    @Test func displayNamesFollowTheUILanguage() {
+        L10n.$override.withValue(.polish) {
+            #expect(Formality.automatic.displayName == "Automatyczny")
+            #expect(Formality.formal.displayName == "Formalny")
+            #expect(Formality.informal.displayName == "Nieformalny")
+        }
+        L10n.$override.withValue(.english) {
+            #expect(Formality.automatic.displayName == "Automatic")
+        }
     }
 
     // The popup's tone pill advances one step per click and wraps around, so the

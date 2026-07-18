@@ -42,7 +42,7 @@ struct SettingsView: View {
     // mockup's centered "Ustawienia" title in that zone, with the traffic lights
     // floating over its left.
     private var titleBar: some View {
-        Text("Ustawienia")
+        Text(loc("Ustawienia", "Settings"))
             .font(.system(size: 13, weight: .semibold))
             .foregroundStyle(.primary)
             .frame(maxWidth: .infinity)
@@ -72,37 +72,49 @@ struct SettingsView: View {
                 }
             }
 
-            group("Ogólne") {
-                row("Drugi język") {
-                    Picker("", selection: $store.secondLanguage) {
-                        ForEach(SecondLanguage.allCases, id: \.self) { lang in
+            group(loc("Ogólne", "General")) {
+                row(loc("Język główny", "Primary language")) {
+                    Picker("", selection: $store.primaryLanguage) {
+                        ForEach(PrimaryLanguage.allCases, id: \.self) { lang in
                             Text(lang.displayName).tag(lang)
                         }
                     }
                     .labelsHidden()
-                    .accessibilityLabel("Drugi język")
+                    .accessibilityLabel(loc("Język główny", "Primary language"))
                     .fixedSize()
                 }
                 rowDivider
-                row("Uruchamiaj przy logowaniu") {
+                row(loc("Drugi język", "Second language")) {
+                    Picker("", selection: $store.secondLanguage) {
+                        Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
+                        ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { lang in
+                            Text(lang.displayName).tag(SecondLanguage?.some(lang))
+                        }
+                    }
+                    .labelsHidden()
+                    .accessibilityLabel(loc("Drugi język", "Second language"))
+                    .fixedSize()
+                }
+                rowDivider
+                row(loc("Uruchamiaj przy logowaniu", "Launch at login")) {
                     Toggle("", isOn: $store.launchAtLogin)
                         .labelsHidden()
-                        .accessibilityLabel("Uruchamiaj przy logowaniu")
+                        .accessibilityLabel(loc("Uruchamiaj przy logowaniu", "Launch at login"))
                         .toggleStyle(.switch)
                 }
             }
 
-            group("Skróty") {
-                row("Popraw w miejscu") {
+            group(loc("Skróty", "Shortcuts")) {
+                row(loc("Popraw w miejscu", "Fix in place")) {
                     KeyChordRecorder(chord: $store.fixChord, otherChord: store.translateInPlaceChord)
                         .frame(width: 96, height: 24)
-                        .accessibilityLabel("Skrót: popraw w miejscu")
+                        .accessibilityLabel(loc("Skrót: popraw w miejscu", "Shortcut: fix in place"))
                 }
                 rowDivider
-                row("Tłumacz w miejscu") {
+                row(loc("Tłumacz w miejscu", "Translate in place")) {
                     KeyChordRecorder(chord: $store.translateInPlaceChord, otherChord: store.fixChord)
                         .frame(width: 96, height: 24)
-                        .accessibilityLabel("Skrót: tłumacz w miejscu")
+                        .accessibilityLabel(loc("Skrót: tłumacz w miejscu", "Shortcut: translate in place"))
                 }
             }
         }
@@ -114,14 +126,14 @@ struct SettingsView: View {
     // when a catalog Gemma is active the picker shows no selection (the radios above
     // carry it). Glosso manages only its own Gemmas, so there's no delete here.
     private var otherModelsRow: some View {
-        row("Inne zainstalowane") {
+        row(loc("Inne zainstalowane", "Other installed")) {
             Picker("", selection: $store.modelName) {
                 ForEach(otherInstalledModels, id: \.self) { name in
                     Text(name).tag(name)
                 }
             }
             .labelsHidden()
-            .accessibilityLabel("Inny zainstalowany model")
+            .accessibilityLabel(loc("Inny zainstalowany model", "Other installed model"))
             .fixedSize()
         }
     }
@@ -199,7 +211,7 @@ struct SettingsView: View {
             }
             .buttonStyle(.plain)
             .disabled(!isDownloaded || isActive)
-            .accessibilityLabel("Użyj modelu \(title)")
+            .accessibilityLabel(loc("Użyj modelu \(title)", "Use model \(title)"))
             .accessibilityAddTraits(isActive ? .isSelected : [])
 
             Image(systemName: icon)
@@ -232,11 +244,11 @@ struct SettingsView: View {
                     .frame(width: 52, alignment: .leading)
                 Group {
                     if isDownloaded {
-                        Button("Usuń") { deleteModel(id) }
+                        Button(loc("Usuń", "Delete")) { deleteModel(id) }
                             .buttonStyle(.link)
                             .disabled(isActive)
                     } else {
-                        Button("Pobierz") { startPull(id) }
+                        Button(loc("Pobierz", "Download")) { startPull(id) }
                             .buttonStyle(.link)
                     }
                 }
@@ -249,7 +261,7 @@ struct SettingsView: View {
     }
 
     private var recommendedBadge: some View {
-        Text("Zalecany")
+        Text(loc("Zalecany", "Recommended"))
             .font(PopupTheme.fontLabel)
             .foregroundStyle(PopupTheme.accent)
             .lineLimit(1)

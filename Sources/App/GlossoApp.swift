@@ -9,30 +9,36 @@ struct GlossoApp: App {
     var body: some Scene {
         MenuBarExtra {
             if appDelegate.appState.listening {
-                Text("Glosso · aktywny")
+                Text(loc("Glosso · aktywny", "Glosso · active"))
             } else if appDelegate.appState.accessibilityGranted {
-                Text("Dostępność OK, ale nasłuch nie wystartował.")
-                Button("Sprawdź ponownie") {
+                Text(loc("Dostępność OK, ale nasłuch nie wystartował.",
+                         "Accessibility OK, but the listener didn't start."))
+                Button(loc("Sprawdź ponownie", "Check again")) {
                     appDelegate.recheckAccessibility()
                 }
             } else {
-                Text("Brak uprawnienia Dostępność (Accessibility)")
-                Button("Otwórz Ustawienia → Prywatność → Dostępność") {
+                Text(loc("Brak uprawnienia Dostępność (Accessibility)",
+                         "Missing the Accessibility permission"))
+                Button(loc("Otwórz Ustawienia → Prywatność → Dostępność",
+                           "Open Settings → Privacy → Accessibility")) {
                     appDelegate.openAccessibilitySettings()
                 }
-                Button("Sprawdź ponownie") {
+                Button(loc("Sprawdź ponownie", "Check again")) {
                     appDelegate.recheckAccessibility()
                 }
             }
             Divider()
+            LanguageMenus(store: appDelegate.settings)
+            Divider()
             if let update = appDelegate.appState.updateAvailable {
-                Button("Dostępna nowa wersja \(update.version) — Pobierz do Downloads") {
+                Button(loc("Dostępna nowa wersja \(update.version) — Pobierz do Downloads",
+                           "New version \(update.version) available — Download to Downloads")) {
                     appDelegate.downloadUpdate()
                 }
             }
             OpenSettingsButton()
-            Button("O aplikacji…") { appDelegate.showAbout() }
-            Button("Zakończ") { NSApplication.shared.terminate(nil) }
+            Button(loc("O aplikacji…", "About…")) { appDelegate.showAbout() }
+            Button(loc("Zakończ", "Quit")) { NSApplication.shared.terminate(nil) }
         } label: {
             // While an update waits, swap in a glyph variant with a download arrow
             // baked into the same template artwork — a SwiftUI overlay can't keep a
@@ -62,9 +68,31 @@ private struct OpenSettingsButton: View {
     @Environment(\.openSettings) private var openSettings
 
     var body: some View {
-        Button("Ustawienia…") {
+        Button(loc("Ustawienia…", "Settings…")) {
             openSettings()
             NSApp.activate(ignoringOtherApps: true)
+        }
+    }
+}
+
+// Quick language switching without opening Settings: two pickers, which the
+// MenuBarExtra's default menu style renders as submenus with checkmarks. The
+// second-language list mirrors SettingsView: an Automatic entry plus every
+// language except the primary (the pair is never X↔X).
+private struct LanguageMenus: View {
+    @Bindable var store: SettingsStore
+
+    var body: some View {
+        Picker(loc("Język główny", "Primary language"), selection: $store.primaryLanguage) {
+            ForEach(PrimaryLanguage.allCases, id: \.self) { language in
+                Text(language.displayName).tag(language)
+            }
+        }
+        Picker(loc("Drugi język", "Second language"), selection: $store.secondLanguage) {
+            Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
+            ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { language in
+                Text(language.displayName).tag(SecondLanguage?.some(language))
+            }
         }
     }
 }
@@ -139,7 +167,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 if update.version != settings.lastNotifiedVersion {
                     settings.lastNotifiedVersion = update.version
                     SystemUserNotifier.post(
-                        "Dostępna nowa wersja \(update.version) — kliknij, aby pobrać.",
+                        loc("Dostępna nowa wersja \(update.version) — kliknij, aby pobrać.",
+                            "New version \(update.version) available — click to download."),
                         identifier: Self.updateNotificationID
                     )
                 }
@@ -174,7 +203,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let center = NSMutableParagraphStyle()
         center.alignment = .center
         let credits = NSMutableAttributedString(
-            string: "Autor: Mirosław Zaniewicz\n\n",
+            string: loc("Autor: Mirosław Zaniewicz\n\n", "Author: Mirosław Zaniewicz\n\n"),
             attributes: [.foregroundColor: NSColor.labelColor, .paragraphStyle: center]
         )
         func link(_ label: String, _ url: String) {
@@ -183,8 +212,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 attributes: [.link: URL(string: url)!, .paragraphStyle: center]
             ))
         }
-        link("Repozytorium", "https://github.com/ethantiv/glosso")
-        link("Strona projektu", "https://ethantiv.github.io/glosso/")
+        link(loc("Repozytorium", "Repository"), "https://github.com/ethantiv/glosso")
+        link(loc("Strona projektu", "Project website"), "https://ethantiv.github.io/glosso/")
 
         NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
         NSApp.activate(ignoringOtherApps: true)

@@ -21,7 +21,7 @@ import Testing
 
         let client = OllamaClient()
         var output = ""
-        for try await event in client.run("Dzień dobry", action: .translate, model: LLMConfig.default.model, second: .english, formality: .automatic, style: false) {
+        for try await event in client.run("Dzień dobry", action: .translate, model: LLMConfig.default.model, primary: .polish, second: .english, formality: .automatic, style: false) {
             if case let .token(value) = event {
                 output += value
             }
@@ -39,7 +39,7 @@ import Testing
         var output = ""
         for try await event in client.run(
             "De kosten van de schade door de bever lopen snel op, vreest de Unie van Waterschappen.",
-            action: .translate, model: LLMConfig.default.model, second: .dutch,
+            action: .translate, model: LLMConfig.default.model, primary: .polish, second: .dutch,
             formality: .automatic, style: false
         ) {
             if case let .token(value) = event {
@@ -62,7 +62,7 @@ import Testing
         let client = OllamaClient()
         let explanation = try await client.explain(
             word: "przeszłość", in: "die Vergangenheit", source: "przeszłość",
-            second: .german, model: LLMConfig.default.model)
+            primary: .polish, second: .german, model: LLMConfig.default.model)
 
         #expect(!explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
@@ -76,7 +76,7 @@ import Testing
         let note = try await client.explainRegister(
             previous: "Könnten Sie mir bitte helfen?", current: "Könntest du mir helfen?",
             from: .formal, to: .informal, source: "Czy mógłby mi Pan pomóc?",
-            second: .german, model: LLMConfig.default.model)
+            primary: .polish, second: .german, model: LLMConfig.default.model)
 
         #expect(note.contains("du"), "expected the note to name the du form, got: \(note)")
         #expect(note.contains("Sie"), "expected the note to name the Sie form, got: \(note)")

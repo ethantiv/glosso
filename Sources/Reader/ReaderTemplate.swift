@@ -44,7 +44,9 @@ enum ReaderTemplate {
         return "\(function)(\(encoded.joined(separator: ", ")))"
     }
 
-    static let html = """
+    // Computed, not stored: the pill labels resolve in the app's current UI
+    // language at load time (each show() reloads the template).
+    static var html: String { """
     <!DOCTYPE html>
     <html>
     <head>
@@ -96,18 +98,18 @@ enum ReaderTemplate {
     </head>
     <body>
     <div id="glosso-pills">
-      <button id="glosso-refresh" class="glosso-pill" type="button" title="Przetłumacz ponownie">
+      <button id="glosso-refresh" class="glosso-pill" type="button" title="\(loc("Przetłumacz ponownie", "Translate again"))">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M21 12a9 9 0 1 1-2.6-6.4"/>
           <path d="M21 3v6h-6"/>
         </svg>
       </button>
-      <button id="glosso-toggle" class="glosso-pill" type="button" title="Przełącz oryginał / tłumaczenie">
+      <button id="glosso-toggle" class="glosso-pill" type="button" title="\(loc("Przełącz oryginał / tłumaczenie", "Toggle original / translation"))">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
           <path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/>
           <circle cx="12" cy="12" r="2.6"/>
         </svg>
-        <span id="glosso-toggle-label">Oryginał</span>
+        <span id="glosso-toggle-label">\(loc("Oryginał", "Original"))</span>
       </button>
     </div>
     <h1 id="glosso-title"></h1>
@@ -261,7 +263,7 @@ enum ReaderTemplate {
       document.title = title;
       heading.classList.toggle('glosso-pending', !toOriginal && !glosso.translatedTitle);
       glossoRefreshSummary();
-      document.getElementById('glosso-toggle-label').textContent = toOriginal ? 'Tłumaczenie' : 'Oryginał';
+      document.getElementById('glosso-toggle-label').textContent = toOriginal ? '\(loc("Tłumaczenie", "Translation"))' : '\(loc("Oryginał", "Original"))';
     }
     function glossoAbort() {
       glosso.pending.clear();
@@ -289,4 +291,5 @@ enum ReaderTemplate {
     </body>
     </html>
     """
+    }
 }

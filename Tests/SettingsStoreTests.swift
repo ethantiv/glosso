@@ -13,12 +13,75 @@ import Testing
     // hardcoded tag), and on the hardcoded MVP defaults for everything else, so the
     // app behaves predictably until the user changes anything.
     @Test func defaultsMatchTheHardcodedConfig() {
-        let store = SettingsStore(defaults: transientDefaults())
+        let store = SettingsStore(defaults: transientDefaults(), systemLanguages: ["pl-PL"])
         #expect(store.modelName == EmbeddedModelCatalog.recommended.id)
+        #expect(store.primaryLanguage == .polish)
         #expect(store.secondLanguage == .english)
         #expect(store.formality == .automatic)
         #expect(store.fixChord == .fixGrammarDefault)
         #expect(store.translateInPlaceChord == .translateInPlaceDefault)
+    }
+
+    // MARK: Primary language (internationalization)
+
+    // A fresh install seeds the primary from the system language, so onboarding
+    // renders in it; the second then defaults to the counterpart, never X↔X.
+    @Test func freshInstallSeedsPrimaryFromSystemLanguage() {
+        let polish = SettingsStore(defaults: transientDefaults(), systemLanguages: ["pl-PL", "en-US"])
+        #expect(polish.primaryLanguage == .polish)
+        #expect(polish.secondLanguage == .english)
+
+        let english = SettingsStore(defaults: transientDefaults(), systemLanguages: ["en-US"])
+        #expect(english.primaryLanguage == .english)
+        #expect(english.secondLanguage == .polish)
+
+        let german = SettingsStore(defaults: transientDefaults(), systemLanguages: ["de-DE"])
+        #expect(german.primaryLanguage == .english)
+    }
+
+    // Existing installs predate the primary-language setting and were Polish-axis:
+    // the onboarding flag's presence is the migration marker, and their stored
+    // English second language must survive untouched.
+    @Test func existingInstallMigratesToPolishPrimary() {
+        let defaults = transientDefaults()
+        defaults.set(true, forKey: "app.hasCompletedOnboarding")
+        defaults.set("en", forKey: "translation.secondLanguage")
+        let store = SettingsStore(defaults: defaults, systemLanguages: ["en-US"])
+        #expect(store.primaryLanguage == .polish)
+        #expect(store.secondLanguage == .english)
+    }
+
+    @Test func persistsPrimaryLanguageAcrossReload() {
+        let defaults = transientDefaults()
+        SettingsStore(defaults: defaults).primaryLanguage = .english
+        #expect(SettingsStore(defaults: defaults).primaryLanguage == .english)
+    }
+
+    // The pair must never be X↔X: switching the primary onto the current second
+    // flips the second to the PL/EN counterpart, live and on load.
+    @Test func switchingPrimaryOntoSecondFlipsTheSecond() {
+        let store = SettingsStore(defaults: transientDefaults(), systemLanguages: ["pl-PL"])
+        #expect(store.secondLanguage == .english)
+        store.primaryLanguage = .english
+        #expect(store.secondLanguage == .polish)
+        store.primaryLanguage = .polish
+        #expect(store.secondLanguage == .english)
+    }
+
+    @Test func conflictingStoredSecondIsSanitizedOnLoad() {
+        let defaults = transientDefaults()
+        defaults.set("en", forKey: "app.primaryLanguage")
+        defaults.set("en", forKey: "translation.secondLanguage")
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.secondLanguage == .polish)
+    }
+
+    // nil = Automatic, persisted as the "auto" sentinel.
+    @Test func automaticSecondRoundTrips() {
+        let defaults = transientDefaults()
+        SettingsStore(defaults: defaults).secondLanguage = nil
+        let reloaded = SettingsStore(defaults: defaults)
+        #expect(reloaded.secondLanguage == nil)
     }
 
     // The first-run wizard must show exactly once: a fresh install starts

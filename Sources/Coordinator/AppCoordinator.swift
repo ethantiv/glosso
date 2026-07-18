@@ -35,15 +35,26 @@ final class AppCoordinator {
     private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
     private var actionCache: [Action: ActionResult] = [:]
 
-    // model and second language also feed every cached result, but they're
-    // changed only in the Settings window, which can't reach in to clear actionCache
-    // while the popup floats (formality/source edits clear it directly; these can't).
-    // Snapshot them and drop the whole cache when they differ from when it was filled,
-    // so a verb switch after a Settings change recomputes instead of replaying a stale
-    // result. nil until the first stream fills the cache.
+    // model and both languages also feed every cached result, but they're
+    // changed in the Settings window and the menu-bar submenus, which can't reach in
+    // to clear actionCache while the popup floats (formality/source edits clear it
+    // directly; these can't). Snapshot them and drop the whole cache when they differ
+    // from when it was filled, so a verb switch after a Settings change recomputes
+    // instead of replaying a stale result. nil until the first stream fills the cache.
     private var cacheSignature: String?
     private func currentCacheSignature() -> String {
-        "\(settings.modelName)|\(settings.secondLanguage)"
+        "\(settings.modelName)|\(settings.primaryLanguage.rawValue)|\(settings.secondLanguage?.rawValue ?? "auto")"
+    }
+
+    // The concrete second language of a capture: the automatic setting (nil) is
+    // resolved per capture by DirectionDetector, so the direction carries it;
+    // .unknown (ambiguous text) falls back to the setting or, under automatic,
+    // to the primary's PL/EN counterpart.
+    private func resolvedSecond(for direction: TranslationDirection) -> SecondLanguage {
+        switch direction {
+        case .fromPrimary(_, let second), .toPrimary(_, let second): second
+        case .unknown: settings.secondLanguage ?? settings.primaryLanguage.counterpart.asSecond
+        }
     }
 
     // Retained so the popup's tone pill and verb strip can re-run over the same
@@ -211,14 +222,16 @@ final class AppCoordinator {
                 await route(text, at: point)
                 return
             } catch CaptureError.emptyOrNonText {
-                popup.showError("Zaznaczenie nie zawiera tekstu do tłumaczenia.")
+                popup.showError(loc("Zaznaczenie nie zawiera tekstu do tłumaczenia.",
+                                    "The selection contains no text to translate."))
                 return
             } catch CaptureError.nothingSelected {
                 // clipboard has not updated yet — keep polling.
             } catch {
                 // An unexpected reader error (a future permissions/coordination
                 // failure, say) must not be silently polled away — surface it.
-                popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+                popup.showError(loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.",
+                                    "Couldn't read the selection. Try again."))
                 return
             }
             try? await Task.sleep(for: .milliseconds(pollStepMs))
@@ -259,7 +272,8 @@ final class AppCoordinator {
             await stream(text, at: point, action: .translate)
             return
         }
-        popup.showError("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        popup.showError(loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.",
+                            "Couldn't read the selection. Try again."))
     }
 
     /// Pastes the finished translation over the still-live source selection (issue
@@ -267,7 +281,8 @@ final class AppCoordinator {
     /// double-press, refuse rather than paste into the wrong app.
     func handleReplace(translation: String) {
         guard let sourcePID = lastSourcePID, sourcePID == frontmostPID() else {
-            popup.showError("Aplikacja źródłowa się zmieniła — nie wklejono.")
+            popup.showError(loc("Aplikacja źródłowa się zmieniła — nie wklejono.",
+                                "The source app changed — nothing was pasted."))
             return
         }
         // The PID match only proves the source app is still frontmost, not that its
@@ -279,7 +294,8 @@ final class AppCoordinator {
         // where Cmd+V still works — so only an empty, non-nil read blocks the paste.
         if let selection = axReader.selectedText(),
            selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            popup.showError("Brak zaznaczenia do zastąpienia.")
+            popup.showError(loc("Brak zaznaczenia do zastąpienia.",
+                                "No selection left to replace."))
             return
         }
         replacer.replace(with: translation)
@@ -327,23 +343,28 @@ final class AppCoordinator {
         if Task.isCancelled { return }
         guard let text = captured else {
             notify(isTranslate
-                ? "Nie udało się odczytać zaznaczenia do tłumaczenia."
-                : "Nie udało się odczytać zaznaczenia do poprawy.")
+                ? loc("Nie udało się odczytać zaznaczenia do tłumaczenia.",
+                      "Couldn't read the selection to translate.")
+                : loc("Nie udało się odczytać zaznaczenia do poprawy.",
+                      "Couldn't read the selection to fix."))
             return
         }
         var buffer = ""
-        let style = DirectionDetector.detect(text, second: settings.secondLanguage).supportsStyleFix
+        let detected = DirectionDetector.detect(text, primary: settings.primaryLanguage, second: settings.secondLanguage)
         do {
             for try await event in llm.run(
                 text, action: action, model: settings.modelName,
-                second: settings.secondLanguage, formality: settings.formality,
-                style: style) {
+                primary: settings.primaryLanguage, second: resolvedSecond(for: detected),
+                formality: settings.formality,
+                style: detected.supportsStyleFix) {
                 if Task.isCancelled { return }
                 if case .token(let token) = event { buffer += token }
             }
         } catch {
             if Task.isCancelled { return }
-            notify(isTranslate ? "Nie udało się przetłumaczyć tekstu." : "Nie udało się poprawić tekstu.")
+            notify(isTranslate
+                ? loc("Nie udało się przetłumaczyć tekstu.", "Couldn't translate the text.")
+                : loc("Nie udało się poprawić tekstu.", "Couldn't fix the text."))
             return
         }
         if Task.isCancelled { return }
@@ -352,16 +373,20 @@ final class AppCoordinator {
         guard !usedFallback else {
             copyToClipboard(corrected)
             notify(isTranslate
-                ? "Przetłumaczono. To zaznaczenie nie pozwala wkleić w miejscu — tłumaczenie jest w schowku (Cmd+V)."
-                : "Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).")
+                ? loc("Przetłumaczono. To zaznaczenie nie pozwala wkleić w miejscu — tłumaczenie jest w schowku (Cmd+V).",
+                      "Translated. This selection can't be pasted over in place — the translation is on the clipboard (Cmd+V).")
+                : loc("Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).",
+                      "Fixed. This selection can't be pasted over in place — the fix is on the clipboard (Cmd+V)."))
             return
         }
         // ponytail: best-effort paste; no read-only detection — add an AX writability probe if it bites
         guard let sourcePID, sourcePID == frontmostPID() else {
             copyToClipboard(corrected)
             notify(isTranslate
-                ? "Aplikacja się zmieniła — tłumaczenie skopiowano do schowka."
-                : "Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.")
+                ? loc("Aplikacja się zmieniła — tłumaczenie skopiowano do schowka.",
+                      "The app changed — the translation was copied to the clipboard.")
+                : loc("Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.",
+                      "The app changed — the fixed text was copied to the clipboard."))
             return
         }
         // The selection can collapse to an insertion point while the model streams
@@ -372,8 +397,10 @@ final class AppCoordinator {
            selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             copyToClipboard(corrected)
             notify(isTranslate
-                ? "Zaznaczenie zniknęło — tłumaczenie skopiowano do schowka."
-                : "Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.")
+                ? loc("Zaznaczenie zniknęło — tłumaczenie skopiowano do schowka.",
+                      "The selection disappeared — the translation was copied to the clipboard.")
+                : loc("Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.",
+                      "The selection disappeared — the fixed text was copied to the clipboard."))
             return
         }
         replacer.replace(with: corrected)
@@ -474,7 +501,8 @@ final class AppCoordinator {
         prefetchTask?.cancel()
         let result = (try? await llm.alternatives(
             for: word, in: translation, source: capture.text,
-            second: settings.secondLanguage, model: settings.modelName)) ?? []
+            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+            model: settings.modelName)) ?? []
         schedulePrefetch()
         return result
     }
@@ -488,7 +516,8 @@ final class AppCoordinator {
         prefetchTask?.cancel()
         let result = (try? await llm.explain(
             word: word, in: translation, source: capture.text,
-            second: settings.secondLanguage, model: settings.modelName)) ?? ""
+            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+            model: settings.modelName)) ?? ""
         schedulePrefetch()
         return result
     }
@@ -502,17 +531,18 @@ final class AppCoordinator {
         guard let capture = lastCapture else { return "" }
         prefetchTask?.cancel()
         // English rule cards ground the explanation only when the corrected text is
-        // English under an English second language; everything else (Polish text,
-        // any other second language) keeps the Polish base and its simple-reason
-        // fallback. The direction was detected on the original at stream time —
+        // English under a Polish primary; everything else (Polish text, any other
+        // second language) keeps the Polish base and its simple-reason fallback —
+        // and under an English primary the grounding is skipped in PromptBuilder
+        // entirely. The direction was detected on the original at stream time —
         // same language as the correction. The style flag mirrors the run that
         // produced the diff, so the style cards join the base only when a style
         // pass could actually have driven the change.
-        let englishRules = settings.secondLanguage == .english
-            && capture.direction == .toPolish(.english)
+        let englishRules = capture.direction == .toPrimary(.polish, .english)
         let result = (try? await llm.explainFix(
             error: before, correction: after, original: capture.text, corrected: corrected,
-            second: settings.secondLanguage, englishRules: englishRules,
+            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+            englishRules: englishRules,
             style: capture.direction.supportsStyleFix,
             model: settings.modelName)) ?? ""
         schedulePrefetch()
@@ -528,7 +558,8 @@ final class AppCoordinator {
         prefetchTask?.cancel()
         let result = (try? await llm.explainRegister(
             previous: previous, current: current, from: from, to: to,
-            source: capture.text, second: settings.secondLanguage,
+            source: capture.text,
+            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
             model: settings.modelName)) ?? ""
         schedulePrefetch()
         return result
@@ -576,16 +607,15 @@ final class AppCoordinator {
     }
 
     private func stream(_ text: String, at point: CGPoint, action: Action) async {
-        let second = settings.secondLanguage
         // Detected once per stream and cached with the capture, so the per-tap
         // fix-reason fetches and the prefetch gate reuse it instead of re-classifying
-        // the whole text.
-        let detected = DirectionDetector.detect(text, second: second)
+        // the whole text. Under an automatic second (nil) the detection also resolves
+        // which language the second side actually is.
+        let detected = DirectionDetector.detect(text, primary: settings.primaryLanguage, second: settings.secondLanguage)
         lastCapture = (text, point, action, detected)
         // The direction arrow / language pair only describe a translation, but
         // fixGrammar needs the detected language too — it gates the automatic style
-        // pass on a supported language (Polish, or English under an English second
-        // language).
+        // pass on a supported language (Polish or English).
         // Summarize/reply stay .unknown so the popup hides the language header.
         let direction = action == .translate || action == .fixGrammar ? detected : .unknown
         popup.update(direction: direction, sourceText: text, action: action)
@@ -619,7 +649,8 @@ final class AppCoordinator {
             let drafts = (try? await llm.reply(to: text, model: settings.modelName)) ?? []
             if Task.isCancelled { return }
             if drafts.isEmpty {
-                popup.showError("Nie udało się wygenerować odpowiedzi.")
+                popup.showError(loc("Nie udało się wygenerować odpowiedzi.",
+                                    "Couldn't generate replies."))
             } else {
                 popup.showReplies(drafts)
                 actionCache[.reply] = .replies(drafts)
@@ -629,7 +660,8 @@ final class AppCoordinator {
         }
         await consume(llm.run(
             text, action: action, model: settings.modelName,
-            second: second, formality: settings.formality,
+            primary: settings.primaryLanguage, second: resolvedSecond(for: detected),
+            formality: settings.formality,
             style: detected.supportsStyleFix),
             bucket: action)
         if !Task.isCancelled { schedulePrefetch() }
@@ -642,7 +674,8 @@ final class AppCoordinator {
         guard let capture = lastCapture else { return }
         await consume(llm.reword(
             original: original, to: chosen, in: translation,
-            source: capture.text, second: settings.secondLanguage,
+            source: capture.text,
+            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
             formality: settings.formality, model: settings.modelName),
             bucket: .translate)
         if !Task.isCancelled { schedulePrefetch() }
@@ -679,7 +712,7 @@ final class AppCoordinator {
             popup.showError(error.userMessage)
         } catch {
             if Task.isCancelled { return }
-            popup.showError("Błąd tłumaczenia.")
+            popup.showError(loc("Błąd tłumaczenia.", "Translation failed."))
         }
     }
 
@@ -720,7 +753,9 @@ final class AppCoordinator {
         do {
             for try await event in llm.run(
                 source, action: action, model: settings.modelName,
-                second: settings.secondLanguage, formality: settings.formality,
+                primary: settings.primaryLanguage,
+                second: resolvedSecond(for: lastCapture?.direction ?? .unknown),
+                formality: settings.formality,
                 style: (lastCapture?.direction ?? .unknown).supportsStyleFix) {
                 if Task.isCancelled { return }
                 switch event {

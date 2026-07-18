@@ -82,7 +82,7 @@ struct KeyChordRecorder: NSViewRepresentable {
             path.lineWidth = isRecording ? 1.5 : 0.5
             path.stroke()
 
-            let text = isRecording ? "Naciśnij…" : chord.displayString
+            let text = isRecording ? loc("Naciśnij…", "Press…") : chord.displayString
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium),
                 .foregroundColor: isRecording ? NSColor.controlAccentColor : NSColor.labelColor,
