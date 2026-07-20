@@ -63,10 +63,16 @@ enum ReaderTemplate {
       body { font-family: -apple-system, system-ui, sans-serif; font-size: 17px;
              line-height: 1.6; max-width: 42em; margin: 0 auto;
              padding: 2em 1.5em 4em; overflow-wrap: break-word; }
-      h1#glosso-title { font-size: 1.9em; line-height: 1.25; margin-bottom: .3em;
-                        font-weight: 700; letter-spacing: -0.01em; }
-      #glosso-byline { color: color-mix(in srgb, CanvasText 55%, Canvas);
+      /* Editorial voice: the article itself (title, byline, prose) reads in the
+         system serif (New York), while every UI element stays in the sans stack. */
+      h1#glosso-title { font-family: ui-serif, Georgia, serif;
+                        font-size: 2em; line-height: 1.22; margin-bottom: .3em;
+                        font-weight: 700; letter-spacing: 0; }
+      #glosso-byline { font-family: ui-serif, Georgia, serif; font-style: italic;
+                       color: color-mix(in srgb, CanvasText 55%, Canvas);
                        margin-bottom: 2em; }
+      #glosso-content { font-family: ui-serif, Georgia, serif; line-height: 1.65; }
+      #glosso-content figcaption { font-family: -apple-system, system-ui, sans-serif; }
       #glosso-summary { background: color-mix(in srgb, var(--accent) 6%, Canvas);
                         border: 1px solid color-mix(in srgb, var(--accent) 16%, Canvas);
                         border-radius: 10px; padding: .7em .8em;
@@ -134,7 +140,7 @@ enum ReaderTemplate {
       .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
       #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
       .glosso-chip { font: inherit; font-size: .85em; font-weight: 600;
-                     text-align: left; padding: .35em .7em;
+                     text-align: center; padding: .45em .95em;
                      border-radius: 999px; cursor: pointer;
                      color: var(--accent-ink);
                      background: Canvas;
