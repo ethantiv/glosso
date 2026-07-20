@@ -147,9 +147,10 @@ enum ReaderTemplate {
          horizontally scrollable row of single-line chips (full text in the
          tooltip), so the messages get the panel's height back. */
       .glosso-chat-started #glosso-suggest-label { display: none !important; }
+      /* padding-bottom keeps the overlay scrollbar off the chips */
       .glosso-chat-started #glosso-chat-suggestions { flex-direction: row;
                                                       overflow-x: auto; flex: none;
-                                                      padding-bottom: .2em; }
+                                                      padding-bottom: .7em; }
       .glosso-chat-started .glosso-chip { flex: none; max-width: 15em;
                                           white-space: nowrap; overflow: hidden;
                                           text-overflow: ellipsis; }
