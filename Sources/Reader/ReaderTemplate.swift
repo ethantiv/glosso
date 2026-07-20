@@ -138,15 +138,29 @@ enum ReaderTemplate {
                        border-radius: 11px; border-bottom-left-radius: 4px;
                        padding: .45em .65em; }
       .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
+      #glosso-suggest-label { font-size: .65em; font-weight: 700; letter-spacing: .09em;
+                              text-transform: uppercase; margin-bottom: -.45em;
+                              color: color-mix(in srgb, CanvasText 45%, Canvas);
+                              display: none; }
       #glosso-chat-suggestions { display: flex; flex-direction: column; gap: .4em; }
+      /* Once a conversation is running the suggestions collapse into one
+         horizontally scrollable row of single-line chips (full text in the
+         tooltip), so the messages get the panel's height back. */
+      .glosso-chat-started #glosso-suggest-label { display: none !important; }
+      .glosso-chat-started #glosso-chat-suggestions { flex-direction: row;
+                                                      overflow-x: auto; flex: none;
+                                                      padding-bottom: .2em; }
+      .glosso-chat-started .glosso-chip { flex: none; max-width: 15em;
+                                          white-space: nowrap; overflow: hidden;
+                                          text-overflow: ellipsis; }
       /* Multi-line questions: a stadium radius would carve into the first and
          last lines, so the chips use a soft rectangle instead. */
-      .glosso-chip { font: inherit; font-size: .85em; font-weight: 600;
+      .glosso-chip { font: inherit; font-size: .8em; font-weight: 500;
                      text-align: left; padding: .55em .9em;
                      border-radius: 12px; cursor: pointer;
                      color: var(--accent-ink);
                      background: Canvas;
-                     border: 1px solid color-mix(in srgb, var(--accent) 35%, Canvas); }
+                     border: 1px solid color-mix(in srgb, var(--accent) 28%, Canvas); }
       .glosso-chip:hover { background: color-mix(in srgb, var(--accent) 10%, Canvas); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
       #glosso-chat-form { display: flex; gap: .5em; align-items: flex-end; }
@@ -192,6 +206,7 @@ enum ReaderTemplate {
     <div id="glosso-chat-panel">
       <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
       <div id="glosso-chat-messages"></div>
+      <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
       <div id="glosso-chat-suggestions"></div>
       <form id="glosso-chat-form">
         <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
@@ -230,7 +245,8 @@ enum ReaderTemplate {
       translatedTitle: '',
       summary: '',
       chatBusy: false,          // one question in flight at a time
-      questionsRequested: false // suggestions are generated once, lazily
+      questionsRequested: false, // suggestions are generated once, lazily
+      asked: []                 // questions already asked — their chips stay gone
     };
     function glossoSetArticle(title, byline, html) {
       glosso.originalTitle = title;
@@ -391,13 +407,20 @@ enum ReaderTemplate {
       // panel retries instead of leaving the chips permanently blank.
       if (!questions.length) { glosso.questionsRequested = false; return; }
       for (const q of questions) {
+        if (glosso.asked.includes(q.trim())) { continue; }
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'glosso-chip';
         chip.textContent = q;
+        chip.title = q;
         chip.addEventListener('click', function() { glossoAsk(q); });
         box.appendChild(chip);
       }
+      glossoSuggestLabel();
+    }
+    function glossoSuggestLabel() {
+      const any = document.querySelector('#glosso-chat-suggestions .glosso-chip');
+      document.getElementById('glosso-suggest-label').style.display = any ? 'block' : 'none';
     }
     function glossoChatBusy(busy) {
       glosso.chatBusy = busy;
@@ -409,6 +432,12 @@ enum ReaderTemplate {
       // No queue: while an answer is pending, asking is a no-op (send + chips
       // are disabled too — this guard covers Enter in the input).
       if (!question || glosso.chatBusy) { return; }
+      glosso.asked.push(question);
+      document.getElementById('glosso-chat-panel').classList.add('glosso-chat-started');
+      for (const chip of document.querySelectorAll('.glosso-chip')) {
+        if (chip.textContent.trim() === question) { chip.remove(); }
+      }
+      glossoSuggestLabel();
       const messages = document.getElementById('glosso-chat-messages');
       const q = document.createElement('div');
       q.className = 'glosso-chat-q';
