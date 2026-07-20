@@ -139,9 +139,11 @@ enum ReaderTemplate {
                        padding: .45em .65em; }
       .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
       #glosso-chat-suggestions { display: flex; flex-direction: column; gap: .4em; }
+      /* Multi-line questions: a stadium radius would carve into the first and
+         last lines, so the chips use a soft rectangle instead. */
       .glosso-chip { font: inherit; font-size: .85em; font-weight: 600;
-                     text-align: left; padding: .45em .95em;
-                     border-radius: 999px; cursor: pointer;
+                     text-align: left; padding: .55em .9em;
+                     border-radius: 12px; cursor: pointer;
                      color: var(--accent-ink);
                      background: Canvas;
                      border: 1px solid color-mix(in srgb, var(--accent) 35%, Canvas); }
