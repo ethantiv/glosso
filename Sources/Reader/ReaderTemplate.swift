@@ -57,26 +57,44 @@ enum ReaderTemplate {
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-      :root { color-scheme: light dark; }
+      :root { color-scheme: light dark;
+              --accent: light-dark(#4F5BD8, #98A2F8);
+              --accent-ink: light-dark(#4350C4, #A7B0FA); }
       body { font-family: -apple-system, system-ui, sans-serif; font-size: 17px;
              line-height: 1.6; max-width: 42em; margin: 0 auto;
              padding: 2em 1.5em 4em; overflow-wrap: break-word; }
-      h1#glosso-title { font-size: 1.9em; line-height: 1.25; margin-bottom: .3em; }
-      #glosso-byline { color: color-mix(in srgb, CanvasText 55%, Canvas);
+      /* Editorial voice: the article itself (title, byline, prose) reads in the
+         system serif (New York), while every UI element stays in the sans stack. */
+      h1#glosso-title { font-family: ui-serif, Georgia, serif;
+                        font-size: 2em; line-height: 1.22; margin-bottom: .3em;
+                        font-weight: 700; letter-spacing: 0; }
+      #glosso-byline { font-family: ui-serif, Georgia, serif; font-style: italic;
+                       color: color-mix(in srgb, CanvasText 55%, Canvas);
                        margin-bottom: 2em; }
-      #glosso-summary { border-left: 3px solid #4F5BD8; padding: .1em 0 .1em 1em;
+      #glosso-content { font-family: ui-serif, Georgia, serif; line-height: 1.65; }
+      #glosso-content figcaption { font-family: -apple-system, system-ui, sans-serif; }
+      #glosso-summary { background: color-mix(in srgb, var(--accent) 6%, Canvas);
+                        border: 1px solid color-mix(in srgb, var(--accent) 16%, Canvas);
+                        border-radius: 10px; padding: .7em .8em;
                         margin: 0 0 2em; font-size: .95em;
-                        color: color-mix(in srgb, CanvasText 80%, Canvas);
+                        color: color-mix(in srgb, CanvasText 85%, Canvas);
                         display: none; }
+      #glosso-summary::before { content: "TL;DR"; display: inline-block;
+                                font-size: .68em; font-weight: 700; letter-spacing: .06em;
+                                color: var(--accent-ink);
+                                background: color-mix(in srgb, var(--accent) 14%, Canvas);
+                                border-radius: 5px; padding: .1em .45em;
+                                margin-right: .6em; vertical-align: .12em; }
       #glosso-pills { position: fixed; top: .8em; right: .8em; z-index: 10;
                       display: none; gap: .5em; }
       .glosso-pill { display: flex; align-items: center; gap: .4em;
-                     font: inherit; font-size: .8em; padding: .35em .8em;
+                     font: inherit; font-size: .8em; font-weight: 600;
+                     padding: .35em .8em;
                      border-radius: 999px; cursor: pointer;
-                     color: color-mix(in srgb, CanvasText 75%, Canvas);
-                     background: color-mix(in srgb, CanvasText 6%, Canvas);
-                     border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
-      .glosso-pill:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
+                     color: var(--accent-ink);
+                     background: color-mix(in srgb, var(--accent) 12%, Canvas);
+                     border: 1px solid color-mix(in srgb, var(--accent) 22%, Canvas); }
+      .glosso-pill:hover { background: color-mix(in srgb, var(--accent) 18%, Canvas); }
       .glosso-pill svg { width: 1.1em; height: 1.1em; }
       img, video { max-width: 100%; height: auto; border-radius: 4px; }
       /* Embedded players carry fixed width/height attributes and would overflow
@@ -92,30 +110,62 @@ enum ReaderTemplate {
       pre { overflow-x: auto; background: color-mix(in srgb, CanvasText 7%, Canvas);
             padding: 1em; border-radius: 6px; font-size: .85em; }
       code { font-family: ui-monospace, monospace; }
-      a { color: #4F5BD8; }
+      a { color: var(--accent-ink); }
       .glosso-pending { opacity: .45; }
       #glosso-chat-panel { position: fixed; top: 0; right: 0; bottom: 0; width: 320px;
                            display: none; flex-direction: column; gap: .8em;
-                           background: Canvas; z-index: 5; box-sizing: border-box;
+                           background: color-mix(in srgb, CanvasText 2%, Canvas);
+                           z-index: 5; box-sizing: border-box;
                            border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
                            padding: 3.2em 1em 1em; font-size: .9em; }
       /* Shift the article column out from under the open panel; margin-left stays
          auto, so the column keeps all remaining slack on the left. */
       body.glosso-chat-open { margin-right: 340px; }
-      #glosso-chat-messages { flex: 1; overflow-y: auto; }
-      .glosso-chat-q { font-weight: 600; margin: 1em 0 .25em; }
-      .glosso-chat-a { white-space: pre-wrap; }
+      .glosso-chat-label { font-size: .75em; font-weight: 700; letter-spacing: .09em;
+                           text-transform: uppercase;
+                           color: color-mix(in srgb, CanvasText 55%, Canvas); }
+      #glosso-chat-messages { flex: 1; overflow-y: auto;
+                              display: flex; flex-direction: column; gap: .55em; }
+      .glosso-chat-q { align-self: flex-end; max-width: 85%;
+                       background: var(--accent);
+                       color: light-dark(#fff, #14163B);
+                       border-radius: 11px; border-bottom-right-radius: 4px;
+                       padding: .45em .65em; }
+      .glosso-chat-a { align-self: flex-start; max-width: 95%;
+                       white-space: pre-wrap;
+                       background: Canvas;
+                       border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
+                       border-radius: 11px; border-bottom-left-radius: 4px;
+                       padding: .45em .65em; }
       .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
-      #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
-      .glosso-chip { font: inherit; font-size: .85em; text-align: left; padding: .35em .7em;
+      #glosso-suggest-label { font-size: .65em; font-weight: 700; letter-spacing: .09em;
+                              text-transform: uppercase; margin-bottom: -.45em;
+                              color: color-mix(in srgb, CanvasText 45%, Canvas);
+                              display: none; }
+      #glosso-chat-suggestions { display: flex; flex-direction: column; gap: .4em; }
+      /* Once a conversation is running the suggestions collapse into one
+         horizontally scrollable row of single-line chips (full text in the
+         tooltip), so the messages get the panel's height back. */
+      .glosso-chat-started #glosso-suggest-label { display: none !important; }
+      /* padding-bottom keeps the overlay scrollbar off the chips */
+      .glosso-chat-started #glosso-chat-suggestions { flex-direction: row;
+                                                      overflow-x: auto; flex: none;
+                                                      padding-bottom: .7em; }
+      .glosso-chat-started .glosso-chip { flex: none; max-width: 15em;
+                                          white-space: nowrap; overflow: hidden;
+                                          text-overflow: ellipsis; }
+      /* Multi-line questions: a stadium radius would carve into the first and
+         last lines, so the chips use a soft rectangle instead. */
+      .glosso-chip { font: inherit; font-size: .8em; font-weight: 500;
+                     text-align: left; padding: .55em .9em;
                      border-radius: 12px; cursor: pointer;
-                     color: color-mix(in srgb, CanvasText 80%, Canvas);
-                     background: color-mix(in srgb, CanvasText 6%, Canvas);
-                     border: 1px solid color-mix(in srgb, CanvasText 15%, Canvas); }
-      .glosso-chip:hover { background: color-mix(in srgb, CanvasText 12%, Canvas); }
+                     color: var(--accent-ink);
+                     background: Canvas;
+                     border: 1px solid color-mix(in srgb, var(--accent) 28%, Canvas); }
+      .glosso-chip:hover { background: color-mix(in srgb, var(--accent) 10%, Canvas); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
       #glosso-chat-form { display: flex; gap: .5em; align-items: flex-end; }
-      #glosso-chat-input { flex: 1; font: inherit; padding: .4em .6em; border-radius: 8px;
+      #glosso-chat-input { flex: 1; font: inherit; padding: .45em .65em; border-radius: 10px;
                            border: 1px solid color-mix(in srgb, CanvasText 20%, Canvas);
                            background: Canvas; color: CanvasText;
                            resize: none; max-height: 8em; overflow-y: auto; line-height: 1.4; }
@@ -155,7 +205,9 @@ enum ReaderTemplate {
     <div id="glosso-summary"></div>
     <div id="glosso-content"></div>
     <div id="glosso-chat-panel">
+      <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
       <div id="glosso-chat-messages"></div>
+      <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
       <div id="glosso-chat-suggestions"></div>
       <form id="glosso-chat-form">
         <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
@@ -194,7 +246,8 @@ enum ReaderTemplate {
       translatedTitle: '',
       summary: '',
       chatBusy: false,          // one question in flight at a time
-      questionsRequested: false // suggestions are generated once, lazily
+      questionsRequested: false, // suggestions are generated once, lazily
+      asked: []                 // questions already asked — their chips stay gone
     };
     function glossoSetArticle(title, byline, html) {
       glosso.originalTitle = title;
@@ -355,13 +408,20 @@ enum ReaderTemplate {
       // panel retries instead of leaving the chips permanently blank.
       if (!questions.length) { glosso.questionsRequested = false; return; }
       for (const q of questions) {
+        if (glosso.asked.includes(q.trim())) { continue; }
         const chip = document.createElement('button');
         chip.type = 'button';
         chip.className = 'glosso-chip';
         chip.textContent = q;
+        chip.title = q;
         chip.addEventListener('click', function() { glossoAsk(q); });
         box.appendChild(chip);
       }
+      glossoSuggestLabel();
+    }
+    function glossoSuggestLabel() {
+      const any = document.querySelector('#glosso-chat-suggestions .glosso-chip');
+      document.getElementById('glosso-suggest-label').style.display = any ? 'block' : 'none';
     }
     function glossoChatBusy(busy) {
       glosso.chatBusy = busy;
@@ -373,6 +433,12 @@ enum ReaderTemplate {
       // No queue: while an answer is pending, asking is a no-op (send + chips
       // are disabled too — this guard covers Enter in the input).
       if (!question || glosso.chatBusy) { return; }
+      glosso.asked.push(question);
+      document.getElementById('glosso-chat-panel').classList.add('glosso-chat-started');
+      for (const chip of document.querySelectorAll('.glosso-chip')) {
+        if (chip.textContent.trim() === question) { chip.remove(); }
+      }
+      glossoSuggestLabel();
       const messages = document.getElementById('glosso-chat-messages');
       const q = document.createElement('div');
       q.className = 'glosso-chat-q';
