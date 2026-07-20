@@ -587,6 +587,33 @@ import Testing
         #expect(messages.isEmpty)
     }
 
+    // VS Code's Monaco answers AXSelectedText with "" (not nil) throughout, so the
+    // collapsed-selection guard must not read that as "the selection disappeared" —
+    // it only means anything when the capture itself came from AX.
+    @Test func fixGrammarEmptyAXReadThroughoutStillPastesInPlace() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = ""                      // non-nil empty, before and after
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: reader, axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
+            frontmostBundleID: { "com.microsoft.VSCode" },
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(replacer.replacedText == "the cat")
+        #expect(messages.isEmpty)
+    }
+
     // No bundle id means no proof the frontmost app isn't a terminal — stay
     // conservative and hand the result back via the clipboard.
     @Test func fixGrammarUnknownBundleIDCopiesToClipboard() async {

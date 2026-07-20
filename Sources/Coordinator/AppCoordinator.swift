@@ -420,7 +420,10 @@ final class AppCoordinator {
         // (a click back into the source); a non-nil but empty AXSelectedText proves
         // it, and Cmd+V would then *insert* the correction at the cursor instead of
         // replacing. Mirror handleReplace: hand it back via the clipboard, don't paste.
-        if let selection = axReader.selectedText(),
+        // Only meaningful when the capture itself came from AX: an app that never
+        // exposes its selection (VS Code's Monaco reads as "" throughout) would
+        // otherwise trip it on every run.
+        if !usedFallback, let selection = axReader.selectedText(),
            selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
             copyToClipboard(corrected)
             notify(isTranslate
