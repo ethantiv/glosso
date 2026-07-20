@@ -87,6 +87,8 @@ enum ReaderTemplate {
                                 margin-right: .6em; vertical-align: .12em; }
       #glosso-pills { position: fixed; top: .8em; right: .8em; z-index: 10;
                       display: none; gap: .5em; }
+      /* Keep the pills over the article column, not inside the open chat panel. */
+      body.glosso-chat-open #glosso-pills { right: calc(320px + .8em); }
       .glosso-pill { display: flex; align-items: center; gap: .4em;
                      font: inherit; font-size: .8em; font-weight: 600;
                      padding: .35em .8em;
@@ -117,14 +119,15 @@ enum ReaderTemplate {
                            background: color-mix(in srgb, CanvasText 2%, Canvas);
                            z-index: 5; box-sizing: border-box;
                            border-left: 1px solid color-mix(in srgb, CanvasText 15%, Canvas);
-                           padding: 3.2em 1em 1em; font-size: .9em; }
+                           padding: 1em; font-size: .9em; }
       /* Shift the article column out from under the open panel; margin-left stays
          auto, so the column keeps all remaining slack on the left. */
       body.glosso-chat-open { margin-right: 340px; }
       .glosso-chat-label { font-size: .75em; font-weight: 700; letter-spacing: .09em;
                            text-transform: uppercase;
                            color: color-mix(in srgb, CanvasText 55%, Canvas); }
-      #glosso-chat-messages { flex: 1; overflow-y: auto;
+      /* padding-right keeps the overlay scrollbar off the bubbles */
+      #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
                               display: flex; flex-direction: column; gap: .55em; }
       .glosso-chat-q { align-self: flex-end; max-width: 85%;
                        background: var(--accent);
