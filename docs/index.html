@@ -4,8 +4,23 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Glosso: popraw, streść i przetłumacz zaznaczenie skrótem ⌘C C, lokalnie</title>
-<meta name="description" content="Glosso to macOS-owa apka w pasku menu. Zaznacz tekst, trzymając Cmd stuknij C dwa razy, a lokalny model AI poprawi, streści albo przetłumaczy go przy kursorze. Pełne AI: offline, prywatnie, bez abonamentu. Poprawianie po polsku oparte na regułach Rady Języka Polskiego.">
+<meta name="description" content="Glosso to macOS-owa apka w pasku menu. Zaznacz tekst, trzymając Cmd stuknij C dwa razy, a lokalny model AI poprawi, streści albo przetłumaczy go przy kursorze. Skopiowany link otwiera cały artykuł przetłumaczony na polski. Pełne AI: offline, prywatnie, bez abonamentu.">
 <link rel="icon" type="image/png" href="glosso-icon-256.png">
+<link rel="canonical" href="https://ethantiv.github.io/glosso/">
+<link rel="alternate" hreflang="pl" href="https://ethantiv.github.io/glosso/">
+<link rel="alternate" hreflang="en" href="https://ethantiv.github.io/glosso/en/">
+<link rel="alternate" hreflang="x-default" href="https://ethantiv.github.io/glosso/">
+<script>
+(function () {
+  try {
+    var pref = localStorage.getItem("glosso-lang");
+    if (pref === "pl") return;
+    if (pref === "en" || !/^pl/i.test(navigator.language || "")) {
+      location.replace("en/" + location.hash);
+    }
+  } catch (e) {}
+})();
+</script>
 <meta property="og:title" content="Glosso: popraw, streść i przetłumacz zaznaczenie, lokalnie">
 <meta property="og:description" content="Zaznacz, stuknij ⌘C C i pozwól lokalnemu modelowi AI poprawić, streścić albo przetłumaczyć tekst. Offline, prywatnie, bez abonamentu. Poprawianie po polsku według reguł Rady Języka Polskiego.">
 <meta property="og:image" content="glosso-icon.png">
@@ -28,8 +43,10 @@
     <a href="#how">Jak działa</a>
     <a href="#guide">Przewodnik</a>
     <a href="#privacy">Prywatność</a>
+    <a href="#reader">Czytnik</a>
     <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
   </nav>
+  <a class="nav__lang" href="en/" data-lang="en" lang="en" hreflang="en" aria-label="Switch to English">EN</a>
   <a class="btn btn--accent nav__cta" href="https://github.com/ethantiv/glosso/releases/download/v0.8.1/Glosso.zip" rel="noopener">Pobierz</a>
 </header>
 
@@ -101,7 +118,7 @@
   <div class="capa__inner">
     <header class="section__head">
       <h2 class="section__title">Jeden gest, trzy zadania</h2>
-      <p class="section__lede">Zaznacz, stuknij ⌘C C i wybierz, co zrobić z tekstem — popraw, streść albo przetłumacz.</p>
+      <p class="section__lede">Zaznacz, stuknij ⌘C C i wybierz, co zrobić z tekstem — popraw, streść albo przetłumacz. A gdy zaznaczysz link, otworzy się <a href="#reader">czytnik z całym artykułem</a>.</p>
     </header>
     <ol class="flow">
       <li class="flow__step"><span class="flow__n">1</span> Zaznacz tekst</li>
@@ -129,7 +146,7 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>
           <h3>Tłumacz</h3>
         </div>
-        <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki, francuski. Jest, bo bywa potrzebny, ale to dopiero początek.</p>
+        <p>Polski ↔ angielski, niemiecki, rosyjski, hiszpański, niderlandzki, francuski. Drugi język możesz też zostawić w trybie automatycznym — Glosso rozpozna go z zaznaczenia.</p>
       </div>
     </div>
   </div>
@@ -191,6 +208,50 @@
     <div class="pillar">
       <h3>Offline i błyskawicznie</h3>
       <p>Działa w samolocie i bez internetu. Model zostaje w pamięci między użyciami, więc wynik pojawia się natychmiast, bez rozgrzewki.</p>
+    </div>
+  </div>
+</section>
+
+<section class="reader" id="reader">
+  <div class="reader__inner">
+    <div class="reader__copy">
+      <h2 class="section__title">Skopiuj link, przeczytaj po polsku</h2>
+      <p class="section__lede">Ten sam gest działa na adresie strony. Zaznacz link, stuknij ⌘C C, a Glosso otworzy artykuł w osobnym oknie i przetłumaczy go akapit po akapicie.</p>
+      <ul class="reader__list">
+        <li>Na start dostajesz streszczenie w dwóch, trzech zdaniach, potem tekst spływa blok po bloku. Obrazki i podpisy zostają na swoich miejscach.</li>
+        <li>Ikona oka przełącza między tłumaczeniem a oryginałem, a osobny przycisk tłumaczy artykuł od nowa.</li>
+        <li>O artykuł dopytasz w panelu czatu obok tekstu. Podpowiada pierwsze pytania i pamięta wątek, więc możesz drążyć dalej.</li>
+        <li>Przetłumaczony artykuł zostaje w podręcznej pamięci przez tydzień. Otwarty drugi raz wczytuje się od razu, bez modelu i bez sieci.</li>
+      </ul>
+    </div>
+    <div class="reader__demo" data-reveal>
+      <!-- Wierne odtworzenie okna czytnika (zrzuty natywnych okien macOS są blokowane przez system). -->
+      <figure class="rwin" role="img" aria-label="Okno czytnika Glosso: artykuł przetłumaczony na polski ze streszczeniem TL;DR na górze, pigułkami Oryginał i Ponów oraz panelem czatu z pytaniem o artykuł.">
+        <div class="rwin__bar">
+          <span class="rwin__dots" aria-hidden="true"></span>
+          <span class="rwin__url">theverge.com · artykuł</span>
+          <span class="rwin__pills">
+            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>Oryginał</span>
+            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>Ponów</span>
+          </span>
+        </div>
+        <div class="rwin__body">
+          <article class="rwin__article">
+            <h3>Cichy powrót programów, które mieszkają na twoim dysku</h3>
+            <p class="rwin__tldr"><span class="rwin__tag">TL;DR</span>Coraz więcej aplikacji trzyma dane lokalnie i sięga do chmury tylko wtedy, gdy naprawdę musi. Autor opisuje, skąd ta zmiana i co zyskują użytkownicy.</p>
+            <p>Przez dekadę zakładaliśmy, że każdy dokument musi mieszkać na czyimś serwerze. Nowa fala narzędzi odwraca ten porządek: plik jest u ciebie, a synchronizacja to dodatek, nie fundament.</p>
+            <p class="rwin__fade">Ta filozofia ma swoją cenę. Autorzy opisywanych aplikacji przekonują jednak, że…</p>
+          </article>
+          <aside class="rwin__chat">
+            <p class="rwin__chatlabel">Zapytaj artykuł</p>
+            <p class="rmsg rmsg--q">Co zyskuje użytkownik?</p>
+            <p class="rmsg rmsg--a">Dane zostają na dysku, aplikacje działają offline, a chmura przestaje być pojedynczym punktem awarii.</p>
+            <p class="rchip">Skąd wzięła się ta zmiana?</p>
+            <p class="rwin__input">Dopytaj o szczegóły…<span class="gcaret"></span></p>
+          </aside>
+        </div>
+      </figure>
+      <p class="reader__cap">Okno czytnika: tłumaczenie, oryginał pod okiem i czat obok tekstu.</p>
     </div>
   </div>
 </section>
@@ -315,6 +376,14 @@
   </nav>
   <p class="foot__meta">macOS 26+ · pełne AI lokalnie: Gemma przez Ollamę · open source</p>
 </footer>
+
+<script>
+document.querySelectorAll("[data-lang]").forEach(function (a) {
+  a.addEventListener("click", function () {
+    try { localStorage.setItem("glosso-lang", a.dataset.lang); } catch (e) {}
+  });
+});
+</script>
 
 </body>
 </html>

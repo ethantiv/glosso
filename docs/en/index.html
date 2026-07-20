@@ -1,0 +1,377 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glosso: fix, summarize and translate any selection with ⌘C C, locally</title>
+<meta name="description" content="Glosso is a macOS menu-bar app. Select text, hold Cmd and tap C twice, and a local AI model fixes, summarizes or translates it right at your cursor. Copy a link and read the whole article in your language. Full AI: offline, private, no subscription.">
+<link rel="icon" type="image/png" href="../glosso-icon-256.png">
+<link rel="canonical" href="https://ethantiv.github.io/glosso/en/">
+<link rel="alternate" hreflang="pl" href="https://ethantiv.github.io/glosso/">
+<link rel="alternate" hreflang="en" href="https://ethantiv.github.io/glosso/en/">
+<link rel="alternate" hreflang="x-default" href="https://ethantiv.github.io/glosso/">
+<meta property="og:title" content="Glosso: fix, summarize and translate any selection, locally">
+<meta property="og:description" content="Select text, tap ⌘C C and let a local AI model fix, summarize or translate it. Offline, private, no subscription. Copy a link and read the whole article in your language.">
+<meta property="og:image" content="../glosso-icon.png">
+<meta property="og:type" content="website">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700;12..96,800&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../styles.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav" id="top">
+  <a class="nav__brand" href="#top" aria-label="Glosso, home">
+    <img src="../glosso-icon-256.png" alt="" width="28" height="28">
+    <span>Glosso</span>
+  </a>
+  <nav class="nav__links" aria-label="Main">
+    <a href="#how">How it works</a>
+    <a href="#guide">Guide</a>
+    <a href="#privacy">Privacy</a>
+    <a href="#reader">Reader</a>
+    <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
+  </nav>
+  <a class="nav__lang" href="../" data-lang="pl" lang="pl" hreflang="pl" aria-label="Przełącz na polski">PL</a>
+  <a class="btn btn--accent nav__cta" href="https://github.com/ethantiv/glosso/releases/download/v0.8.1/Glosso.zip" rel="noopener">Download</a>
+</header>
+
+<main id="main">
+
+<section class="hero">
+  <div class="hero__main">
+  <div class="hero__copy">
+    <p class="hero__eyebrow"><span class="hero__dot" aria-hidden="true"></span>macOS · local AI model · open source</p>
+    <h1 class="hero__title">Fix, summarize,<br>translate.<br><em class="hero__accent">Locally.</em></h1>
+    <p class="hero__gesture"><span class="kbd-inline hero__chord"><kbd>⌘</kbd><kbd>C</kbd><kbd class="kbd-2">C</kbd></span> over any selection</p>
+    <p class="hero__lede">Select any text and a local AI model takes it from there. The result shows up in a panel next to your cursor, or gets pasted quietly back in place. Full AI, offline and with <strong>no subscription</strong>.</p>
+    <div class="hero__actions">
+      <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/download/v0.8.1/Glosso.zip" rel="noopener">
+        Download for macOS
+        <span class="btn__sub">.zip · free</span>
+      </a>
+      <a class="btn btn--ghost btn--lg" href="#how">See how it works</a>
+    </div>
+    <p class="hero__note">macOS 26+ · the model downloads once · works offline</p>
+    <p class="hero__mac">Mac only — the download won't run on any other system.</p>
+  </div>
+
+  <div class="hero__demo">
+    <div class="stage">
+    <div class="menubar" aria-hidden="true">
+      <span class="menubar__os"></span>
+      <span class="menubar__spacer"></span>
+      <span class="menubar__item">100%</span>
+      <span class="menubar__glosso"><img src="../glosso-icon-256.png" alt="" width="18" height="18"></span>
+      <span class="menubar__item">9:41</span>
+    </div>
+    <!-- Faithful recreation of the Glosso panel in Fix mode (macOS blocks screenshots of native windows). -->
+    <figure class="gpop" role="img" aria-label="Glosso panel in Fix mode correcting the English sentence 'I look foward to see you soon.' to 'I look forward to seeing you soon.'">
+      <div class="gpop__bar">
+        <div class="gpop__verbs">
+          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Translate</span>
+          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Summarize</span>
+          <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Fix</span>
+        </div>
+        <div class="gpop__acts">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+        </div>
+      </div>
+      <div class="gpop__body">
+        <div class="gpane gpane--src">
+          <p class="gpane__label">ORIGINAL</p>
+          <p class="gpane__text">I look foward to see you soon.</p>
+        </div>
+        <div class="gpane gpane--out">
+          <p class="gpane__label">FIX</p>
+          <p class="gdiff">I look <span class="del">foward</span> <span class="ins">forward</span> to <span class="del">see</span> <span class="ins">seeing</span> you soon.</p>
+          <div class="gmenu gmenu--pop">
+            <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg> Why the fix?</div>
+            <p class="gmenu__why">After <em>look forward to</em>, the verb takes the -ing form: <em>to</em> is a preposition here <span class="rjp__cite">(look forward to seeing)</span>.</p>
+          </div>
+        </div>
+      </div>
+      <span class="gpop__grip" aria-hidden="true"><svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"><path d="M14 6 6 14M14 11l-3 3"/></svg></span>
+    </figure>
+    </div>
+    <p class="hero__cap">Lives in the menu bar, no Dock icon.</p>
+  </div>
+  </div>
+</section>
+
+<section class="capa" id="how">
+  <div class="capa__inner">
+    <header class="section__head">
+      <h2 class="section__title">One gesture, three jobs</h2>
+      <p class="section__lede">Select, tap ⌘C C and pick what happens to the text: fix it, summarize it or translate it. Select a link instead, and the <a href="#reader">reader opens with the whole article</a>.</p>
+    </header>
+    <ol class="flow">
+      <li class="flow__step"><span class="flow__n">1</span> Select text</li>
+      <li class="flow__step"><span class="flow__n">2</span> Hold <span class="kbd-inline"><kbd>⌘</kbd></span>, tap <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span></li>
+      <li class="flow__step"><span class="flow__n">3</span> Result at your cursor</li>
+    </ol>
+
+    <div class="vgrid">
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>
+          <h3>Fix</h3>
+        </div>
+        <p>Grammar, spelling and punctuation, without changing the language. A diff shows every change, and a tap reveals the rule behind it.</p>
+      </div>
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
+          <h3>Summarize</h3>
+        </div>
+        <p>A long paragraph, email or article becomes a short list of the points that matter. Same language as the original.</p>
+      </div>
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>
+          <h3>Translate</h3>
+        </div>
+        <p>English ↔ Polish, German, Russian, Spanish, Dutch, French. You can also leave the second language on automatic — Glosso detects it from the selection.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="guide" id="guide">
+  <header class="section__head guide__head">
+    <h2 class="section__title">Getting started</h2>
+    <p class="section__lede">One-time setup, then it becomes a daily reflex with shortcuts at hand.</p>
+  </header>
+  <ol class="guide__steps">
+    <li class="phase" data-reveal>
+      <span class="phase__badge">1</span>
+      <div class="phase__card">
+        <div class="phase__head">
+          <h3>Install</h3>
+          <p class="phase__cap">Once, at the start.</p>
+        </div>
+        <ul class="phase__list">
+          <li>Download <code>Glosso.zip</code> from <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, unzip it and drag <strong>Glosso.app</strong> into Applications.</li>
+          <li>On first launch macOS blocks the app (it's signed, but not notarized by Apple). Click <strong>Done</strong>, then open <strong>System Settings → Privacy &amp; Security</strong>, scroll down and click <strong>Open Anyway</strong>. You only do this once.</li>
+          <li>Grant <strong>Accessibility</strong> when asked. It's the only permission the app needs.</li>
+          <li>The first-run wizard downloads the model and helps you pick your languages — including the app's primary language, Polish or English.</li>
+        </ul>
+      </div>
+    </li>
+    <li class="phase" data-reveal>
+      <span class="phase__badge">2</span>
+      <div class="phase__card">
+        <div class="phase__head">
+          <h3>Every day</h3>
+          <p class="phase__cap">Shortcuts at hand.</p>
+        </div>
+        <ul class="phase__list">
+          <li><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd>C</kbd></span> open the panel over a selection: fix, summarize or translate.</li>
+          <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> fix the selection in place, no panel.</li>
+          <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> translate the selection in place.</li>
+          <li><kbd>Esc</kbd> closes an open dropdown first, then the panel. The model and languages live in Settings.</li>
+        </ul>
+      </div>
+    </li>
+  </ol>
+</section>
+
+<section class="pillars" id="privacy">
+  <div class="pillars__lead">
+    <h2>No cloud, no API,<br>no subscription. Free.</h2>
+    <p>The language model (Gemma via Ollama) runs locally on <code>localhost</code>. No account, no API key, no monthly bill. Whatever you fix or translate never leaves your Mac.</p>
+  </div>
+  <div class="pillars__list">
+    <div class="pillar">
+      <h3>Private</h3>
+      <p>Your text never reaches a server. You can work on a confidential email or a contract and nothing leaks to the cloud.</p>
+    </div>
+    <div class="pillar">
+      <h3>No subscription</h3>
+      <p>The model lives on your disk. Download it once and use it as much as you like — there's no account to create and no monthly AI bill.</p>
+    </div>
+    <div class="pillar">
+      <h3>Offline and fast</h3>
+      <p>Works on a plane and without internet. The model stays warm in memory between uses, so results appear instantly.</p>
+    </div>
+  </div>
+</section>
+
+<section class="reader" id="reader">
+  <div class="reader__inner">
+    <div class="reader__copy">
+      <h2 class="section__title">Copy a link, read it in your language</h2>
+      <p class="section__lede">The same gesture works on a URL. Select a link, tap ⌘C C, and Glosso opens the article in its own window, translated paragraph by paragraph.</p>
+      <ul class="reader__list">
+        <li>It starts with a two-or-three-sentence summary, then the text streams in block by block. Images and captions stay where they were.</li>
+        <li>An eye icon flips between the translation and the original; a separate button re-translates from scratch.</li>
+        <li>Ask the article questions in a chat panel next to the text. It suggests the first ones and keeps the thread, so you can dig deeper.</li>
+        <li>A translated article stays cached for a week. Opened again, it loads instantly, with no model run and no network.</li>
+      </ul>
+    </div>
+    <div class="reader__demo" data-reveal>
+      <!-- Faithful recreation of the reader window (macOS blocks screenshots of native windows). -->
+      <figure class="rwin" role="img" aria-label="Glosso reader window: an article translated into English with a TL;DR summary on top, Original and Redo pills, and a chat panel with a question about the article.">
+        <div class="rwin__bar">
+          <span class="rwin__dots" aria-hidden="true"></span>
+          <span class="rwin__url">theverge.com · article</span>
+          <span class="rwin__pills">
+            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>Original</span>
+            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>Redo</span>
+          </span>
+        </div>
+        <div class="rwin__body">
+          <article class="rwin__article">
+            <h3>The quiet return of software that lives on your disk</h3>
+            <p class="rwin__tldr"><span class="rwin__tag">TL;DR</span>More and more apps keep data on the device and reach for the cloud only when they have to. The author explains where the shift came from and what users gain.</p>
+            <p>For a decade we assumed every document had to live on someone else's server. A new wave of tools flips that order: the file is yours, and sync is an add-on, not the foundation.</p>
+            <p class="rwin__fade">This philosophy has a price. The authors of these apps argue, though, that…</p>
+          </article>
+          <aside class="rwin__chat">
+            <p class="rwin__chatlabel">Ask the article</p>
+            <p class="rmsg rmsg--q">What does the user gain?</p>
+            <p class="rmsg rmsg--a">Files stay on your disk, apps work offline, and the cloud stops being a single point of failure.</p>
+            <p class="rchip">Where did this shift come from?</p>
+            <p class="rwin__input">Ask a follow-up…<span class="gcaret"></span></p>
+          </aside>
+        </div>
+      </figure>
+      <p class="reader__cap">The reader window: translation, the original one eye-icon away, and chat beside the text.</p>
+    </div>
+  </div>
+</section>
+
+<section class="panelfeat" id="panel">
+  <div class="section__head">
+    <h2 class="section__title">The panel is more than the result.</h2>
+    <p class="section__lede">Whatever you get back, you can correct it, question it and paste it right back, without copying anything again.</p>
+  </div>
+
+  <div class="shots">
+    <div class="shot" data-reveal>
+      <div class="shot__ui">
+        <div class="shot__frame">
+          <p class="gpane__label">TRANSLATION</p>
+          <p class="gflow"><span class="w">Good</span><span class="w w--hot">morning</span><span class="w">,</span><span class="w">nice</span><span class="w">to</span><span class="w">meet</span><span class="w">you</span><span class="w">.</span></p>
+          <div class="gmenu gmenu--pop">
+            <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 18h6M10 22h4"/><path d="M15.1 14c.2-1 .7-1.7 1.4-2.5A4.65 4.65 0 0 0 18 8 6 6 0 1 0 6 8c0 1 .2 2.2 1.5 3.5.7.8 1.2 1.5 1.4 2.5"/></svg> Why this word?</div>
+            <div class="gmenu__item">Good day</div>
+            <div class="gmenu__item">Hello</div>
+            <div class="gmenu__item">Hi</div>
+            <div class="gmenu__item">Greetings</div>
+            <div class="gmenu__item">Good afternoon</div>
+          </div>
+        </div>
+      </div>
+      <div class="shot__cap">
+        <h3>Clickable words</h3>
+        <p>Every word in a finished translation opens a list of context-aware alternatives. Picking one re-translates that part.</p>
+      </div>
+    </div>
+
+    <div class="shot" data-reveal>
+      <div class="shot__ui">
+        <div class="shot__frame">
+          <p class="gpane__label">TRANSLATION</p>
+          <p class="gflow"><span class="w">Good</span><span class="w">morning</span><span class="w">,</span><span class="w w--hot">nice</span><span class="w">to</span><span class="w">meet</span><span class="w">you</span><span class="w">.</span></p>
+          <div class="gmenu gmenu--pop">
+            <div class="gmenu__head gmenu__head--back"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg> Why this word?</div>
+            <p class="gmenu__why">Here <em>nice</em> carries the polite warmth of a first meeting, so it fits better than <em>pleasant</em>.</p>
+          </div>
+        </div>
+      </div>
+      <div class="shot__cap">
+        <h3>"Why this word?"</h3>
+        <p>Every word can explain itself: one line on why the model chose it, in your primary language.</p>
+      </div>
+    </div>
+
+    <div class="shot" data-reveal>
+      <div class="shot__ui">
+        <div class="shot__frame shot__frame--edit">
+          <p class="gpane__label">ORIGINAL <span class="gpane__edit">editable</span></p>
+          <p class="gpane__text gpane__text--edit">Good morning, nice to meet you.<span class="gcaret"></span></p>
+          <p class="gpane__sub">Fix a typo in the source and translate again, without going back to the app.</p>
+        </div>
+      </div>
+      <div class="shot__cap">
+        <h3>Editable source</h3>
+        <p>You can correct the captured text right in the panel and run the model again. There's also a tone switch: automatic, formal, casual.</p>
+      </div>
+    </div>
+
+    <div class="shot" data-reveal>
+      <div class="shot__ui">
+        <div class="shot__frame">
+          <p class="gpane__label">FIX</p>
+          <p class="gdiff">She <span class="del">dont</span> <span class="ins">doesn't</span> like it.</p>
+          <div class="gmenu gmenu--pop">
+            <div class="gmenu__head"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg> Why the fix?</div>
+            <p class="gmenu__why">Third person singular negates with <em>doesn't</em>: does + not <span class="rjp__cite">(she doesn't, he doesn't)</span>.</p>
+          </div>
+        </div>
+      </div>
+      <div class="shot__cap">
+        <h3>A Fix that knows the rules</h3>
+        <p>Every change comes with a reason. Corrections of Polish text cite the actual rules of the <a href="https://rjp.pan.pl" rel="noopener">Polish Language Council</a>; English ones draw on a base of common mistakes.</p>
+      </div>
+    </div>
+  </div>
+
+  <div class="chords">
+    <div class="chords__copy">
+      <h3>Or skip the panel entirely</h3>
+      <p>Two shortcuts work on the selection quietly and paste the result straight back in place. They fix or translate without opening a window. Both can be changed in Settings.</p>
+    </div>
+    <div class="chords__keys">
+      <div class="chord">
+        <span class="chord__keys"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span>
+        <span class="chord__label">Fix in place</span>
+      </div>
+      <div class="chord">
+        <span class="chord__keys"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span>
+        <span class="chord__label">Translate in place</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="closer">
+  <div class="closer__inner">
+    <h2>Ready to start?</h2>
+    <p>Download once and use it offline, subscription-free. The model fetches itself on first launch.</p>
+    <a class="btn btn--accent btn--lg" href="https://github.com/ethantiv/glosso/releases/download/v0.8.1/Glosso.zip" rel="noopener">
+      Download for macOS
+      <span class="btn__sub">.zip · free</span>
+    </a>
+  </div>
+</section>
+
+</main>
+
+<footer class="foot">
+  <div class="foot__brand">
+    <img src="../glosso-icon-256.png" alt="" width="24" height="24">
+    <span>Glosso</span>
+  </div>
+  <nav class="foot__links" aria-label="Footer">
+    <a href="https://github.com/ethantiv/glosso" rel="noopener">GitHub</a>
+    <a href="https://github.com/ethantiv/glosso/releases/download/v0.8.1/Glosso.zip" rel="noopener">Download</a>
+    <a href="https://github.com/ethantiv/glosso/blob/main/docs/DISTRIBUTION.md" rel="noopener">Distribution</a>
+  </nav>
+  <p class="foot__meta">macOS 26+ · full AI, locally: Gemma via Ollama · open source</p>
+</footer>
+
+<script>
+document.querySelectorAll("[data-lang]").forEach(function (a) {
+  a.addEventListener("click", function () {
+    try { localStorage.setItem("glosso-lang", a.dataset.lang); } catch (e) {}
+  });
+});
+</script>
+</body>
+</html>
