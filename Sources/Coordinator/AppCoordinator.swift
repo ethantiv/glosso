@@ -17,7 +17,19 @@ final class AppCoordinator {
     private let pollMaxAttempts: Int
     private let prefetchLingerMs: Int
     private let frontmostPID: @MainActor () -> pid_t?
+    private let frontmostBundleID: @MainActor () -> String?
     private let notify: @MainActor (String) -> Void
+
+    // A terminal's "selection" is a mouse highlight the shell won't replace — Cmd+V
+    // appends at the prompt — so even a provably fresh synthetic copy must not be
+    // pasted back there.
+    // ponytail: VS Code's *integrated* terminal shares com.microsoft.VSCode with the
+    // editor — indistinguishable by bundle id; add an AX-role probe if it bites.
+    private static let terminalBundleIDs: Set<String> = [
+        "com.apple.Terminal", "com.googlecode.iterm2", "net.kovidgoyal.kitty",
+        "org.alacritty", "com.github.wez.wezterm", "com.mitchellh.ghostty",
+        "dev.warp.Warp-Stable", "co.zeit.hyper",
+    ]
 
     private var captureTask: Task<Void, Never>?
     private var fixTask: Task<Void, Never>?
@@ -106,6 +118,7 @@ final class AppCoordinator {
         pollMaxAttempts: Int = 40,
         prefetchLingerMs: Int = 800,
         frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier },
+        frontmostBundleID: @escaping @MainActor () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier },
         notify: @escaping @MainActor (String) -> Void = { SystemUserNotifier.post($0) }
     ) {
         self.llm = llm
@@ -120,6 +133,7 @@ final class AppCoordinator {
         self.pollMaxAttempts = pollMaxAttempts
         self.prefetchLingerMs = prefetchLingerMs
         self.frontmostPID = frontmostPID
+        self.frontmostBundleID = frontmostBundleID
         self.notify = notify
     }
 
@@ -335,10 +349,13 @@ final class AppCoordinator {
         // Cmd+V will overwrite. When AX reads nothing we copy via Cmd+C instead, but
         // then the selection's replaceability is unknown — in terminals it's a mere
         // mouse highlight the shell won't replace, so a paste would append. Remember
-        // that so we hand the result back via the clipboard rather than risk it.
+        // that so the paste-back can demand extra proof (a fresh copy, a non-terminal
+        // app) before risking it.
         let usedFallback = captured == nil
-        if captured == nil {
-            captured = try? SelectionGuard.nonEmptyText(await captureViaSyntheticCopy())
+        var freshSyntheticCopy = false
+        if captured == nil, let fallback = await captureViaSyntheticCopy() {
+            captured = try? SelectionGuard.nonEmptyText(fallback.text)
+            freshSyntheticCopy = fallback.fresh
         }
         if Task.isCancelled { return }
         guard let text = captured else {
@@ -370,14 +387,24 @@ final class AppCoordinator {
         if Task.isCancelled { return }
         let corrected = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !corrected.isEmpty else { return }
-        guard !usedFallback else {
-            copyToClipboard(corrected)
-            notify(isTranslate
-                ? loc("Przetłumaczono. To zaznaczenie nie pozwala wkleić w miejscu — tłumaczenie jest w schowku (Cmd+V).",
-                      "Translated. This selection can't be pasted over in place — the translation is on the clipboard (Cmd+V).")
-                : loc("Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).",
-                      "Fixed. This selection can't be pasted over in place — the fix is on the clipboard (Cmd+V)."))
-            return
+        // A fallback capture alone doesn't mean "can't paste back": in AX-nil editors
+        // (VS Code's Monaco, Electron fields) the synthetic Cmd+C bumps the strict
+        // baseline and Cmd+V replaces the selection fine (the replacer already
+        // synthesizes it — issue #22). Paste when the copy was provably fresh AND the
+        // frontmost app isn't a known terminal; a trailing-retry capture (copy-on-
+        // selection, stale clipboard) or an unknown app keeps the clipboard notice.
+        if usedFallback {
+            let pasteable = freshSyntheticCopy
+                && (frontmostBundleID().map { !Self.terminalBundleIDs.contains($0) } ?? false)
+            guard pasteable else {
+                copyToClipboard(corrected)
+                notify(isTranslate
+                    ? loc("Przetłumaczono. To zaznaczenie nie pozwala wkleić w miejscu — tłumaczenie jest w schowku (Cmd+V).",
+                          "Translated. This selection can't be pasted over in place — the translation is on the clipboard (Cmd+V).")
+                    : loc("Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).",
+                          "Fixed. This selection can't be pasted over in place — the fix is on the clipboard (Cmd+V)."))
+                return
+            }
         }
         // ponytail: best-effort paste; no read-only detection — add an AX writability probe if it bites
         guard let sourcePID, sourcePID == frontmostPID() else {
@@ -415,12 +442,13 @@ final class AppCoordinator {
     /// fire the app's Cmd+C, poll the pasteboard until the copy lands, then restore
     /// the clipboard so the subsequent replace() sees the user's original — not the
     /// copied selection — to save and put back after pasting.
-    private func captureViaSyntheticCopy() async -> String? {
+    private func captureViaSyntheticCopy() async -> (text: String, fresh: Bool)? {
         let pasteboard = NSPasteboard.general
         let original = pasteboard.string(forType: .string)
         let baseline = reader.currentChangeCount
         replacer.synthesizeCopy()
         var captured: String?
+        var fresh = true
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { break }
             if let text = try? reader.readSelection(baselineChangeCount: baseline) {
@@ -441,10 +469,12 @@ final class AppCoordinator {
         // pasteboard can tell the two apart; only a real selection read (AX) could.
         if captured == nil, let trailing = trailingChangeCounts.first {
             captured = try? reader.readSelection(baselineChangeCount: trailing)
+            fresh = false
         }
         pasteboard.clearContents()
         if let original { pasteboard.setString(original, forType: .string) }
-        return captured
+        guard let captured else { return nil }
+        return (captured, fresh)
     }
 
     // The shared re-run body behind every popup control that recomputes over the

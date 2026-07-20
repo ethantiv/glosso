@@ -528,11 +528,10 @@ import Testing
         #expect(messages == ["Nie udało się odczytać zaznaczenia do poprawy."])
     }
 
-    // Terminals and some web/Electron fields expose no AXSelectedText for reading,
-    // so fix-grammar falls back to firing the app's Cmd+C to capture. But such a
-    // selection may be a non-replaceable mouse highlight (terminals), where a paste
-    // would append — so the correction goes to the clipboard with a notice, not a paste.
-    @Test func fixGrammarFallbackCopiesToClipboardInsteadOfPasting() async {
+    // In a terminal even a fresh synthetic copy proves nothing: the "selection" is a
+    // mouse highlight the shell won't replace, and Cmd+V would append at the prompt.
+    // A known terminal bundle id keeps the clipboard notice instead of pasting.
+    @Test func fixGrammarFallbackInTerminalCopiesToClipboard() async {
         let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = nil                     // AX read yields nothing
@@ -546,6 +545,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
+            frontmostBundleID: { "com.apple.Terminal" },
             notify: { messages.append($0) }
         )
 
@@ -555,6 +555,61 @@ import Testing
         #expect(llm.recorder.receivedAction == .fixGrammar)
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(replacer.replacedText == nil)   // no paste — would append in a terminal
+        #expect(messages.count == 1)
+        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+    }
+
+    // The VS Code editor case (AX-nil Electron): the synthetic Cmd+C bumps the strict
+    // baseline — proof the app performed a real copy — and the frontmost app is no
+    // terminal, so the correction pastes back in place, silently.
+    @Test func fixGrammarFreshCopyInNonTerminalPastesInPlace() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = nil                     // AX read yields nothing
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0           // the synthetic copy lands immediately
+        reader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: reader, axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
+            frontmostBundleID: { "com.microsoft.VSCode" },
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(llm.recorder.receivedText == "teh cat")
+        #expect(replacer.replacedText == "the cat")
+        #expect(messages.isEmpty)
+    }
+
+    // No bundle id means no proof the frontmost app isn't a terminal — stay
+    // conservative and hand the result back via the clipboard.
+    @Test func fixGrammarUnknownBundleIDCopiesToClipboard() async {
+        let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
+        let axReader = FakeAXSelectionReader()
+        axReader.text = nil
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "teh cat"
+        let replacer = FakeSelectionReplacer()
+        var messages: [String] = []
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: FakeHotkeyMonitor(),
+            reader: reader, axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
+            frontmostBundleID: { nil },
+            notify: { messages.append($0) }
+        )
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(replacer.replacedText == nil)
         #expect(messages.count == 1)
         #expect(NSPasteboard.general.string(forType: .string) == "the cat")
     }
