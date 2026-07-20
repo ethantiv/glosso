@@ -138,9 +138,9 @@ enum ReaderTemplate {
                        border-radius: 11px; border-bottom-left-radius: 4px;
                        padding: .45em .65em; }
       .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
-      #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
+      #glosso-chat-suggestions { display: flex; flex-direction: column; gap: .4em; }
       .glosso-chip { font: inherit; font-size: .85em; font-weight: 600;
-                     text-align: center; padding: .45em .95em;
+                     text-align: left; padding: .45em .95em;
                      border-radius: 999px; cursor: pointer;
                      color: var(--accent-ink);
                      background: Canvas;

@@ -61,16 +61,15 @@ enum PopupTheme {
     static let padPane: CGFloat = 15
     static let padWindow: CGFloat = 9
 
-    // Settings keeps the smaller native sizing; the popup uses the larger,
-    // higher-contrast variants below for readability (fontControl/fontSectionLabel/
-    // fontSourceText, plus fontLead bumped to 18).
+    // Settings keeps the smaller native sizing; the popup sizes mirror the
+    // landing-page mockup panel (result and source both 16, labels 11).
     static let fontLabel = Font.system(size: 11, weight: .semibold)
     static let fontMeta = Font.system(size: 12, weight: .medium)
     static let fontSource = Font.system(size: 15)
-    static let fontLead = Font.system(size: 18)
+    static let fontLead = Font.system(size: 16)
 
     static let fontControl = Font.system(size: 13, weight: .semibold)
-    static let fontSectionLabel = Font.system(size: 12, weight: .semibold)
+    static let fontSectionLabel = Font.system(size: 11, weight: .semibold)
     static let fontSourceText = Font.system(size: 16)
 
     static let durEnter: Double = 0.19
