@@ -40,10 +40,10 @@ Releasing is automatic: bump `MARKETING_VERSION` in `project.yml` in a PR, and m
 
 The panel opens right under the cursor and streams the result as the model produces it.
 
-- **Verbs.** A strip at the top lets you switch what the model does with the selection: **Tłumacz** (translate, the default), **Streść** (summarize into a short bulleted list) and **Popraw** (fix grammar, spelling and punctuation, keeping the original language). Picking a verb re-runs over the same selection — no need to copy again.
+- **Verbs.** A strip at the top lets you switch what the model does with the selection: **Translate** (the default), **Summarize** (a short bulleted list) and **Fix** (grammar, spelling and punctuation, keeping the original language). Picking a verb re-runs over the same selection — no need to copy again.
 - **Tone.** For a translation you can cycle the tone pill between automatic, formal and informal register; it re-translates the same text.
 - **Editable source.** Tweak the captured text in place and re-run the translation, instead of copying again.
-- **Grammar diff.** **Popraw** highlights what changed; tap a change to learn why.
+- **Grammar diff.** **Fix** highlights what changed; tap a change to learn why.
 - **Per-word alternatives.** In a finished translation each word is clickable — it opens a dropdown of context-aware alternatives and a "Why?" explanation. Picking one re-translates just that part.
 - **Replace.** Paste the result straight back over the still-selected source text.
 - **Copy.** Copy the whole result.
@@ -52,13 +52,13 @@ You can drag the panel by its body and resize it from the bottom-right grip. Esc
 
 ## In-place shortcuts
 
-Two headless chords act on the current selection without opening the panel and paste the result straight back: **Popraw w miejscu** (fix grammar, default Ctrl+Cmd+G) and **Tłumacz w miejscu** (translate, default Ctrl+Cmd+T). Both are rebindable in Settings.
+Two headless chords act on the current selection without opening the panel and paste the result straight back: **Fix in place** (grammar, default Ctrl+Cmd+G) and **Translate in place** (default Ctrl+Cmd+T). Both are rebindable in Settings.
 
 ## Settings
 
 From the menu bar you can pick the Ollama model and the second language (English by default; also German, Russian, Spanish, Dutch, French). Polish is always the other side of the pair, and the direction is detected automatically.
 
-A **Uruchamiaj przy logowaniu** toggle starts the app quietly in the menu bar. The two in-place shortcuts above are rebindable here too. Translations always read like natural prose instead of stiff machine output — there is no toggle for it.
+A **Launch at login** toggle starts the app quietly in the menu bar. The two in-place shortcuts above are rebindable here too. Translations always read like natural prose instead of stiff machine output — there is no toggle for it.
 
 ## How it works
 
