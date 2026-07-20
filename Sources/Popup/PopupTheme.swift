@@ -5,8 +5,8 @@ enum PopupTheme {
     static let accentNSColor = NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark
-            ? NSColor(srgbRed: 0x6F / 255, green: 0x9D / 255, blue: 0xFD / 255, alpha: 1)
-            : NSColor(srgbRed: 0x44 / 255, green: 0x75 / 255, blue: 0xE7 / 255, alpha: 1)
+            ? NSColor(srgbRed: 0x98 / 255, green: 0xA2 / 255, blue: 0xF8 / 255, alpha: 1)
+            : NSColor(srgbRed: 0x4F / 255, green: 0x5B / 255, blue: 0xD8 / 255, alpha: 1)
     }
     static let accent = Color(nsColor: accentNSColor)
 
@@ -18,14 +18,14 @@ enum PopupTheme {
     }
     static let menuSurface = Color(nsColor: menuSurfaceNSColor)
 
-    // Solid window surface — a warm "paper" white in light, a warm graphite in dark.
-    // Replaces the translucent .popover vibrancy so the popup and Settings read like
-    // native Notes/Reminders rather than a glassy gray panel.
+    // Solid window surface — pure white in light (matches the brand mockups), a warm
+    // graphite in dark. Replaces the translucent .popover vibrancy so the popup and
+    // Settings read like native Notes/Reminders rather than a glassy gray panel.
     static let surfaceNSColor = NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark
             ? NSColor(srgbRed: 0x1E / 255, green: 0x1D / 255, blue: 0x1C / 255, alpha: 1)
-            : NSColor(srgbRed: 0xFB / 255, green: 0xFB / 255, blue: 0xF8 / 255, alpha: 1)
+            : NSColor(white: 1, alpha: 1)
     }
     static let surface = Color(nsColor: surfaceNSColor)
 
@@ -44,9 +44,20 @@ enum PopupTheme {
     static var warnBg: Color { Color.orange.opacity(0.10) }
     static var copied: Color { Color(red: 0.18, green: 0.62, blue: 0.34) }
 
-    static let rWindow: CGFloat = 13
-    static let rPane: CGFloat = 9
+    // Brick red for diff deletions (the mockups' .del), separate from `warn`,
+    // which stays for genuine warnings.
+    static let diffDelNSColor = NSColor(name: nil) { appearance in
+        let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
+        return isDark
+            ? NSColor(srgbRed: 0xE0 / 255, green: 0x6A / 255, blue: 0x50 / 255, alpha: 1)
+            : NSColor(srgbRed: 0xC0 / 255, green: 0x49 / 255, blue: 0x2F / 255, alpha: 1)
+    }
+    static let diffDel = Color(nsColor: diffDelNSColor)
+
+    static let rWindow: CGFloat = 16
+    static let rPane: CGFloat = 12
     static let rControl: CGFloat = 7
+    static let rPill: CGFloat = 9
     static let padPane: CGFloat = 15
     static let padWindow: CGFloat = 9
 

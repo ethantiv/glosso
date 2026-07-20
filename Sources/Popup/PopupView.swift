@@ -30,10 +30,10 @@ struct PopupView: View {
     private static let maxPaneHeight: CGFloat = 400
 
     // Transparent inset reserved inside the window for the panel's SwiftUI shadow to
-    // render unclipped (radius 4 + y 1 = 5 below, less on the sides/top). The panel
-    // sits this far from the window edges, so the controller shifts the window
-    // top-left by the same amount to keep the visible panel under the cursor.
-    static let shadowMargin: CGFloat = 6
+    // render unclipped (radius 12 + y 5 = 17 below at most, less on the sides/top).
+    // The panel sits this far from the window edges, so the controller shifts the
+    // window top-left by the same amount to keep the visible panel under the cursor.
+    static let shadowMargin: CGFloat = 14
 
     // The resize grip stretches the content, not the window: each pane gets half
     // of the dragged width (rounded down — fractional widths destabilize the
@@ -80,7 +80,7 @@ struct PopupView: View {
         // (issue #32). The dropdown is always placed below the word into this space.
         panelBox
             .overlay(alignment: .bottomTrailing) { resizeGrip }
-            .shadow(color: .black.opacity(0.10), radius: 4, y: 1)
+            .shadow(color: .black.opacity(0.16), radius: 12, y: 5)
             .padding(.bottom, reservedBottom)
             .overlayPreferenceValue(WordAnchorKey.self) { anchors in
                 dropdownOverlay(anchors: anchors)
@@ -227,9 +227,9 @@ struct PopupView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
             .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
-            .contentShape(Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
         }
         .buttonStyle(.plain)
         .help(loc("\(action.displayName) zaznaczenie", "\(action.displayName) the selection"))
@@ -281,9 +281,9 @@ struct PopupView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
             .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
-            .contentShape(Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
         }
         .buttonStyle(.plain)
         .help(loc("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.", "Tone: \(model.formality.displayName). Click to change."))
@@ -302,9 +302,9 @@ struct PopupView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(model.toneNoteVisible ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .background(model.toneNoteVisible ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
             .foregroundStyle(model.toneNoteVisible ? PopupTheme.accent : Color.secondary)
-            .contentShape(Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
         }
         .buttonStyle(.plain)
         .help(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
@@ -374,7 +374,7 @@ struct PopupView: View {
             .tracking(0.2)
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(accent ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: Capsule())
+            .background(accent ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
             .foregroundStyle(accent ? PopupTheme.accent : Color.secondary)
     }
 
@@ -509,9 +509,9 @@ struct PopupView: View {
             }
             .padding(.horizontal, 8)
             .padding(.vertical, 3)
-            .background(PopupTheme.accentTintStrong, in: Capsule())
+            .background(PopupTheme.accentTintStrong, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
             .foregroundStyle(PopupTheme.accent)
-            .contentShape(Capsule())
+            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
         }
         .buttonStyle(.plain)
         .disabled(!canRetranslate)
@@ -786,8 +786,8 @@ struct PopupView: View {
         return HStack(spacing: hasBoth ? 3 : 0) {
             if !removed.isEmpty {
                 Text(removed)
-                    .strikethrough(true, color: PopupTheme.warn)
-                    .foregroundStyle(PopupTheme.warn)
+                    .strikethrough(true, color: PopupTheme.diffDel)
+                    .foregroundStyle(PopupTheme.diffDel)
             }
             if !added.isEmpty {
                 Text(added)
@@ -931,7 +931,7 @@ struct PopupView: View {
     private func label(_ text: String) -> some View {
         Text(text)
             .font(PopupTheme.fontSectionLabel)
-            .tracking(0.5)
+            .tracking(1.0)
             .textCase(.uppercase)
             .foregroundStyle(.secondary)
     }
