@@ -53,7 +53,7 @@ Two headless chords act on the current selection without opening the panel and p
 
 ## Settings
 
-From the menu bar you can pick the Ollama model, the primary language (Polish or English — it also sets the app's UI language) and the second language (English, German, Russian, Spanish, Dutch or French, or automatic detection). The translation direction is detected per capture.
+From the menu bar you can pick the Ollama model, the primary language (Polish or English) and the second language (English, German, Russian, Spanish, Dutch or French, or automatic detection). The translation direction is detected per capture. The app's UI language follows your macOS language, independently of these settings.
 
 A **Launch at login** toggle starts the app quietly in the menu bar.
 
