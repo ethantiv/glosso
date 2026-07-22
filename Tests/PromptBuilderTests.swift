@@ -44,11 +44,15 @@ import Testing
         #expect(prompt.contains("If it is Polish, translate it to Dutch; otherwise translate it to Polish."))
     }
 
-    // Automatic must add no tone directive at all, so the source text's own
-    // register carries over untouched (issue #16: "no override").
+    // Automatic must add no forced-tone directive, so the source text's own
+    // register carries over untouched (issue #16: "no override"). The humanizer's
+    // "keep the register" line is the opposite of forcing — it appears only under
+    // automatic — so the check targets the two forcing directives specifically.
     @Test func automaticAddsNoFormalityDirective() {
         let prompt = translate("Cześć świecie", second: .german)
-        #expect(!prompt.lowercased().contains("register"))
+        #expect(!prompt.contains("formal, polite register"))
+        #expect(!prompt.contains("informal, casual register"))
+        #expect(prompt.contains("Keep the register"))
     }
 
     // Forced tone must inject an explicit directive — and it is language-agnostic,
@@ -58,6 +62,9 @@ import Testing
             let prompt = translate("Dziękujemy", second: second, formality: .formal)
             #expect(prompt.contains("formal, polite register"))
             #expect(!prompt.contains("informal, casual register"))
+            // The humanizer's keep-register line must yield to the forced tone —
+            // the two directives would contradict each other.
+            #expect(!prompt.contains("Keep the register"))
         }
     }
 
@@ -66,6 +73,7 @@ import Testing
             let prompt = translate("Dziękujemy", second: second, formality: .informal)
             #expect(prompt.contains("informal, casual register"))
             #expect(!prompt.contains("formal, polite register"))
+            #expect(!prompt.contains("Keep the register"))
         }
     }
 
