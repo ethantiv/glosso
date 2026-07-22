@@ -35,15 +35,15 @@ enum PromptBuilder {
         }
     }
 
-    // Distilled from the softaworks/agent-toolkit "humanizer" skill (Wikipedia's
-    // "Signs of AI writing"). Always folded into the translate prompt so the
-    // result reads naturally instead of like machine output (issue #23). It MUST
-    // stay subordinate to the translation and name the target language: an earlier
-    // wording ("Write the translation as natural prose… avoid em dashes, 'not just
-    // X but Y'…") was all about English style, so for an English source the model
-    // read it as "rewrite in English" and skipped translating to Polish entirely.
-    // Kept to one sentence because Gemma with think:false handles short prompts best.
-    private static let humanizeDirective = " The result must remain a translation into the target language; render the original's meaning, but make it read like natural, fluent writing in that language rather than a stiff, machine translation: vary sentence rhythm, prefer plain verbs, and avoid inflated, promotional or padded phrasing."
+    // Condensed from the "unslop" rule set (Wikipedia's "Signs of AI writing").
+    // Always folded into the translate prompt so the result reads naturally
+    // instead of like machine output (issue #23). It MUST stay subordinate to
+    // the translation and name the target language: an earlier wording ("Write
+    // the translation as natural prose… avoid em dashes, 'not just X but Y'…")
+    // was all about English style, so for an English source the model read it as
+    // "rewrite in English" and skipped translating to Polish entirely. Kept to
+    // one sentence because Gemma with think:false handles short prompts best.
+    private static let humanizeDirective = " The result must remain a translation into the target language; render the original's meaning without dropping any information the original states, but make it read like natural, fluent writing by a skilled native writer of that language, free of the telltale signs of AI writing: vary sentence rhythm; prefer plain verbs (that language's ordinary 'is'/'has', not ornate stand-ins like 'serves as'/'boasts'); repeat the ordinary word for a thing instead of cycling synonyms; do not introduce the target language's fashionable, overused buzzwords where the original does not call for them; avoid inflated or promotional phrasing, 'not just X, but Y' constructions, forced triads of adjectives, trailing participle clauses that claim unsupported significance, and padded stock phrases; and punctuate the way everyday prose in the target language does: follow its native punctuation conventions, prefer commas and full stops, split clause chains into separate sentences instead of gluing them with semicolons, and use a dash only where that language genuinely calls for one."
 
     // Moderate style pass folded into the fixGrammar prompt whenever the detected
     // direction supports it (requested automatically, in the popup and the headless
