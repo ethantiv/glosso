@@ -1,21 +1,19 @@
 # Glosso
 
-A macOS menu-bar app that translates whatever you've selected when you hit **Cmd+C twice in a row**. It uses a local LLM (Gemma via [Ollama](https://ollama.com)) and shows the result in a small panel next to the cursor.
+A macOS menu-bar app that translates whatever you have selected when you hit **Cmd+C twice in a row**. It uses a local LLM (Gemma via [Ollama](https://ollama.com)) and shows the result in a small panel next to the cursor.
 
-There's no Dock icon — just a bubble in the menu bar. Both Cmd+C presses still copy as usual; the app only listens for the double press, so the only permission it needs is **Accessibility**.
+No Dock icon, just a bubble in the menu bar. Both Cmd+C presses still copy as usual.
 
 ## Install
 
 Grab the latest `Glosso.zip` from [Releases](https://github.com/ethantiv/glosso/releases/latest):
 
 1. Unzip and drag **Glosso.app** to your Applications folder.
-2. Right-click it → **Open** → confirm (once — the app is signed, but not notarized by Apple).
-3. Grant **Accessibility** when asked — it's the only permission it needs.
-4. A first-run wizard walks you through downloading a translation model and picking your second language.
+2. Right-click it → **Open** → confirm (once; the app is signed, but not notarized by Apple).
+3. Grant **Accessibility** when asked. It's the only permission the app needs.
+4. A first-run wizard guides you through downloading a translation model and selecting your languages.
 
-Everything runs locally. The model and its engine download on first use, so you don't need to install [Ollama](https://ollama.com) yourself (though an existing local Ollama is used if you have one).
-
-When a newer release is out, the menu bar shows a **download** link — drop the new app over the old one and your Accessibility grant carries over.
+Everything runs locally. The model and its engine download on first use, so you don't need to install [Ollama](https://ollama.com) yourself (an existing local installation is reused if you have one).
 
 ## Requirements
 
@@ -32,23 +30,22 @@ scripts/test.sh     # run the tests
 scripts/package.sh  # build a signed .zip you can drop into /Applications
 ```
 
-On first launch the app asks for **Accessibility** permission. That's the only one it needs.
-
 Releasing is automatic: bump `MARKETING_VERSION` in `project.yml` in a PR, and merging it to `main` builds, signs, and publishes the release. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
 ## Using the popup
 
-The panel opens right under the cursor and streams the result as the model produces it.
+The panel opens under the cursor and streams the result as the model produces it.
 
-- **Verbs.** A strip at the top lets you switch what the model does with the selection: **Translate** (the default), **Summarize** (a short bulleted list) and **Fix** (grammar, spelling and punctuation, keeping the original language). Picking a verb re-runs over the same selection — no need to copy again.
-- **Tone.** For a translation you can cycle the tone pill between automatic, formal and informal register; it re-translates the same text.
-- **Editable source.** Tweak the captured text in place and re-run the translation, instead of copying again.
+- **Verbs.** A strip at the top switches what the model does with the selection: **Translate** (the default), **Summarize** (a short bulleted list), **Fix** (grammar, spelling and punctuation, keeping the original language) and **Reply** (drafts a few possible responses to the copied message; pick the one you like). Picking a verb re-runs over the same selection.
+- **Tone.** For a translation, cycle the tone pill between automatic, formal and informal register.
+- **Editable source.** Tweak the captured text in place and re-run, instead of copying again.
 - **Grammar diff.** **Fix** highlights what changed; tap a change to learn why.
-- **Per-word alternatives.** In a finished translation each word is clickable — it opens a dropdown of context-aware alternatives and a "Why?" explanation. Picking one re-translates just that part.
+- **Per-word alternatives.** In a finished translation each word is clickable: a dropdown offers context-aware alternatives and a "Why?" explanation. Picking one re-translates just that part.
 - **Replace.** Paste the result straight back over the still-selected source text.
-- **Copy.** Copy the whole result.
 
-You can drag the panel by its body and resize it from the bottom-right grip. Esc closes an open dropdown first, then the panel.
+## Article reader
+
+Double-press Cmd+C on a bare link and instead of the popup you get a reader window: the article is extracted from the page, summarized in two–three sentences and translated block by block into your primary language. An eye toggle flips between the translation and the original, and a side chat lets you ask questions about the article (with a few suggested ones to start). Translated articles are cached for a week, so reopening the same link is instant.
 
 ## In-place shortcuts
 
@@ -56,13 +53,13 @@ Two headless chords act on the current selection without opening the panel and p
 
 ## Settings
 
-From the menu bar you can pick the Ollama model and the second language (English by default; also German, Russian, Spanish, Dutch, French). Polish is always the other side of the pair, and the direction is detected automatically.
+From the menu bar you can pick the Ollama model, the primary language (Polish or English — it also sets the app's UI language) and the second language (English, German, Russian, Spanish, Dutch or French, or automatic detection). The translation direction is detected per capture.
 
-A **Launch at login** toggle starts the app quietly in the menu bar. The two in-place shortcuts above are rebindable here too. Translations always read like natural prose instead of stiff machine output — there is no toggle for it.
+A **Launch at login** toggle starts the app quietly in the menu bar.
 
 ## How it works
 
-The app is split into small modules — hotkey, capture, LLM, popup, settings — each behind a protocol so the pieces stay swappable and testable. For the details, including the design decisions and the reasoning behind them, see [`CLAUDE.md`](CLAUDE.md).
+The app is split into small modules — hotkey, capture, LLM, popup, settings — each behind a protocol. For the details and the reasoning behind the design decisions, see [`CLAUDE.md`](CLAUDE.md).
 
 ## License
 
