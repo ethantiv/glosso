@@ -29,13 +29,11 @@ final class SettingsStore {
         didSet { defaults.set(modelName, forKey: Key.model) }
     }
 
-    /// The fixed side of the pair and the UI language. Switching it away from a
-    /// conflicting second (the pair must never be X↔X) flips the second to the
-    /// PL/EN counterpart.
+    /// The fixed side of the pair. Switching it away from a conflicting second
+    /// (the pair must never be X↔X) flips the second to the PL/EN counterpart.
     var primaryLanguage: PrimaryLanguage {
         didSet {
             defaults.set(primaryLanguage.rawValue, forKey: Key.primaryLanguage)
-            L10n.set(primaryLanguage)
             if secondLanguage == primaryLanguage.asSecond {
                 secondLanguage = primaryLanguage.counterpart.asSecond
             }
@@ -95,7 +93,7 @@ final class SettingsStore {
         self.modelName = defaults.string(forKey: Key.model) ?? EmbeddedModelCatalog.recommended.id
         // Existing installs (any onboarding flag present) predate the primary
         // language setting and were Polish-axis — keep their behavior. Fresh
-        // installs seed from the system language, so onboarding renders in it.
+        // installs seed the translation axis from the system language.
         let primary = defaults.string(forKey: Key.primaryLanguage)
             .flatMap(PrimaryLanguage.init(rawValue:))
             ?? (defaults.object(forKey: Key.hasCompletedOnboarding) != nil
@@ -122,8 +120,6 @@ final class SettingsStore {
         self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)
         self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
         self.launchAtLogin = loginItem.isEnabled
-        // didSet doesn't fire during init — mirror the UI language explicitly.
-        L10n.set(primaryLanguage)
     }
 
     /// Re-reads the real registration status; the user may have toggled the login

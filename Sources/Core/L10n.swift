@@ -1,8 +1,9 @@
+import Foundation
 import Synchronization
 
-/// The app's primary language: the fixed side of the translation pair and the
-/// language of the whole UI. Persisted in `SettingsStore`; `L10n` mirrors the
-/// current value so display strings can resolve from any isolation context.
+/// The app's primary language: the fixed side of the translation pair.
+/// Persisted in `SettingsStore`. Also the type of the UI language in `L10n`,
+/// which is seeded from the macOS language independently of the setting.
 enum PrimaryLanguage: String, CaseIterable, Sendable {
     case polish = "pl"
     case english = "en"
@@ -51,14 +52,17 @@ enum PrimaryLanguage: String, CaseIterable, Sendable {
 
 /// Current UI language, readable off the main actor (error messages and
 /// `Sendable` enum display names resolve outside it) — hence a Mutex, not
-/// a `@MainActor` global. `SettingsStore` sets it on init and on change.
-/// `override` is a task-local for tests: parallel suites construct stores that
-/// flip the global, so string assertions pin their language through it instead.
+/// a `@MainActor` global. Seeded once from the macOS language (any non-Polish
+/// system reads English) and fixed for the process lifetime — independent of
+/// the `primaryLanguage` translation setting. `override` is a task-local for
+/// tests: string assertions pin their language through it instead of relying
+/// on the machine's language.
 enum L10n {
     @TaskLocal static var override: PrimaryLanguage?
-    private static let box = Mutex(PrimaryLanguage.polish)
+    private static let box = Mutex(
+        Locale.preferredLanguages.first?.hasPrefix("pl") == true ? PrimaryLanguage.polish : .english
+    )
     static var current: PrimaryLanguage { override ?? box.withLock { $0 } }
-    static func set(_ language: PrimaryLanguage) { box.withLock { $0 = language } }
 }
 
 /// Resolves a user-facing string in the app's current primary language.
