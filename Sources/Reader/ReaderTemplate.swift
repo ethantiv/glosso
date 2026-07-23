@@ -10,6 +10,8 @@ import Foundation
 ///   (the dimmed original text is its own skeleton) and returns the block list
 ///   as a JSON string for Swift to loop over.
 /// - `glossoApply(id, html)` swaps in one block's translation.
+/// - `glossoSetLanguages(translated, original)` relabels the view segment with
+///   language codes ("PL" | "NL") once the article's language is detected.
 /// - `glossoAbort()` un-dims every still-pending block (translation gave up).
 /// - `glossoStatus(msg)` shows progress/errors in the bottom bar ('' hides it).
 /// - `glossoSetQuestions(json)` fills the chat panel's suggested-question chips
@@ -370,6 +372,12 @@ enum ReaderTemplate {
       const el = document.querySelector('[data-glosso-id="' + id + '"]');
       if (el) { el.classList.add('glosso-dual'); }
       if (glosso.mode === 'translated') { glossoRender(id, html); }
+    }
+    // Language codes for the segment (e.g. "PL", "NL") once Swift has detected
+    // the article's language; until then the buttons keep their word labels.
+    function glossoSetLanguages(translated, original) {
+      document.getElementById('glosso-seg-translated').textContent = translated;
+      document.getElementById('glosso-seg-original').textContent = original;
     }
     function glossoSetTitle(title) {
       glosso.translatedTitle = title;

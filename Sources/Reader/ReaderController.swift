@@ -120,7 +120,35 @@ final class ReaderController: ReaderPresenting {
         guard let json = try await webView.evaluateStringResult(call),
               let blocks = try? JSONDecoder().decode([ReaderTemplate.Block].self, from: Data(json.utf8))
         else { throw ReaderError.extractionFailed }
+        // Both paths (fresh run and cache replay) pass through here, so the
+        // segment gets its language codes exactly once per page load.
+        if let labels = Self.languageLabels(primary: settings.primaryLanguage, content: article.content) {
+            _ = try? await webView.evaluateStringResult(
+                ReaderTemplate.call("glossoSetLanguages", labels.translated, labels.original))
+        }
         return blocks
+    }
+
+    // The segment's labels: the primary's code plus the article's detected one
+    // (PL | NL). nil — keeping the template's Tłumaczenie/Oryginał fallback —
+    // when the text is too short to trust, detection fails, or the article is
+    // already in the primary language (PL | PL would label a no-op toggle).
+    nonisolated static func languageLabels(
+        primary: PrimaryLanguage, content: String
+    ) -> (translated: String, original: String)? {
+        let text = content
+            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        guard text.count >= 40 else { return nil }
+        let recognizer = NLLanguageRecognizer()
+        recognizer.processString(String(text.prefix(6000)))
+        guard let source = recognizer.dominantLanguage, source != primary.nl else { return nil }
+        // "zh-Hans" → "ZH": the region/script tail is noise at pill size.
+        let code = { (language: NLLanguage) -> String in
+            language.rawValue.split(separator: "-").first.map(String.init)?.uppercased()
+                ?? language.rawValue.uppercased()
+        }
+        return (code(primary.nl), code(source))
     }
 
     // Best-effort: any failure leaves the original title in place (and un-dims
