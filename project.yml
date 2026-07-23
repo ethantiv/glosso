@@ -7,7 +7,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.9.5"
+    MARKETING_VERSION: "0.9.6"
     CURRENT_PROJECT_VERSION: "1"
     # Stable self-signed identity (created once in Keychain): keeps the app's code
     # signing identity constant across releases so the Accessibility (TCC) grant

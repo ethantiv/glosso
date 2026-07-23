@@ -66,13 +66,13 @@ Overused AI vocabulary — do not introduce these (or their target-language equi
 - English: delve, tapestry, landscape (figurative), testament, pivotal, crucial, vibrant, showcase, underscore, highlight (figurative verb), leverage, robust, seamless, foster, garner, boast, intricate, interplay, comprehensive, holistic, transformative, game-changer, cutting-edge, "it's important to note", "in today's fast-paced world", chains of sentence-starting "Additionally," / "Moreover," / "Furthermore,".
 - Polish: kluczowy, istotny, niezwykle, innowacyjny, kompleksowy, holistyczny, dynamiczny rozwój, szeroko pojęty, "w dzisiejszym świecie", "w dobie…", "warto podkreślić / zauważyć", "należy zaznaczyć", łańcuchy "co więcej" / "ponadto", "niewątpliwie" / "bez wątpienia", "krajobraz" (przenośnie), "serce miasta", "prawdziwa gratka", "pełni kluczową rolę", "w kontekście" (jako wytrych), "swoisty", "niejako".
 
-Punctuation and formatting — punctuate the translation from scratch in the target language's everyday style; the original's punctuation habits are not carried over:
-- Semicolons: rewrite every ";" of the original. Break the chain into separate full-stop sentences, or join two short clauses with a comma — never reproduce a semicolon chain. In ordinary prose, Polish especially, a semicolon is almost always wrong; a complex list item is the only legitimate use.
-- Em dashes: more than an occasional dash is a tell; prefer commas, full stops, or parentheses, even where the original chains dashes. In Polish use the en dash (–) sparingly and correctly.
+Punctuation and formatting — punctuate the translation from scratch in the target language's everyday style. The original's punctuation habits are not carried over:
+- Semicolons: the translation must not contain the character ";". Where the original glues clauses with ";", write separate full-stop sentences, or join two short clauses with a comma. Never introduce a ";" of your own. In Polish written prose the semicolon practically does not exist, so a Polish translation must not contain a single ";" under any circumstances.
+- Em dashes: more than an occasional dash is a tell. Prefer commas, full stops, or parentheses, even where the original chains dashes. In Polish use the en dash (–) sparingly and correctly.
 - Add no formatting the original lacks: no bold, no bullet lists, no emoji, no headings.
 - Leave code fragments, URLs, and proper names unchanged.
 
-The finished translation should read like a competent human wrote it: varied sentence rhythm, plain verbs, ordinary target-language punctuation with no semicolon or dash chains, none of the patterns above left in bulk, and no changed meaning. It must be a translation into the target language of everything inside <text></text>, nothing else.
+The finished translation should read like a competent human wrote it: varied sentence rhythm, plain verbs, ordinary target-language punctuation with not a single ";" and no dash chains, none of the patterns above left in bulk, and no changed meaning. It must be a translation into the target language of everything inside <text></text>, nothing else.
 """
     }
 
