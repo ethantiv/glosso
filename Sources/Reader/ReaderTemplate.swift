@@ -550,6 +550,9 @@ enum ReaderTemplate {
       lang.textContent = '\(loc("Oryginał", "Original"))';
       const text = document.createElement('div');
       text.innerHTML = glosso.original[block.dataset.glossoId];
+      // Originals are stored pre-sanitized, but the invariant is "sanitize
+      // after every innerHTML" — keep the guard local, not a non-local fact.
+      glossoSanitize(text);
       note.appendChild(lang);
       note.appendChild(text);
       block.appendChild(note);

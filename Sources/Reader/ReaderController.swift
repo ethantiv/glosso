@@ -142,7 +142,11 @@ final class ReaderController: ReaderPresenting {
         guard text.count >= 40 else { return nil }
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(String(text.prefix(6000)))
-        guard let source = recognizer.dominantLanguage, source != primary.nl else { return nil }
+        // Same 0.8 floor as isConfidently: a low-confidence read (mixed page,
+        // Slavic kin) must fall back to word labels, not mislabel the segment.
+        guard let (source, confidence) = recognizer.languageHypotheses(withMaximum: 3)
+                .max(by: { $0.value < $1.value }),
+              confidence >= 0.8, source != primary.nl else { return nil }
         // "zh-Hans" → "ZH": the region/script tail is noise at pill size.
         let code = { (language: NLLanguage) -> String in
             language.rawValue.split(separator: "-").first.map(String.init)?.uppercased()
