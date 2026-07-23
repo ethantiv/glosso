@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glosso Reader — propozycja „Glosa”</title>
+<!-- Mockup propozycji wyglądu czytnika. Sygnatura: margines z glosami —
+     TL;DR i podgląd oryginału żyją na marginesie jak notatki tłumacza.
+     Fonty wyłącznie systemowe macOS (czytnik to WKWebView bez web fontów). -->
+<style>
+  :root {
+    color-scheme: light dark;
+    --paper:      light-dark(#FBFBF9, #211F24);
+    --ink:        light-dark(#1C1B22, #E8E6EF);
+    --ink-soft:   light-dark(#5A5866, #A7A4B4);
+    --accent:     light-dark(#4F5BD8, #98A2F8);
+    --accent-ink: light-dark(#4350C4, #A7B0FA);
+    --rubric:     light-dark(#A03A2C, #E08A7B);
+    --hairline:   light-dark(#E4E2DC, #38353E);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Iowan Old Style", "Palatino", ui-serif, Georgia, serif;
+    font-size: 17.5px; line-height: 1.68;
+  }
+  .page {
+    display: grid; grid-template-columns: minmax(0, 39em) 15em;
+    gap: 3em; max-width: 60em; margin: 0 auto; padding: 3.2em 2em 5em;
+  }
+  @media (max-width: 900px) { .page { grid-template-columns: minmax(0, 1fr); }
+                              .gloss { display: none; } }
+
+  /* ── pastylki UI ─────────────────────────────────────────── */
+  .pills { position: fixed; top: .9em; right: .9em; display: flex; gap: .5em; z-index: 10; }
+  .pill {
+    display: flex; align-items: center; gap: .4em;
+    font-family: "Seravek", -apple-system, system-ui, sans-serif;
+    font-size: .76rem; font-weight: 600; padding: .38em .85em;
+    border-radius: 999px; cursor: pointer; color: var(--accent-ink);
+    background: color-mix(in srgb, var(--accent) 10%, var(--paper));
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--paper));
+  }
+  .pill:hover { background: color-mix(in srgb, var(--accent) 17%, var(--paper)); }
+  .pill svg { width: 1.05em; height: 1.05em; }
+
+  /* ── nagłówek artykułu ───────────────────────────────────── */
+  header h1 {
+    font-size: 2.35em; line-height: 1.16; font-weight: 600;
+    letter-spacing: -.012em; margin: 0 0 .32em;
+  }
+  .byline {
+    font-family: "Seravek", -apple-system, system-ui, sans-serif;
+    font-size: .8rem; letter-spacing: .05em; text-transform: uppercase;
+    color: var(--ink-soft); margin-bottom: 2.6em;
+  }
+  .byline b { color: var(--rubric); font-weight: 600; }
+
+  /* ── treść ───────────────────────────────────────────────── */
+  main p { margin: 0 0 1.1em; }
+  main { counter-reset: par; }
+  main p[data-par]::before {
+    counter-increment: par;
+    content: counter(par);
+    float: left; margin-left: -2.2em; width: 1.6em; text-align: right;
+    font-family: "Seravek", -apple-system, system-ui, sans-serif;
+    font-size: .62em; line-height: 2.7; color: var(--rubric); opacity: .75;
+  }
+  .pending { opacity: .42; }
+  blockquote {
+    margin: 1.6em 0; padding-left: 1.1em;
+    border-left: 2.5px solid var(--rubric);
+    font-style: italic; color: color-mix(in srgb, var(--ink) 84%, var(--paper));
+  }
+  ul { padding-left: 1.3em; } li { margin-bottom: .35em; }
+  figure { margin: 2em 0; }
+  figure svg { width: 100%; height: auto; border-radius: 3px; display: block; }
+  figcaption {
+    font-family: "Seravek", -apple-system, system-ui, sans-serif;
+    font-size: .78rem; color: var(--ink-soft); margin-top: .6em;
+  }
+
+  /* ── margines z glosami — sygnatura projektu ─────────────── */
+  .gloss { position: relative; padding-top: .8em; }
+  .gloss-note {
+    font-family: "Seravek", -apple-system, system-ui, sans-serif;
+    font-size: .74rem; line-height: 1.55; color: var(--ink-soft);
+    border-top: 1px solid var(--hairline); padding-top: .7em; margin-bottom: 1.9em;
+  }
+  .gloss-note .tag {
+    display: inline-block; font-size: .62rem; font-weight: 700;
+    letter-spacing: .09em; text-transform: uppercase;
+    color: var(--accent-ink); margin-bottom: .35em;
+  }
+  .gloss-note.tldr { border-top: 2.5px solid var(--accent); }
+  .gloss-note .orig {
+    font-family: "Iowan Old Style", ui-serif, serif;
+    font-style: italic; font-size: .82rem;
+    color: color-mix(in srgb, var(--ink) 70%, var(--paper));
+  }
+  .gloss-note .par-ref { color: var(--rubric); font-weight: 600; }
+  .gloss-hint { opacity: .55; }
+
+  /* ── pasek stanu ─────────────────────────────────────────── */
+  .status {
+    position: fixed; bottom: 0; left: 0; right: 0;
+    font-family: "Seravek", -apple-system, system-ui, sans-serif;
+    font-size: .78rem; padding: .55em 1.2em;
+    background: color-mix(in srgb, var(--paper) 92%, var(--accent));
+    border-top: 1px solid var(--hairline); color: var(--ink-soft);
+  }
+  .status .dot {
+    display: inline-block; width: .55em; height: .55em; border-radius: 50%;
+    background: var(--accent); margin-right: .5em;
+    animation: pulse 1.4s ease-in-out infinite;
+  }
+  @keyframes pulse { 50% { opacity: .35; } }
+  @media (prefers-reduced-motion: reduce) { .status .dot { animation: none; } }
+  :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+</style>
+</head>
+<body>
+
+<div class="pills">
+  <button class="pill" title="Przetłumacz ponownie">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+  </button>
+  <button class="pill" title="Przełącz oryginał / tłumaczenie">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3.5-6.5 10-6.5S22 12 22 12s-3.5 6.5-10 6.5S2 12 2 12Z"/><circle cx="12" cy="12" r="2.6"/></svg>
+    Oryginał
+  </button>
+  <button class="pill" title="Zapytaj artykuł">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.9 8.9 0 0 1-3.2-.6L3 21l1.8-5.1a8.1 8.1 0 0 1-1.3-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3Z"/></svg>
+  </button>
+</div>
+
+<div class="page">
+  <div class="column">
+    <header>
+      <h1>Jak Amsterdam odzyskuje swoje kanały</h1>
+      <div class="byline">Marieke van der Berg · De Ochtendkrant · <b>NL → PL</b></div>
+    </header>
+
+    <main>
+      <p data-par>Przez dziesięciolecia kanały Amsterdamu były traktowane jak zaplecze miasta: parkingi dla barek, magazyny na wodzie, wygodne skróty dla dostawców. Dziś miasto odwraca tę logikę — woda znów ma być salonem, a nie korytarzem.</p>
+      <p data-par>Program „Grachten van Morgen” zakłada, że do 2032 roku żaden komercyjny transport spalinowy nie wpłynie do historycznego centrum. Elektryczne barki już dziś obsługują jedną trzecią dostaw, a liczba prywatnych łodzi z silnikami benzynowymi spadła o połowę.</p>
+      <blockquote>„Kanał to nie droga, która akurat jest mokra. To najstarszy plac miejski, jaki mamy” — mówi Anouk Visser, radna odpowiedzialna za wodę.</blockquote>
+      <p data-par>Zmiana ma też wymiar czysto fizyczny. Nabrzeża, przez stulecia podmywane przez coraz cięższy ruch, przechodzą największy remont od czasów Republiki:</p>
+      <ul>
+        <li>ponad 200 mostów czeka wzmocnienie lub pełna wymiana przęseł,</li>
+        <li>kilometry XVII-wiecznych murów oporowych są kotwione na nowo,</li>
+        <li>czujniki osiadania raportują ruchy gruntu co godzinę.</li>
+      </ul>
+      <figure>
+        <svg viewBox="0 0 800 420" role="img" aria-label="Kanał Prinsengracht o świcie">
+          <defs>
+            <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0" stop-color="#8f9bd8"/><stop offset=".55" stop-color="#d8c9c0"/><stop offset="1" stop-color="#3d4468"/>
+            </linearGradient>
+          </defs>
+          <rect width="800" height="420" fill="url(#sky)"/>
+          <rect y="260" width="800" height="160" fill="#2c3152"/>
+          <g fill="#1f2440">
+            <rect x="60" y="90" width="90" height="170"/><rect x="170" y="60" width="80" height="200"/>
+            <rect x="270" y="110" width="95" height="150"/><rect x="480" y="80" width="85" height="180"/>
+            <rect x="585" y="120" width="100" height="140"/><rect x="700" y="70" width="70" height="190"/>
+          </g>
+          <g fill="#e8d9a0" opacity=".8">
+            <rect x="82" y="120" width="12" height="18"/><rect x="196" y="95" width="12" height="18"/>
+            <rect x="300" y="140" width="12" height="18"/><rect x="505" y="110" width="12" height="18"/>
+          </g>
+          <ellipse cx="400" cy="330" rx="330" ry="28" fill="#454e7d" opacity=".55"/>
+        </svg>
+        <figcaption>Prinsengracht o świcie. Elektryczne barki dostawcze cumują przed szóstą rano. Fot. J. de Wit</figcaption>
+      </figure>
+      <p class="pending">Toch is niet iedereen overtuigd. Schippers van klassieke salonboten vrezen dat de nieuwe regels het einde betekenen van een eeuw oude traditie, en de verzekeraars stellen lastige vragen over wie aansprakelijk is wanneer een kade toch bezwijkt.</p>
+      <p class="pending">De komende maanden beslist de gemeenteraad over de laatste fase van het plan — en over de vraag wie de rekening van ruim achthonderd miljoen euro gaat betalen.</p>
+    </main>
+  </div>
+
+  <!-- margines: glosy tłumacza -->
+  <aside class="gloss">
+    <div class="gloss-note tldr">
+      <span class="tag">TL;DR</span>
+      Amsterdam do 2032 r. usuwa spalinowy transport z kanałów centrum, remontując przy tym setki mostów i XVII-wieczne nabrzeża. Miasto chce, by woda znów była przestrzenią wspólną, nie infrastrukturą.
+    </div>
+    <div class="gloss-note" style="margin-top: 9.5em;">
+      <span class="tag">Oryginał · <span class="par-ref">¶ 2</span></span>
+      <span class="orig">Het programma „Grachten van Morgen” bepaalt dat vanaf 2032 geen commercieel transport op verbrandingsmotoren de historische binnenstad in mag.</span>
+    </div>
+    <div class="gloss-note gloss-hint" style="margin-top: 7em;">
+      <span class="tag">Wskazówka</span>
+      Najedź na akapit, aby zobaczyć jego oryginał na marginesie. Oko w prawym górnym rogu przełącza cały artykuł.
+    </div>
+  </aside>
+</div>
+
+<div class="status"><span class="dot"></span>Tłumaczenie… 6 z 8 bloków</div>
+
+</body>
+</html>

@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Glosso Reader — propozycja „Dwugłos”</title>
+<!-- Mockup propozycji wyglądu czytnika. Kierunek: wydanie dwujęzyczne (à la
+     Loeb) — karta tytułowa książki, nota „od tłumacza” zamiast karty TL;DR,
+     interlinearny oryginał rozwijany pod akapitem. Fonty systemowe macOS. -->
+<style>
+  :root {
+    color-scheme: light dark;
+    --paper:      light-dark(#FFFFFF, #1E1D22);
+    --ink:        light-dark(#211F26, #EAE8F0);
+    --ink-soft:   light-dark(#605D6C, #A29FB0);
+    --cloth:      light-dark(#4F5BD8, #98A2F8);   /* płótno okładki */
+    --cloth-ink:  light-dark(#4350C4, #A7B0FA);
+    --hairline:   light-dark(#E6E4EA, #37343E);
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; background: var(--paper); color: var(--ink);
+    font-family: "Athelas", "Palatino", ui-serif, Georgia, serif;
+    font-size: 18px; line-height: 1.72;
+  }
+  /* pasek płótna — grzbiet książki nad stroną */
+  .spine-band { height: 6px; background: var(--cloth); }
+
+  .book { max-width: 41em; margin: 0 auto; padding: 3em 2em 6em; }
+
+  /* ── pastylki UI: segment językowy zamiast oka ───────────── */
+  .pills { position: fixed; top: 1em; right: 1em; display: flex; gap: .5em; z-index: 10;
+           font-family: "Avenir Next", -apple-system, system-ui, sans-serif; }
+  .pill, .seg {
+    font-size: .74rem; font-weight: 600; cursor: pointer;
+    color: var(--cloth-ink);
+    background: color-mix(in srgb, var(--cloth) 9%, var(--paper));
+    border: 1px solid color-mix(in srgb, var(--cloth) 26%, var(--paper));
+  }
+  .pill { display: flex; align-items: center; padding: .4em .7em; border-radius: 999px; }
+  .pill:hover { background: color-mix(in srgb, var(--cloth) 16%, var(--paper)); }
+  .pill svg { width: 1.05em; height: 1.05em; }
+  .seg { display: flex; padding: 0; border-radius: 999px; overflow: hidden; }
+  .seg button {
+    font: inherit; border: 0; padding: .4em .9em; cursor: pointer;
+    background: transparent; color: inherit; letter-spacing: .04em;
+  }
+  .seg button[aria-pressed="true"] { background: var(--cloth); color: light-dark(#fff, #14163B); }
+
+  /* ── karta tytułowa ──────────────────────────────────────── */
+  header { text-align: center; margin-bottom: 3em; }
+  .eyebrow {
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-size: .72rem; font-weight: 600; letter-spacing: .22em;
+    text-transform: uppercase; color: var(--cloth-ink); margin-bottom: 1.6em;
+  }
+  header h1 {
+    font-size: 2.5em; line-height: 1.18; font-weight: 400;
+    margin: 0 auto .5em; max-width: 14em;
+  }
+  .fleuron { color: var(--cloth); font-size: 1.1em; letter-spacing: .6em; margin: .5em 0; }
+  .byline {
+    font-variant-caps: small-caps; letter-spacing: .12em;
+    color: var(--ink-soft); font-size: .95em;
+  }
+
+  /* ── nota od tłumacza (TL;DR) ────────────────────────────── */
+  .translator-note {
+    border-top: 1px solid var(--ink); border-bottom: 1px solid var(--ink);
+    padding: 1.1em .2em; margin: 0 0 3em; font-size: .92em; line-height: 1.6;
+  }
+  .translator-note .label {
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-size: .68rem; font-weight: 600; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--cloth-ink);
+    display: block; margin-bottom: .5em;
+  }
+
+  /* ── treść ───────────────────────────────────────────────── */
+  main p { margin: 0 0 1.15em; }
+  main p.block { cursor: pointer; }
+  main p.block:hover { background: color-mix(in srgb, var(--cloth) 4%, var(--paper)); }
+  .pending { opacity: .42; }
+
+  /* interlinearny oryginał — sygnatura projektu */
+  /* jak cytat źródłowy w wydaniu książkowym: wcięcie i kursywa, bez ramek */
+  .interlinear {
+    margin: -.2em 0 1.4em 1.6em; padding: 0;
+    font-style: italic; font-size: .9em; line-height: 1.6;
+    color: color-mix(in srgb, var(--ink) 74%, var(--paper));
+  }
+  .interlinear .lang {
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-style: normal; font-size: .64rem; font-weight: 700;
+    letter-spacing: .14em; color: var(--cloth-ink); display: block; margin-bottom: .3em;
+  }
+
+  blockquote {
+    margin: 1.8em 1.5em; text-align: center; font-size: 1.12em;
+    font-style: italic; line-height: 1.55;
+  }
+  blockquote footer {
+    font-size: .78em; font-style: normal; font-variant-caps: small-caps;
+    letter-spacing: .1em; color: var(--ink-soft); margin-top: .6em;
+  }
+  ul { padding-left: 1.4em; } li { margin-bottom: .35em; }
+  figure { margin: 2.2em 0; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption {
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-size: .76rem; text-align: center; color: var(--ink-soft); margin-top: .7em;
+  }
+
+  /* ── panel czatu: rozmowa z tłumaczem, w konwencji przypisów ─ */
+  @media (min-width: 1100px) { body { margin-right: 330px; }
+                               .pills { right: calc(330px + 1em); } }
+  .chat {
+    position: fixed; top: 6px; right: 0; bottom: 0; width: 330px;
+    display: flex; flex-direction: column; gap: 1em;
+    background: color-mix(in srgb, var(--cloth) 3%, var(--paper));
+    border-left: 1px solid var(--hairline);
+    padding: 1.2em 1.3em 1em; font-size: .92em;
+  }
+  @media (max-width: 1099px) { .chat { display: none; } }
+  .chat-label {
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-size: .68rem; font-weight: 600; letter-spacing: .2em;
+    text-transform: uppercase; color: var(--cloth-ink); text-align: center;
+  }
+  .chat-messages { flex: 1; overflow-y: auto; display: flex; flex-direction: column; }
+  .chat-q {
+    align-self: flex-end; max-width: 88%; margin-bottom: .8em;
+    background: var(--cloth); color: light-dark(#fff, #14163B);
+    border-radius: 11px; border-bottom-right-radius: 4px;
+    padding: .45em .7em; font-size: .88em; line-height: 1.5;
+  }
+  /* odpowiedź jak przypis: numer w indygo, szeryf, linia zamiast dymka */
+  .chat-a {
+    border-top: 1px solid var(--hairline); padding-top: .7em; margin-bottom: 1.2em;
+    font-size: .92em; line-height: 1.6;
+    color: color-mix(in srgb, var(--ink) 90%, var(--paper));
+  }
+  .chat-a::before {
+    content: counter(footnote); counter-increment: footnote;
+    font-size: .72em; vertical-align: .45em; margin-right: .45em;
+    color: var(--cloth-ink); font-weight: 600;
+  }
+  .chat-messages { counter-reset: footnote; }
+  .chip {
+    font-family: inherit; font-style: italic; font-size: .88em; text-align: left;
+    cursor: pointer; color: var(--ink); background: transparent; border: 0;
+    border-top: 1px solid var(--hairline); padding: .55em .1em .55em 1.2em;
+    position: relative; line-height: 1.45;
+  }
+  .chip::before { content: "†"; position: absolute; left: 0;
+                  font-style: normal; color: var(--cloth-ink); }
+  .chip:hover { color: var(--cloth-ink); }
+  .chips-label {
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-size: .62rem; font-weight: 600; letter-spacing: .16em;
+    text-transform: uppercase; color: var(--ink-soft); margin-bottom: .2em;
+  }
+  .chips { display: flex; flex-direction: column; }
+  .chat form { display: flex; gap: .5em; align-items: flex-end; }
+  .chat textarea {
+    flex: 1; font-family: inherit; font-size: .9em; line-height: 1.4;
+    padding: .45em .65em; border-radius: 10px; resize: none;
+    border: 1px solid var(--hairline); background: var(--paper); color: var(--ink);
+  }
+
+  /* ── kolofon / pasek stanu ───────────────────────────────── */
+  .status {
+    position: fixed; bottom: 0; left: 0; right: 0; text-align: center;
+    font-family: "Avenir Next", -apple-system, system-ui, sans-serif;
+    font-size: .76rem; letter-spacing: .06em; padding: .55em 1em;
+    color: var(--ink-soft); background: var(--paper);
+    border-top: 1px solid var(--hairline);
+  }
+  .status b { color: var(--cloth-ink); font-weight: 600; }
+  :focus-visible { outline: 2px solid var(--cloth); outline-offset: 2px; }
+  @media (max-width: 700px) { header h1 { font-size: 2em; } }
+</style>
+</head>
+<body>
+<div class="spine-band"></div>
+
+<div class="pills">
+  <button class="pill" title="Przetłumacz ponownie">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.6-6.4"/><path d="M21 3v6h-6"/></svg>
+  </button>
+  <div class="seg" role="group" aria-label="Język artykułu">
+    <button aria-pressed="true">PL</button>
+    <button aria-pressed="false">NL</button>
+  </div>
+  <button class="pill" title="Zapytaj artykuł">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.9 8.9 0 0 1-3.2-.6L3 21l1.8-5.1a8.1 8.1 0 0 1-1.3-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3Z"/></svg>
+  </button>
+</div>
+
+<div class="book">
+  <header>
+    <div class="eyebrow">De Ochtendkrant · Wydanie dwujęzyczne · NL → PL</div>
+    <h1>Jak Amsterdam odzyskuje swoje kanały</h1>
+    <div class="fleuron">❦</div>
+    <div class="byline">Marieke van der Berg</div>
+  </header>
+
+  <div class="translator-note">
+    <span class="label">Od tłumacza · TL;DR</span>
+    Amsterdam do 2032 r. usuwa spalinowy transport z kanałów centrum, remontując przy tym
+    setki mostów i XVII-wieczne nabrzeża. Miasto chce, by woda znów była przestrzenią
+    wspólną, nie infrastrukturą — spór toczy się już tylko o to, kto za to zapłaci.
+  </div>
+
+  <main>
+    <p class="block">Przez dziesięciolecia kanały Amsterdamu były traktowane jak zaplecze miasta: parkingi dla barek, magazyny na wodzie, wygodne skróty dla dostawców. Dziś miasto odwraca tę logikę — woda znów ma być salonem, a nie korytarzem.</p>
+
+    <p class="block">Program „Grachten van Morgen” zakłada, że do 2032 roku żaden komercyjny transport spalinowy nie wpłynie do historycznego centrum. Elektryczne barki już dziś obsługują jedną trzecią dostaw, a liczba prywatnych łodzi z silnikami benzynowymi spadła o połowę.</p>
+    <div class="interlinear">
+      <span class="lang">Oryginał · NL</span>
+      Het programma „Grachten van Morgen” bepaalt dat vanaf 2032 geen commercieel
+      transport op verbrandingsmotoren de historische binnenstad in mag. Elektrische
+      dekschuiten verzorgen nu al een derde van de leveringen.
+    </div>
+
+    <blockquote>
+      „Kanał to nie droga, która akurat jest mokra.<br>To najstarszy plac miejski, jaki mamy.”
+      <footer>Anouk Visser, radna ds. wody</footer>
+    </blockquote>
+
+    <p class="block">Zmiana ma też wymiar czysto fizyczny. Nabrzeża, przez stulecia podmywane przez coraz cięższy ruch, przechodzą największy remont od czasów Republiki:</p>
+    <ul>
+      <li>ponad 200 mostów czeka wzmocnienie lub pełna wymiana przęseł,</li>
+      <li>kilometry XVII-wiecznych murów oporowych są kotwione na nowo,</li>
+      <li>czujniki osiadania raportują ruchy gruntu co godzinę.</li>
+    </ul>
+
+    <figure>
+      <svg viewBox="0 0 800 420" role="img" aria-label="Kanał Prinsengracht o świcie">
+        <defs>
+          <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#8f9bd8"/><stop offset=".55" stop-color="#d8c9c0"/><stop offset="1" stop-color="#3d4468"/>
+          </linearGradient>
+        </defs>
+        <rect width="800" height="420" fill="url(#sky)"/>
+        <rect y="260" width="800" height="160" fill="#2c3152"/>
+        <g fill="#1f2440">
+          <rect x="60" y="90" width="90" height="170"/><rect x="170" y="60" width="80" height="200"/>
+          <rect x="270" y="110" width="95" height="150"/><rect x="480" y="80" width="85" height="180"/>
+          <rect x="585" y="120" width="100" height="140"/><rect x="700" y="70" width="70" height="190"/>
+        </g>
+        <g fill="#e8d9a0" opacity=".8">
+          <rect x="82" y="120" width="12" height="18"/><rect x="196" y="95" width="12" height="18"/>
+          <rect x="300" y="140" width="12" height="18"/><rect x="505" y="110" width="12" height="18"/>
+        </g>
+        <ellipse cx="400" cy="330" rx="330" ry="28" fill="#454e7d" opacity=".55"/>
+      </svg>
+      <figcaption>Prinsengracht o świcie. Elektryczne barki dostawcze cumują przed szóstą rano. Fot. J. de Wit</figcaption>
+    </figure>
+
+    <p class="block pending">Toch is niet iedereen overtuigd. Schippers van klassieke salonboten vrezen dat de nieuwe regels het einde betekenen van een eeuw oude traditie, en de verzekeraars stellen lastige vragen over wie aansprakelijk is wanneer een kade toch bezwijkt.</p>
+    <p class="block pending">De komende maanden beslist de gemeenteraad over de laatste fase van het plan — en over de vraag wie de rekening van ruim achthonderd miljoen euro gaat betalen.</p>
+  </main>
+</div>
+
+<!-- panel czatu (otwarty): rozmowa z tłumaczem, odpowiedzi jak przypisy -->
+<aside class="chat" aria-label="Zapytaj artykuł">
+  <div class="chat-label">Zapytaj artykuł</div>
+  <div class="chat-messages">
+    <div class="chat-q">Ile będzie kosztował cały program?</div>
+    <div class="chat-a">Artykuł mówi o rachunku przekraczającym 800 milionów euro; rada miasta dopiero zdecyduje, kto go pokryje.</div>
+    <div class="chat-q">Kto się sprzeciwia zmianom?</div>
+    <div class="chat-a">Szyprowie klasycznych łodzi salonowych, którzy widzą w nowych regułach koniec stuletniej tradycji, oraz ubezpieczyciele pytający o odpowiedzialność za nabrzeża.</div>
+  </div>
+  <div>
+    <div class="chips-label">Podpowiedzi</div>
+    <div class="chips">
+      <button class="chip" type="button">Co dokładnie obejmuje remont nabrzeży?</button>
+      <button class="chip" type="button">Kiedy zapadnie ostateczna decyzja rady?</button>
+    </div>
+  </div>
+  <form>
+    <textarea rows="1" placeholder="Zadaj pytanie…"></textarea>
+    <button class="pill" type="submit">Wyślij</button>
+  </form>
+</aside>
+
+<div class="status">Tłumaczenie <b>6 / 8</b> · kliknij akapit, aby zobaczyć oryginał pod spodem</div>
+
+</body>
+</html>
