@@ -65,9 +65,14 @@ enum ReaderTemplate {
               --ink-soft: light-dark(#605D6C, #A29FB0);
               --hairline: light-dark(#E6E4EA, #37343E);
               --ui-font: "Avenir Next", -apple-system, system-ui, sans-serif; }
-      /* Border on html, not a div: full-bleed despite body's max-width, and it
-         scrolls away with the page like a book cover's cloth edge. */
-      html { border-top: 6px solid var(--accent); }
+      /* The cloth band, earning its keep: a fixed full-bleed reading-progress
+         bar. The track keeps the band's tint; the fill scales with scroll.
+         A page shorter than the viewport reads as fully visible → full band. */
+      #glosso-progress { position: fixed; top: 0; left: 0; right: 0; height: 6px;
+                         background: color-mix(in srgb, var(--accent) 22%, Canvas);
+                         z-index: 20; }
+      #glosso-progress div { height: 100%; background: var(--accent);
+                             transform-origin: left; transform: scaleX(1); }
       body { font-family: "Athelas", "Palatino", ui-serif, Georgia, serif;
              font-size: 18px; line-height: 1.72; max-width: 41em; margin: 0 auto;
              padding: 2.2em 1.5em 4em; overflow-wrap: break-word; }
@@ -201,7 +206,7 @@ enum ReaderTemplate {
                      color: CanvasText; background: transparent; border: 0;
                      border-top: 1px solid var(--hairline);
                      padding: .55em .1em .55em 1.2em; position: relative; }
-      .glosso-chip::before { content: "†"; position: absolute; left: 0;
+      .glosso-chip::before { content: "»"; position: absolute; left: 0;
                              font-style: normal; color: var(--accent-ink); }
       .glosso-chip:hover { color: var(--accent-ink); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
@@ -224,6 +229,7 @@ enum ReaderTemplate {
     </style>
     </head>
     <body>
+    <div id="glosso-progress"><div></div></div>
     <div id="glosso-pills">
       <button id="glosso-refresh" class="glosso-pill" type="button" title="\(loc("Przetłumacz ponownie", "Translate again"))">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
@@ -346,6 +352,9 @@ enum ReaderTemplate {
       document.getElementById('glosso-pills').style.display = 'flex';
       // The ornament belongs to the loaded title page, not the empty template.
       document.getElementById('glosso-fleuron').style.display = 'block';
+      // The page just became scrollable — drop the bar from the full-band
+      // resting state to the real fraction without waiting for a scroll.
+      glossoProgress();
       return JSON.stringify(blocks);
     }
     // Renders one block's html into the DOM. The model occasionally drops an
@@ -586,6 +595,15 @@ enum ReaderTemplate {
     document.getElementById('glosso-refresh').addEventListener('click', function() {
       window.webkit?.messageHandlers?.glosso?.postMessage('refresh');
     });
+    // Reading progress: fill fraction = scroll position over scrollable range.
+    // No range (page fits the viewport) = everything visible = full band.
+    function glossoProgress() {
+      const max = document.documentElement.scrollHeight - window.innerHeight;
+      const fraction = max > 0 ? Math.min(1, window.scrollY / max) : 1;
+      document.querySelector('#glosso-progress div').style.transform = 'scaleX(' + fraction + ')';
+    }
+    document.addEventListener('scroll', glossoProgress, {passive: true});
+    window.addEventListener('resize', glossoProgress);
     </script>
     </body>
     </html>
