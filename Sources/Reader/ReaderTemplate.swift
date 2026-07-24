@@ -136,10 +136,10 @@ enum ReaderTemplate {
       code { font-family: ui-monospace, monospace; }
       a { color: var(--accent-ink); }
       .glosso-pending { opacity: .45; }
-      /* A translated block invites a click for its interlinear original. */
+      /* A translated block invites a click for its interlinear original —
+         cursor only, no hover fill: a shifting background distracts while
+         reading. */
       .glosso-dual { cursor: pointer; }
-      body:not(.glosso-original) .glosso-dual:hover {
-        background: color-mix(in srgb, var(--accent) 4%, Canvas); }
       /* Interlinear original: an indented italic quotation under the block,
          like a source citation in a printed bilingual edition — no box. */
       .glosso-interlinear { margin: .5em 0 .2em 1.6em; font-style: italic;
@@ -222,7 +222,7 @@ enum ReaderTemplate {
                              font-style: normal; color: var(--accent-ink); }
       .glosso-chip:hover { color: var(--accent-ink); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
-      #glosso-chat-form { display: flex; gap: .5em; align-items: flex-end; }
+      #glosso-chat-form { display: flex; gap: .5em; align-items: center; }
       #glosso-chat-input { flex: 1; font-family: inherit; font-size: .9em;
                            padding: .45em .65em; border-radius: 10px;
                            border: 1px solid var(--hairline);
