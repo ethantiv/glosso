@@ -98,6 +98,7 @@ enum ReaderTemplate {
       #glosso-pills { position: fixed; top: .9em; right: .9em; z-index: 10;
                       display: none; gap: .5em; font-family: var(--ui-font); }
       /* Keep the pills over the article column, not inside the open chat panel. */
+      #glosso-pills { transition: right .25s ease-in-out; }
       body.glosso-chat-open #glosso-pills { right: calc(320px + .9em); }
       .glosso-pill { display: flex; align-items: center; gap: .4em;
                      font-family: var(--ui-font); font-size: .74rem; font-weight: 600;
@@ -135,10 +136,10 @@ enum ReaderTemplate {
       code { font-family: ui-monospace, monospace; }
       a { color: var(--accent-ink); }
       .glosso-pending { opacity: .45; }
-      /* A translated block invites a click for its interlinear original. */
+      /* A translated block invites a click for its interlinear original —
+         cursor only, no hover fill: a shifting background distracts while
+         reading. */
       .glosso-dual { cursor: pointer; }
-      body:not(.glosso-original) .glosso-dual:hover {
-        background: color-mix(in srgb, var(--accent) 4%, Canvas); }
       /* Interlinear original: an indented italic quotation under the block,
          like a source citation in a printed bilingual edition — no box. */
       .glosso-interlinear { margin: .5em 0 .2em 1.6em; font-style: italic;
@@ -150,14 +151,25 @@ enum ReaderTemplate {
                                  display: block; margin-bottom: .3em; }
       /* Chat: a conversation with the translator — questions are the only
          bubbles; answers read as numbered footnotes. */
+      /* Slid off-screen instead of display-toggled, so open/close can animate in
+         step with the Swift window resize (same .25s ease-in-out — keep in sync
+         with setChatPanel). visibility delays hiding until the slide-out ends
+         and keeps the closed panel unfocusable. */
       #glosso-chat-panel { position: fixed; top: 6px; right: 0; bottom: 0; width: 320px;
-                           display: none; flex-direction: column; gap: .9em;
+                           display: flex; flex-direction: column; gap: .9em;
+                           transform: translateX(100%); visibility: hidden;
+                           transition: transform .25s ease-in-out, visibility 0s .25s;
                            background: color-mix(in srgb, var(--accent) 3%, Canvas);
                            z-index: 5; box-sizing: border-box;
                            border-left: 1px solid var(--hairline);
                            padding: 1.1em 1.2em 1em; font-size: .92em; }
+      body.glosso-chat-open #glosso-chat-panel { transform: none; visibility: visible;
+                                                 transition: transform .25s ease-in-out,
+                                                             visibility 0s; }
       /* Shift the article column out from under the open panel; margin-left stays
-         auto, so the column keeps all remaining slack on the left. */
+         auto, so the column keeps all remaining slack on the left. Not animated:
+         during the transition glossoToggleChat pins the column's width and left
+         margin instead, so this margin swap can never reflow the text. */
       body.glosso-chat-open { margin-right: 340px; }
       .glosso-chat-label { font-family: var(--ui-font); font-size: .68rem;
                            font-weight: 600; letter-spacing: .2em;
@@ -210,7 +222,7 @@ enum ReaderTemplate {
                              font-style: normal; color: var(--accent-ink); }
       .glosso-chip:hover { color: var(--accent-ink); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
-      #glosso-chat-form { display: flex; gap: .5em; align-items: flex-end; }
+      #glosso-chat-form { display: flex; gap: .5em; align-items: center; }
       #glosso-chat-input { flex: 1; font-family: inherit; font-size: .9em;
                            padding: .45em .65em; border-radius: 10px;
                            border: 1px solid var(--hairline);
@@ -446,9 +458,21 @@ enum ReaderTemplate {
       status.style.display = msg ? 'block' : 'none';
     }
     function glossoToggleChat() {
-      const panel = document.getElementById('glosso-chat-panel');
-      const open = panel.style.display !== 'flex';
-      panel.style.display = open ? 'flex' : 'none';
+      const open = !document.body.classList.contains('glosso-chat-open');
+      // Freeze the column geometry for the transition: with width and left
+      // margin pinned in px, neither the margin-right swap nor the animated
+      // window resize can reflow the article text. Unpinned once both 250ms
+      // animations settle — auto layout then resolves to the same geometry
+      // (window delta == margin delta), so nothing jumps. Re-pinning while
+      // pinned reads back the pinned values, so rapid toggles stay stable.
+      const cs = getComputedStyle(document.body);
+      document.body.style.width = cs.width;
+      document.body.style.marginLeft = cs.marginLeft;
+      clearTimeout(glosso.chatPin);
+      glosso.chatPin = setTimeout(() => {
+        document.body.style.width = '';
+        document.body.style.marginLeft = '';
+      }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
       // Swift widens the window by the panel's width, so the article column
       // keeps its size instead of being squeezed under the open panel.

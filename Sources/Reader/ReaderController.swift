@@ -1,5 +1,6 @@
 import AppKit
 import NaturalLanguage
+import QuartzCore
 import WebKit
 
 /// The reader window (feature: double Cmd+C on an article URL). A normal titled,
@@ -24,6 +25,12 @@ final class ReaderController: ReaderPresenting {
     private var chatHistory: [(question: String, answer: String)] = []
     private var chatPanelOpen = false
     private var chatWidthDelta: CGFloat = 0
+    // Destination of the in-flight chat resize animation, nil when settled.
+    private var chatFrameTarget: NSRect?
+    // Identifies the animation owning chatFrameTarget: rect value-equality
+    // would let a superseded run wipe a live target when geometry repeats
+    // (open→close→open lands on the identical rect).
+    private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
@@ -302,7 +309,11 @@ final class ReaderController: ReaderPresenting {
     fileprivate func setChatPanel(open: Bool, animated: Bool = true) {
         guard open != chatPanelOpen, let window else { return }
         chatPanelOpen = open
-        var frame = window.frame
+        // Base the math on the in-flight animation's destination, not the live
+        // frame: a toggle mid-animation would otherwise read a transient width,
+        // ratchet the window wider (the screen cap makes the drift one-way) and
+        // poison the autosaved frame for every future reader window.
+        var frame = chatFrameTarget ?? window.frame
         if open {
             // Growth is capped at the screen's visible width (an already-wide
             // window would push the right-pinned panel off-screen), and the
@@ -319,7 +330,27 @@ final class ReaderController: ReaderPresenting {
             frame.size.width -= chatWidthDelta
             chatWidthDelta = 0
         }
-        window.setFrame(frame, display: true, animate: animated)
+        if animated {
+            // Duration and curve must match the .25s ease-in-out transitions in
+            // ReaderTemplate: the body margin animates in step with the growing
+            // window, so the article column never moves or reflows mid-slide.
+            let target = frame
+            chatAnimSeq += 1
+            let seq = chatAnimSeq
+            chatFrameTarget = target
+            NSAnimationContext.runAnimationGroup({ context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                window.animator().setFrame(target, display: true)
+            }, completionHandler: { [weak self] in
+                // A superseded animation's completion must not wipe the newer
+                // toggle's target, so only the latest animation clears it.
+                if self?.chatAnimSeq == seq { self?.chatFrameTarget = nil }
+            })
+        } else {
+            chatFrameTarget = nil
+            window.setFrame(frame, display: true)
+        }
     }
 
     // ponytail: 12000-char cap, double the summary's — answers reach deeper into
