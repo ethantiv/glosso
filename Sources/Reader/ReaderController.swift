@@ -27,6 +27,10 @@ final class ReaderController: ReaderPresenting {
     private var chatWidthDelta: CGFloat = 0
     // Destination of the in-flight chat resize animation, nil when settled.
     private var chatFrameTarget: NSRect?
+    // Identifies the animation owning chatFrameTarget: rect value-equality
+    // would let a superseded run wipe a live target when geometry repeats
+    // (open→close→open lands on the identical rect).
+    private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
@@ -331,6 +335,8 @@ final class ReaderController: ReaderPresenting {
             // ReaderTemplate: the body margin animates in step with the growing
             // window, so the article column never moves or reflows mid-slide.
             let target = frame
+            chatAnimSeq += 1
+            let seq = chatAnimSeq
             chatFrameTarget = target
             NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.25
@@ -338,8 +344,8 @@ final class ReaderController: ReaderPresenting {
                 window.animator().setFrame(target, display: true)
             }, completionHandler: { [weak self] in
                 // A superseded animation's completion must not wipe the newer
-                // toggle's target, so only the owner clears it.
-                if self?.chatFrameTarget == target { self?.chatFrameTarget = nil }
+                // toggle's target, so only the latest animation clears it.
+                if self?.chatAnimSeq == seq { self?.chatFrameTarget = nil }
             })
         } else {
             chatFrameTarget = nil
