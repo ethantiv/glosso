@@ -167,9 +167,9 @@ enum ReaderTemplate {
                                                  transition: transform .25s ease-in-out,
                                                              visibility 0s; }
       /* Shift the article column out from under the open panel; margin-left stays
-         auto, so the column keeps all remaining slack on the left. The margin
-         animates at the window-resize pace, so the column holds its place. */
-      body { transition: margin-right .25s ease-in-out; }
+         auto, so the column keeps all remaining slack on the left. Not animated:
+         during the transition glossoToggleChat pins the column's width and left
+         margin instead, so this margin swap can never reflow the text. */
       body.glosso-chat-open { margin-right: 340px; }
       .glosso-chat-label { font-family: var(--ui-font); font-size: .68rem;
                            font-weight: 600; letter-spacing: .2em;
@@ -459,6 +459,20 @@ enum ReaderTemplate {
     }
     function glossoToggleChat() {
       const open = !document.body.classList.contains('glosso-chat-open');
+      // Freeze the column geometry for the transition: with width and left
+      // margin pinned in px, neither the margin-right swap nor the animated
+      // window resize can reflow the article text. Unpinned once both 250ms
+      // animations settle — auto layout then resolves to the same geometry
+      // (window delta == margin delta), so nothing jumps. Re-pinning while
+      // pinned reads back the pinned values, so rapid toggles stay stable.
+      const cs = getComputedStyle(document.body);
+      document.body.style.width = cs.width;
+      document.body.style.marginLeft = cs.marginLeft;
+      clearTimeout(glosso.chatPin);
+      glosso.chatPin = setTimeout(() => {
+        document.body.style.width = '';
+        document.body.style.marginLeft = '';
+      }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
       // Swift widens the window by the panel's width, so the article column
       // keeps its size instead of being squeezed under the open panel.
