@@ -25,6 +25,8 @@ final class ReaderController: ReaderPresenting {
     private var chatHistory: [(question: String, answer: String)] = []
     private var chatPanelOpen = false
     private var chatWidthDelta: CGFloat = 0
+    // Destination of the in-flight chat resize animation, nil when settled.
+    private var chatFrameTarget: NSRect?
     private static let chatPanelWidth: CGFloat = 340
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
@@ -303,7 +305,11 @@ final class ReaderController: ReaderPresenting {
     fileprivate func setChatPanel(open: Bool, animated: Bool = true) {
         guard open != chatPanelOpen, let window else { return }
         chatPanelOpen = open
-        var frame = window.frame
+        // Base the math on the in-flight animation's destination, not the live
+        // frame: a toggle mid-animation would otherwise read a transient width,
+        // ratchet the window wider (the screen cap makes the drift one-way) and
+        // poison the autosaved frame for every future reader window.
+        var frame = chatFrameTarget ?? window.frame
         if open {
             // Growth is capped at the screen's visible width (an already-wide
             // window would push the right-pinned panel off-screen), and the
@@ -324,12 +330,19 @@ final class ReaderController: ReaderPresenting {
             // Duration and curve must match the .25s ease-in-out transitions in
             // ReaderTemplate: the body margin animates in step with the growing
             // window, so the article column never moves or reflows mid-slide.
-            NSAnimationContext.runAnimationGroup { context in
+            let target = frame
+            chatFrameTarget = target
+            NSAnimationContext.runAnimationGroup({ context in
                 context.duration = 0.25
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
-                window.animator().setFrame(frame, display: true)
-            }
+                window.animator().setFrame(target, display: true)
+            }, completionHandler: { [weak self] in
+                // A superseded animation's completion must not wipe the newer
+                // toggle's target, so only the owner clears it.
+                if self?.chatFrameTarget == target { self?.chatFrameTarget = nil }
+            })
         } else {
+            chatFrameTarget = nil
             window.setFrame(frame, display: true)
         }
     }
