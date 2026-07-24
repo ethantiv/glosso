@@ -98,6 +98,7 @@ enum ReaderTemplate {
       #glosso-pills { position: fixed; top: .9em; right: .9em; z-index: 10;
                       display: none; gap: .5em; font-family: var(--ui-font); }
       /* Keep the pills over the article column, not inside the open chat panel. */
+      #glosso-pills { transition: right .25s ease-in-out; }
       body.glosso-chat-open #glosso-pills { right: calc(320px + .9em); }
       .glosso-pill { display: flex; align-items: center; gap: .4em;
                      font-family: var(--ui-font); font-size: .74rem; font-weight: 600;
@@ -150,14 +151,25 @@ enum ReaderTemplate {
                                  display: block; margin-bottom: .3em; }
       /* Chat: a conversation with the translator — questions are the only
          bubbles; answers read as numbered footnotes. */
+      /* Slid off-screen instead of display-toggled, so open/close can animate in
+         step with the Swift window resize (same .25s ease-in-out — keep in sync
+         with setChatPanel). visibility delays hiding until the slide-out ends
+         and keeps the closed panel unfocusable. */
       #glosso-chat-panel { position: fixed; top: 6px; right: 0; bottom: 0; width: 320px;
-                           display: none; flex-direction: column; gap: .9em;
+                           display: flex; flex-direction: column; gap: .9em;
+                           transform: translateX(100%); visibility: hidden;
+                           transition: transform .25s ease-in-out, visibility 0s .25s;
                            background: color-mix(in srgb, var(--accent) 3%, Canvas);
                            z-index: 5; box-sizing: border-box;
                            border-left: 1px solid var(--hairline);
                            padding: 1.1em 1.2em 1em; font-size: .92em; }
+      body.glosso-chat-open #glosso-chat-panel { transform: none; visibility: visible;
+                                                 transition: transform .25s ease-in-out,
+                                                             visibility 0s; }
       /* Shift the article column out from under the open panel; margin-left stays
-         auto, so the column keeps all remaining slack on the left. */
+         auto, so the column keeps all remaining slack on the left. The margin
+         animates at the window-resize pace, so the column holds its place. */
+      body { transition: margin-right .25s ease-in-out; }
       body.glosso-chat-open { margin-right: 340px; }
       .glosso-chat-label { font-family: var(--ui-font); font-size: .68rem;
                            font-weight: 600; letter-spacing: .2em;
@@ -446,9 +458,7 @@ enum ReaderTemplate {
       status.style.display = msg ? 'block' : 'none';
     }
     function glossoToggleChat() {
-      const panel = document.getElementById('glosso-chat-panel');
-      const open = panel.style.display !== 'flex';
-      panel.style.display = open ? 'flex' : 'none';
+      const open = !document.body.classList.contains('glosso-chat-open');
       document.body.classList.toggle('glosso-chat-open', open);
       // Swift widens the window by the panel's width, so the article column
       // keeps its size instead of being squeezed under the open panel.

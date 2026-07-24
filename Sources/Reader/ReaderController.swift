@@ -1,5 +1,6 @@
 import AppKit
 import NaturalLanguage
+import QuartzCore
 import WebKit
 
 /// The reader window (feature: double Cmd+C on an article URL). A normal titled,
@@ -319,7 +320,18 @@ final class ReaderController: ReaderPresenting {
             frame.size.width -= chatWidthDelta
             chatWidthDelta = 0
         }
-        window.setFrame(frame, display: true, animate: animated)
+        if animated {
+            // Duration and curve must match the .25s ease-in-out transitions in
+            // ReaderTemplate: the body margin animates in step with the growing
+            // window, so the article column never moves or reflows mid-slide.
+            NSAnimationContext.runAnimationGroup { context in
+                context.duration = 0.25
+                context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+                window.animator().setFrame(frame, display: true)
+            }
+        } else {
+            window.setFrame(frame, display: true)
+        }
     }
 
     // ponytail: 12000-char cap, double the summary's — answers reach deeper into
