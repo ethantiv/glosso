@@ -41,7 +41,7 @@ final class AppCoordinator {
 
     private var cacheSignature: String?
     private func currentCacheSignature() -> String {
-        "\(settings.modelName)|\(settings.primaryLanguage.rawValue)|\(settings.secondLanguage?.rawValue ?? "auto")"
+        "\(settings.activeModel)|\(settings.primaryLanguage.rawValue)|\(settings.secondLanguage?.rawValue ?? "auto")"
     }
 
     private func resolvedSecond(for direction: TranslationDirection) -> SecondLanguage {
@@ -112,7 +112,7 @@ final class AppCoordinator {
 
     @discardableResult
     func start() -> Bool {
-        Task { try? await llm.prewarm(model: settings.modelName) }
+        Task { try? await llm.prewarm(model: settings.activeModel) }
 
         startPasteboardSnapshots()
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
@@ -266,7 +266,7 @@ final class AppCoordinator {
         let detected = DirectionDetector.detect(text, primary: settings.primaryLanguage, second: settings.secondLanguage)
         do {
             for try await event in llm.run(
-                text, action: action, model: settings.modelName,
+                text, action: action, model: settings.activeModel,
                 primary: settings.primaryLanguage, second: resolvedSecond(for: detected),
                 formality: settings.formality,
                 style: detected.supportsStyleFix) {
@@ -390,7 +390,7 @@ final class AppCoordinator {
         let result = (try? await llm.alternatives(
             for: word, in: translation, source: capture.text,
             primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            model: settings.modelName)) ?? []
+            model: settings.activeModel)) ?? []
         schedulePrefetch()
         return result
     }
@@ -401,7 +401,7 @@ final class AppCoordinator {
         let result = (try? await llm.explain(
             word: word, in: translation, source: capture.text,
             primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            model: settings.modelName)) ?? ""
+            model: settings.activeModel)) ?? ""
         schedulePrefetch()
         return result
     }
@@ -415,7 +415,7 @@ final class AppCoordinator {
             primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
             englishRules: englishRules,
             style: capture.direction.supportsStyleFix,
-            model: settings.modelName)) ?? ""
+            model: settings.activeModel)) ?? ""
         schedulePrefetch()
         return result
     }
@@ -427,7 +427,7 @@ final class AppCoordinator {
             previous: previous, current: current, from: from, to: to,
             source: capture.text,
             primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            model: settings.modelName)) ?? ""
+            model: settings.activeModel)) ?? ""
         schedulePrefetch()
         return result
     }
@@ -480,7 +480,7 @@ final class AppCoordinator {
         }
 
         if action == .reply {
-            let drafts = (try? await llm.reply(to: text, model: settings.modelName)) ?? []
+            let drafts = (try? await llm.reply(to: text, model: settings.activeModel)) ?? []
             if Task.isCancelled { return }
             if drafts.isEmpty {
                 popup.showError(loc("Nie udało się wygenerować odpowiedzi.",
@@ -493,7 +493,7 @@ final class AppCoordinator {
             return
         }
         await consume(llm.run(
-            text, action: action, model: settings.modelName,
+            text, action: action, model: settings.activeModel,
             primary: settings.primaryLanguage, second: resolvedSecond(for: detected),
             formality: settings.formality,
             style: detected.supportsStyleFix),
@@ -507,7 +507,7 @@ final class AppCoordinator {
             original: original, to: chosen, in: translation,
             source: capture.text,
             primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            formality: settings.formality, model: settings.modelName),
+            formality: settings.formality, model: settings.activeModel),
             bucket: .translate)
         if !Task.isCancelled { schedulePrefetch() }
     }
@@ -554,7 +554,7 @@ final class AppCoordinator {
 
     private func prefetchOne(_ action: Action, source: String) async {
         if action == .reply {
-            guard let drafts = try? await llm.reply(to: source, model: settings.modelName),
+            guard let drafts = try? await llm.reply(to: source, model: settings.activeModel),
                   !drafts.isEmpty, !Task.isCancelled else { return }
             actionCache[.reply] = .replies(drafts)
             return
@@ -562,7 +562,7 @@ final class AppCoordinator {
         var accumulated = ""
         do {
             for try await event in llm.run(
-                source, action: action, model: settings.modelName,
+                source, action: action, model: settings.activeModel,
                 primary: settings.primaryLanguage,
                 second: resolvedSecond(for: lastCapture?.direction ?? .unknown),
                 formality: settings.formality,

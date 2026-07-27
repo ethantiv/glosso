@@ -131,6 +131,12 @@ enum TranslationError: Error, Sendable, Equatable {
     case emptyInput
     case cancelled
     case engineUnavailable
+    case cloudUnreachable
+    case cloudError(String)
+    case missingAPIKey
+    case invalidAPIKey
+    case rateLimited(TimeInterval?)
+    case quotaExhausted
 
     var userMessage: String {
         switch self {
@@ -155,6 +161,24 @@ enum TranslationError: Error, Sendable, Equatable {
         case .cancelled:
             loc("Tłumaczenie przerwane.",
                 "Translation cancelled.")
+        case .cloudUnreachable:
+            loc("Nie mogę połączyć się z Google AI. Sprawdź połączenie z internetem.",
+                "Can't connect to Google AI. Check your internet connection.")
+        case .cloudError(let message):
+            loc("Google AI zgłosiło błąd: \(message)",
+                "Google AI reported an error: \(message)")
+        case .missingAPIKey:
+            loc("Brak klucza API. Wpisz go w Ustawieniach Glosso.",
+                "No API key. Enter it in Glosso Settings.")
+        case .invalidAPIKey:
+            loc("Klucz API jest nieprawidłowy. Sprawdź go w Ustawieniach Glosso.",
+                "The API key is not valid. Check it in Glosso Settings.")
+        case .rateLimited:
+            loc("Przekroczono limit zapytań Google AI. Spróbuj za chwilę.",
+                "Google AI rate limit exceeded. Try again shortly.")
+        case .quotaExhausted:
+            loc("Wyczerpał się dzienny darmowy limit Google AI. Odnowi się jutro.",
+                "The free Google AI daily quota is used up. It resets tomorrow.")
         }
     }
 }
@@ -178,6 +202,27 @@ struct LLMConfig: Sendable {
         temperature: 0,
         think: false
     )
+}
+
+/// Which engine serves the prompts: the local Ollama or Gemma on the Gemini API.
+enum LLMProvider: String, CaseIterable, Sendable {
+    case local
+    case cloud
+
+    var displayName: String {
+        switch self {
+        case .local: loc("Lokalnie", "On this Mac")
+        case .cloud: loc("Google AI", "Google AI")
+        }
+    }
+}
+
+/// Transport seam under the prompt layer: everything an engine must do so the
+/// shared `LLMClient` methods in PromptRunning.swift can run against it.
+protocol GenerationBackend: Sendable {
+    func generate(prompt: String, model: String, timeout: TimeInterval?, numPredict: Int?) async throws -> String
+    func streamGeneration(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
+    func prewarm(model: String) async throws
 }
 
 protocol LLMClient: Sendable {

@@ -96,6 +96,80 @@ struct OnboardingView: View {
 
     private var modelStep: some View {
         VStack(alignment: .leading, spacing: 12) {
+            Picker("", selection: $store.provider) {
+                ForEach(LLMProvider.allCases, id: \.self) { option in
+                    Text(option.displayName).tag(option)
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.segmented)
+            .accessibilityLabel(loc("Silnik tłumaczenia", "Translation engine"))
+
+            if store.provider == .cloud {
+                cloudModelStep
+            } else {
+                localModelStep
+            }
+        }
+    }
+
+    private var cloudModelStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(loc("Tłumaczy model Gemma działający u Google. Nie musisz nic pobierać, ale zaznaczony tekst opuszcza Twój komputer. Klucz jest darmowy.",
+                     "A Gemma model running at Google does the work. Nothing to download, but the selected text leaves your Mac. The key is free."))
+                .font(PopupTheme.fontSource)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SecureField(loc("Wklej klucz API", "Paste your API key"), text: $store.apiKey)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(loc("Klucz API Google AI", "Google AI API key"))
+
+            Link(loc("Pobierz darmowy klucz w Google AI Studio",
+                     "Get a free key in Google AI Studio"),
+                 destination: URL(string: "https://aistudio.google.com/apikey")!)
+                .font(PopupTheme.fontMeta)
+
+            ForEach(CloudModelCatalog.models) { entry in
+                cloudModelRow(entry)
+            }
+        }
+    }
+
+    private func cloudModelRow(_ entry: CloudModelCatalog.Entry) -> some View {
+        let isActive = store.cloudModel == entry.id
+        return HStack(spacing: 12) {
+            Button { store.cloudModel = entry.id } label: {
+                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(isActive ? PopupTheme.accent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isActive)
+            .accessibilityLabel(loc("Użyj modelu \(entry.displayName)", "Use model \(entry.displayName)"))
+            .accessibilityAddTraits(isActive ? .isSelected : [])
+
+            Image(systemName: entry.icon)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 1) {
+                Text(entry.displayName).font(PopupTheme.fontControl)
+                Text(entry.id).font(PopupTheme.fontMeta).foregroundStyle(.secondary)
+            }
+            Spacer(minLength: 8)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 10)
+        .background(PopupTheme.groupedCard, in: RoundedRectangle(cornerRadius: PopupTheme.rPane))
+        .overlay(
+            RoundedRectangle(cornerRadius: PopupTheme.rPane)
+                .strokeBorder(isActive ? PopupTheme.accent.opacity(0.5) : PopupTheme.hairline, lineWidth: 0.5)
+        )
+    }
+
+    private var localModelStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
             Text(loc("Tłumaczenie dzieje się na Twoim komputerze, nic nie wysyłamy do sieci. Najlepiej wybierz ten oznaczony „Zalecany”.",
                      "Translation happens on your Mac; nothing is sent to the network. Your best bet is the one marked “Recommended”."))
                 .font(PopupTheme.fontSource)

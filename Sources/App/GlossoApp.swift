@@ -49,7 +49,8 @@ struct GlossoApp: App {
                 store: appDelegate.settings,
                 lister: appDelegate.modelLister,
                 engine: appDelegate.engine,
-                modelManager: appDelegate.modelManager
+                modelManager: appDelegate.modelManager,
+                limiter: appDelegate.cloudLimiter
             )
         }
     }
@@ -89,6 +90,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     nonisolated static let updateNotificationID = "glosso.update"
     let appState = AppState()
     let settings = SettingsStore()
+    /// Shared so the Settings quota line counts the same requests the client books.
+    let cloudLimiter = GeminiRateLimiter()
     let engineBox = EngineProcessBox()
     lazy var engine = EngineManager(box: engineBox)
     lazy var modelLister: OllamaModelLister = OllamaModelLister(endpointProvider: Self.endpointProvider(engine))
@@ -121,7 +124,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         }
 
         let reader = SystemPasteboardReader()
-        let llm = OllamaClient(endpointProvider: Self.endpointProvider(engine))
+        let llm = RoutingLLMClient(
+            local: OllamaClient(endpointProvider: Self.endpointProvider(engine)),
+            cloud: GeminiClient(limiter: cloudLimiter),
+            provider: { [settings] in await MainActor.run { settings.provider } },
+            localModel: { [settings] in await MainActor.run { settings.modelName } },
+            onFallback: { error in
+                Task { @MainActor in
+                    SystemUserNotifier.post(error.userMessage + " " + loc("Przełączam na model lokalny.",
+                                                                         "Switching to the local model."))
+                }
+            }
+        )
         let coordinator = AppCoordinator(
             llm: llm,
             monitor: GlobalHotkeyMonitor(

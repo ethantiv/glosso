@@ -117,6 +117,58 @@ import Testing
         #expect(reloaded.formality == .formal)
     }
 
+    // MARK: Cloud provider
+
+    @Test func freshInstallStaysOnTheLocalEngine() {
+        // The cloud sends the selection off the machine, so it must be opt-in.
+        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in })
+        #expect(store.provider == .local)
+        #expect(store.cloudModel == CloudModelCatalog.default.id)
+        #expect(store.activeModel == store.modelName)
+    }
+
+    @Test func activeModelFollowsTheSelectedProvider() {
+        // The two engines name models differently; every LLM call reads activeModel,
+        // so picking the wrong side means "model not found" at request time.
+        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in })
+        store.modelName = "gemma4:26b-mlx"
+        store.cloudModel = "gemma-4-31b-it"
+
+        #expect(store.activeModel == "gemma4:26b-mlx")
+        store.provider = .cloud
+        #expect(store.activeModel == "gemma-4-31b-it")
+    }
+
+    @Test func persistsProviderAndCloudModelAcrossReload() {
+        let defaults = transientDefaults()
+        let first = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        first.provider = .cloud
+        first.cloudModel = "gemma-4-26b-a4b-it"
+
+        let reloaded = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        #expect(reloaded.provider == .cloud)
+        #expect(reloaded.cloudModel == "gemma-4-26b-a4b-it")
+    }
+
+    @Test func unknownPersistedProviderFallsBackToLocal() {
+        let defaults = transientDefaults()
+        defaults.set("xx", forKey: "llm.provider")
+        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        #expect(store.provider == .local)
+    }
+
+    @Test func apiKeyIsWrittenToTheKeychainNotToDefaults() {
+        let defaults = transientDefaults()
+        let written = KeyBox()
+        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { written.value = $0 })
+
+        store.apiKey = "AIza-secret"
+
+        #expect(written.value == "AIza-secret")
+        // A secret in the defaults plist would sit in plain text and ride into backups.
+        #expect(defaults.dictionaryRepresentation().values.allSatisfy { ($0 as? String) != "AIza-secret" })
+    }
+
     @Test func unknownPersistedLanguageFallsBackToEnglish() {
         let defaults = transientDefaults()
         defaults.set("xx", forKey: "translation.secondLanguage")
@@ -166,5 +218,15 @@ import Testing
         store.refreshLaunchAtLogin()
         #expect(store.launchAtLogin == false)
         #expect(login.setEnabledCalls.isEmpty)
+    }
+}
+
+private final class KeyBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: String?
+
+    var value: String? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
     }
 }

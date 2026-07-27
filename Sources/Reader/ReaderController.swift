@@ -138,7 +138,7 @@ final class ReaderController: ReaderPresenting {
         if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
             setStatus(loc("Tłumaczę tytuł…", "Translating title…"), in: webView)
             let translated = ReaderTemplate.stripFences(
-                (try? await llm.translateBlock(html: title, into: settings.primaryLanguage, model: settings.modelName)) ?? "")
+                (try? await llm.translateBlock(html: title, into: settings.primaryLanguage, model: settings.activeModel)) ?? "")
             if Task.isCancelled { return final }
             if !translated.isEmpty { final = translated }
         }
@@ -160,7 +160,7 @@ final class ReaderController: ReaderPresenting {
               !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         else { return "" }
         setStatus(loc("Streszczam…", "Summarizing…"), in: webView)
-        guard let summary = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.modelName) else { return "" }
+        guard let summary = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
         if Task.isCancelled { return "" }
         let cleaned = ReaderTemplate.stripFences(summary)
         if !cleaned.isEmpty {
@@ -198,7 +198,7 @@ final class ReaderController: ReaderPresenting {
             let translated: String
             do {
                 translated = ReaderTemplate.stripFences(
-                    try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.modelName))
+                    try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.activeModel))
             } catch is CancellationError {
                 return nil
             } catch TranslationError.cancelled {
@@ -298,7 +298,7 @@ final class ReaderController: ReaderPresenting {
             var questions: [String] = []
             if !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 questions = (try? await self.llm.articleQuestions(
-                    about: context, into: self.settings.primaryLanguage, model: self.settings.modelName)) ?? []
+                    about: context, into: self.settings.primaryLanguage, model: self.settings.activeModel)) ?? []
             }
             if Task.isCancelled { return }
             let json = (try? JSONEncoder().encode(questions))
@@ -317,7 +317,7 @@ final class ReaderController: ReaderPresenting {
                 // ponytail: last 4 turns cap the prompt; raise if follow-ups lose thread
                 let answer = ReaderTemplate.stripFences(try await self.llm.askArticle(
                     question: question, history: Array(self.chatHistory.suffix(4)), article: context,
-                    into: self.settings.primaryLanguage, model: self.settings.modelName))
+                    into: self.settings.primaryLanguage, model: self.settings.activeModel))
                 if Task.isCancelled { return }
                 self.chatHistory.append((question, answer))
                 _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoAnswer", answer, ""))
