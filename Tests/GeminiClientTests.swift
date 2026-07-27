@@ -179,7 +179,7 @@ import Testing
         defer { MockURLProtocol.handler = nil }
 
         _ = try? await makeClient(key: "", limiter: limiter).translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
-        let used = await limiter.quotaUsage().used
+        let used = await limiter.quotaUsage(model: "m").used
         #expect(used == 0)
     }
 

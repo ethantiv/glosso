@@ -115,8 +115,8 @@ struct OnboardingView: View {
 
     private var cloudModelStep: some View {
         VStack(alignment: .leading, spacing: 12) {
-            Text(loc("Tłumaczy model Gemma działający u Google. Nie musisz nic pobierać, ale zaznaczony tekst opuszcza Twój komputer. Klucz jest darmowy.",
-                     "A Gemma model running at Google does the work. Nothing to download, but the selected text leaves your Mac. The key is free."))
+            Text(loc("Tłumaczy model działający u Google. Nie musisz nic pobierać, ale zaznaczony tekst opuszcza Twój komputer. Klucz jest darmowy.",
+                     "A model running at Google does the work. Nothing to download, but the selected text leaves your Mac. The key is free."))
                 .font(PopupTheme.fontSource)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

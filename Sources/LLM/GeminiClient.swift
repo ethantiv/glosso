@@ -32,7 +32,7 @@ final class GeminiClient: LLMClient, GenerationBackend {
     func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
         // Key first, ticket once: an unsent request must not spend quota, and a retried one is still a single request.
         let request = try makeRequest(prompt: prompt, model: model, stream: false, timeout: timeout, numPredict: numPredict)
-        let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt))
+        let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt), model: model)
         var attempt = 0
         while true {
             let (data, response) = try await send(request)
@@ -115,9 +115,9 @@ final class GeminiClient: LLMClient, GenerationBackend {
     /// No-op: nothing is resident to warm, and start() calls it every launch — that would burn a request.
     func prewarm(model: String) async throws {}
 
-    private func openStream(prompt: String, model: String) async throws -> (URLSession.AsyncBytes, Int) {
+    private func openStream(prompt: String, model: String) async throws -> (URLSession.AsyncBytes, GeminiRateLimiter.Ticket) {
         let request = try makeRequest(prompt: prompt, model: model, stream: true, timeout: nil, numPredict: nil)
-        let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt))
+        let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt), model: model)
         var attempt = 0
         while true {
             let (bytes, response) = try await sendStream(request)

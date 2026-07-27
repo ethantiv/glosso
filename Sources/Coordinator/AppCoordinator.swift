@@ -539,6 +539,8 @@ final class AppCoordinator {
     private func schedulePrefetch() {
         if Task.isCancelled { return }
         prefetchTask?.cancel()
+        // Free against a resident local model, but the cloud meters every call: three guessed verbs per capture spend 4x the day's budget.
+        guard settings.provider == .local else { return }
         guard let source = lastCapture?.text else { return }
         prefetchTask = Task { @MainActor [weak self] in
             guard let self else { return }

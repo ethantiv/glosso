@@ -40,7 +40,7 @@ struct SettingsView: View {
         .task {
             // The counter is the point of the row — a value frozen at window-open is worse than none.
             while !Task.isCancelled {
-                quota = await limiter.quotaUsage()
+                quota = await limiter.quotaUsage(model: store.cloudModel)
                 try? await Task.sleep(for: .seconds(5))
             }
         }

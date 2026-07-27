@@ -1362,6 +1362,25 @@ import Testing
         #expect(llm.recorder.replyCount == 1)
     }
 
+    @Test func doesNotPrefetchOnTheCloudProvider() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let settings = makeSettings()
+        settings.provider = .cloud
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings, prefetchLingerMs: 0)
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        // Exits early if a prefetch does fire, so the assertions below aren't just winning a race.
+        await spin(until: { llm.recorder.runCount > 1 || llm.recorder.replyCount > 0 }, max: 5_000)
+
+        // The cloud meters every request: three speculative verbs per capture would spend 4x the day on guesses.
+        #expect(llm.recorder.runCount == 1)
+        #expect(llm.recorder.replyCount == 0)
+    }
+
     @Test func switchingToAPrefetchedVerbReplaysFromCacheWithoutRerunning() async {
         let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
         let reader = FakePasteboardReader()
