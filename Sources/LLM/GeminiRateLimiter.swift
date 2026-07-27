@@ -82,7 +82,13 @@ actor GeminiRateLimiter {
             windows[model] = window
             let oldest = window.map(\.at).min() ?? instant
             let wait = 60 - instant.timeIntervalSince(oldest)
-            try await sleep(.milliseconds(Int(max(wait, 0.05) * 1000)))
+            do {
+                try await sleep(.milliseconds(Int(max(wait, 0.05) * 1000)))
+            } catch {
+                // Cancelled mid-wait: the request never went out, so the day gets its slot back.
+                refundDaily(model: model)
+                throw error
+            }
         }
     }
 
@@ -110,6 +116,14 @@ actor GeminiRateLimiter {
         let used = defaults.integer(forKey: Key.count(model))
         guard used < limits.rpd else { throw TranslationError.quotaExhausted }
         defaults.set(used + 1, forKey: Key.count(model))
+    }
+
+    // Guarded on the day: a wait that straddled the Pacific rollover must not spend a slot from the new day.
+    private func refundDaily(model: String) {
+        guard defaults.string(forKey: Key.day(model)) == currentDay() else { return }
+        let used = defaults.integer(forKey: Key.count(model))
+        guard used > 0 else { return }
+        defaults.set(used - 1, forKey: Key.count(model))
     }
 
     // Google's daily quotas roll over at midnight Pacific, not in the user's zone.

@@ -146,6 +146,26 @@ private final class FakeClock: @unchecked Sendable {
         #expect(clock.now.timeIntervalSince1970 == 0)
     }
 
+    @Test func aCancelledWaitGivesTheDailyCountBack() async throws {
+        let clock = FakeClock(Date(timeIntervalSince1970: 0))
+        let limiter = GeminiRateLimiter(
+            limits: { _ in .init(rpm: 1, tpm: 100_000, rpd: 500) },
+            store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!),
+            now: { clock.now },
+            sleep: { _ in throw CancellationError() }
+        )
+
+        _ = try await limiter.acquire(estimatedTokens: 1, model: "m")
+
+        // The second has no slot this minute, so it waits — and a dismissed popup cancels the wait.
+        await #expect(throws: CancellationError.self) {
+            _ = try await limiter.acquire(estimatedTokens: 1, model: "m")
+        }
+
+        // Charging it would spend a request Google never saw, which on a 500/day model is real money.
+        #expect(await limiter.quotaUsage(model: "m").used == 1)
+    }
+
     @Test func quotaUsageReportsTheSelectedModelsLimit() async throws {
         let clock = FakeClock(Date(timeIntervalSince1970: 0))
         let limiter = makeLimiter({ $0 == "tight" ? .init(rpm: 100, tpm: 100_000, rpd: 500) : .init(rpm: 100, tpm: 100_000, rpd: 14_400) },

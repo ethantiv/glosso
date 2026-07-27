@@ -10,11 +10,12 @@ enum CloudModelCatalog {
         let limits: GeminiRateLimiter.Limits
     }
 
+    private static let defaultID = "gemini-3.5-flash-lite"
     private static let gemmaLimits = GeminiRateLimiter.Limits(rpm: 30, tpm: 16_000, rpd: 14_400)
 
     // Computed so displayName resolves in the app's current UI language.
     static var models: [Entry] { [
-        Entry(id: "gemini-3.5-flash-lite", displayName: "Gemini Flash Lite", icon: "bolt",
+        Entry(id: defaultID, displayName: "Gemini Flash Lite", icon: "bolt",
               limits: GeminiRateLimiter.Limits(rpm: 15, tpm: 250_000, rpd: 500)),
         Entry(id: "gemma-4-26b-a4b-it", displayName: loc("Gemma (szybka)", "Gemma (fast)"),
               icon: "gauge.with.dots.needle.67percent", limits: gemmaLimits),
@@ -22,8 +23,8 @@ enum CloudModelCatalog {
               icon: "gauge.with.dots.needle.100percent", limits: gemmaLimits),
     ] }
 
-    /// By name, not by index: inserting a row must not silently re-point the default.
-    static var `default`: Entry { models.first { $0.id == "gemini-3.5-flash-lite" } ?? models[0] }
+    /// By id, not by index: inserting a row must not silently re-point the default.
+    static var `default`: Entry { models.first { $0.id == defaultID } ?? models[0] }
 
     static func limits(for id: String) -> GeminiRateLimiter.Limits {
         models.first { $0.id == id }?.limits ?? `default`.limits
