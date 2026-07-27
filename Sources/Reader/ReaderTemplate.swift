@@ -7,14 +7,32 @@ enum ReaderTemplate {
         let translate: Bool
     }
 
-    static func stripFences(_ text: String) -> String {
-        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("```") else { return trimmed }
-        trimmed = trimmed.replacingOccurrences(
+    /// Peels what a model wraps its answer in: a markdown fence and an echoed prompt wrapper, in either nesting order.
+    static func unwrap(_ text: String) -> String {
+        var current = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        for _ in 0..<3 {
+            let before = current
+            current = peelWrapper(peelFence(current))
+            if current == before { break }
+        }
+        return current
+    }
+
+    private static func peelFence(_ text: String) -> String {
+        guard text.hasPrefix("```") else { return text }
+        var peeled = text.replacingOccurrences(
             of: #"\A```[a-zA-Z]*\s*"#, with: "", options: .regularExpression)
-        trimmed = trimmed.replacingOccurrences(
+        peeled = peeled.replacingOccurrences(
             of: #"\s*```\z"#, with: "", options: .regularExpression)
-        return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return peeled.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Both ends anchored and the same tag required on both, so a legitimate inline tag can never be mistaken for a wrapper.
+    private static func peelWrapper(_ text: String) -> String {
+        let peeled = text.replacingOccurrences(
+            of: #"(?is)\A<\s*(block|text|article)\s*>\s*(.*?)\s*<\s*/\s*\1\s*>\z"#,
+            with: "$2", options: .regularExpression)
+        return peeled == text ? text : peeled.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func call(_ function: String, _ arguments: String...) -> String {

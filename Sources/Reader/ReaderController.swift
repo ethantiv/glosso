@@ -137,7 +137,7 @@ final class ReaderController: ReaderPresenting {
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
             setStatus(loc("Tłumaczę tytuł…", "Translating title…"), in: webView)
-            let translated = ReaderTemplate.stripFences(
+            let translated = ReaderTemplate.unwrap(
                 (try? await llm.translateBlock(html: title, into: settings.primaryLanguage, model: settings.activeModel)) ?? "")
             if Task.isCancelled { return final }
             if !translated.isEmpty { final = translated }
@@ -162,7 +162,7 @@ final class ReaderController: ReaderPresenting {
         setStatus(loc("Streszczam…", "Summarizing…"), in: webView)
         guard let summary = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
         if Task.isCancelled { return "" }
-        let cleaned = ReaderTemplate.stripFences(summary)
+        let cleaned = ReaderTemplate.unwrap(summary)
         if !cleaned.isEmpty {
             _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetSummary", cleaned))
         }
@@ -205,7 +205,7 @@ final class ReaderController: ReaderPresenting {
             }
             let translated: String
             do {
-                translated = ReaderTemplate.stripFences(
+                translated = ReaderTemplate.unwrap(
                     try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.activeModel))
             } catch is CancellationError {
                 return nil
@@ -323,7 +323,7 @@ final class ReaderController: ReaderPresenting {
             let context = await self.chatContext(in: webView)
             do {
                 // ponytail: last 4 turns cap the prompt; raise if follow-ups lose thread
-                let answer = ReaderTemplate.stripFences(try await self.llm.askArticle(
+                let answer = ReaderTemplate.unwrap(try await self.llm.askArticle(
                     question: question, history: Array(self.chatHistory.suffix(4)), article: context,
                     into: self.settings.primaryLanguage, model: self.settings.activeModel))
                 if Task.isCancelled { return }
