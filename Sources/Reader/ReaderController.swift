@@ -28,6 +28,8 @@ final class ReaderController: ReaderPresenting {
     private var currentURL: URL?
     // True only while the pipeline is issuing model calls, so a popup's rate-limit wait can't paint over an idle reader.
     private var translating = false
+    // Guards the flag against a superseded run's unwind clearing it out from under the live one.
+    private var runSeq = 0
 
     init(llm: any LLMClient, settings: SettingsStore) {
         self.llm = llm
@@ -64,8 +66,10 @@ final class ReaderController: ReaderPresenting {
                 try await replay(entry, in: webView)
                 return
             }
+            runSeq += 1
+            let seq = runSeq
             translating = true
-            defer { translating = false }
+            defer { if runSeq == seq { translating = false } }
             setStatus(loc("Wczytuję artykuł…", "Loading article…"), in: webView)
             let article = try await extractor.extract(from: url)
             if Task.isCancelled { return }
