@@ -3,12 +3,12 @@ import Testing
 @testable import Glosso
 
 @Suite(.serialized) struct GeminiClientTests {
-    private func makeClient(key: String? = "test-key") -> GeminiClient {
+    private func makeClient(key: String? = "test-key", limiter: GeminiRateLimiter? = nil) -> GeminiClient {
         let configuration = URLSessionConfiguration.ephemeral
         configuration.protocolClasses = [MockURLProtocol.self]
         return GeminiClient(
             session: URLSession(configuration: configuration),
-            limiter: GeminiRateLimiter(store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!)),
+            limiter: limiter ?? GeminiRateLimiter(store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!)),
             keyProvider: { key },
             sleep: { _ in }
         )
@@ -58,8 +58,7 @@ import Testing
     }
 
     @Test func truncatedGenerationIsAnError() async {
-        // Parity with Ollama's done_reason == "length": a half-translated block must
-        // not be applied to the page as if it were complete.
+        // Parity with Ollama's done_reason == "length": a half-translated block must not be applied as if complete.
         respond(200, #"{"candidates":[{"content":{"parts":[{"text":"<b>Cześć"}]},"finishReason":"MAX_TOKENS"}]}"#)
         defer { MockURLProtocol.handler = nil }
 
@@ -81,8 +80,7 @@ import Testing
     }
 
     @Test func badKeyIsReportedAsInvalidNotAsAGenericHTTPError() async {
-        // Google answers a bad key with 400 INVALID_ARGUMENT, not 403, so the status
-        // code alone would tell the user nothing useful.
+        // Google answers a bad key with 400 INVALID_ARGUMENT, not 403 — the status alone would tell the user nothing.
         respond(400, #"{"error":{"code":400,"message":"API key not valid. Please pass a valid API key.","status":"INVALID_ARGUMENT","details":[{"reason":"API_KEY_INVALID"}]}}"#)
         defer { MockURLProtocol.handler = nil }
 
@@ -117,9 +115,54 @@ import Testing
         }
     }
 
+    @Test func overloadedServerLooksLikeAnUnreachableCloud() async {
+        // 503 "model is overloaded" is routine on the free tier; only the errors RoutingLLMClient
+        // treats as fallbackable keep the local engine as an escape hatch.
+        respond(503, #"{"error":{"code":503,"message":"The model is overloaded.","status":"UNAVAILABLE"}}"#)
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudUnreachable) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+        #expect(RoutingLLMClient.fallsBack(.cloudUnreachable))
+    }
+
+    @Test func blockedGenerationIsAnErrorNotAnEmptyTranslation() async {
+        // A SAFETY candidate carries no parts; returning its empty text would paint a blank popup.
+        respond(200, #"{"candidates":[{"finishReason":"SAFETY"}]}"#)
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudError("SAFETY")) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func aRefusedRequestSpendsNoQuota() async {
+        // The key is checked on this machine, so the daily counter must not move for a call Google never saw.
+        let limiter = GeminiRateLimiter(store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!))
+        MockURLProtocol.handler = { _ in
+            Issue.record("no request should be sent without an API key")
+            throw URLError(.unknown)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        _ = try? await makeClient(key: "", limiter: limiter).translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        let used = await limiter.quotaUsage().used
+        #expect(used == 0)
+    }
+
+    @Test func aLongRetryDelayFallsBackInsteadOfStalling() async {
+        // Waiting out Google's 40s is worse than the local model answering now.
+        respond(429, #"{"error":{"code":429,"message":"quota","status":"RESOURCE_EXHAUSTED","details":[{"retryDelay":"40s"}]}}"#)
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.rateLimited(40)) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
     @Test func requestPinsTemperatureAndDisablesThinking() async throws {
-        // Both are load-bearing: thinking left on costs 10–26s per lookup for an
-        // identical result, and a non-zero temperature makes output unrepeatable.
+        // Both are load-bearing: thinking left on costs 10–26s per lookup, and a non-zero temperature makes output unrepeatable.
         let captured = BodyBox()
         MockURLProtocol.handler = { request in
             captured.store(request.httpBodyStream.map { stream in

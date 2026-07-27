@@ -1,8 +1,6 @@
 import Foundation
 
-/// The prompt layer, shared by every engine. Each `LLMClient` method is prompt
-/// building plus parsing around the two transport primitives, so a backend only
-/// implements `GenerationBackend` and gets all of this for free.
+/// The prompt layer, shared by every engine: a backend implements `GenerationBackend` and gets every `LLMClient` method for free.
 extension LLMClient where Self: GenerationBackend {
     /// Reader calls generate whole articles block by block; 60s is not enough.
     static var longFormTimeout: TimeInterval { 300 }

@@ -1,13 +1,11 @@
 import Foundation
 
-/// Picks the engine per call and falls back to the local one when the cloud can't
-/// serve — an exhausted free quota must not take the whole app down with it.
+/// Picks the engine per call, falling back to the local one when the cloud can't serve.
 final class RoutingLLMClient: LLMClient, GenerationBackend {
     private let local: any GenerationBackend
     private let cloud: any GenerationBackend
     private let provider: @Sendable () async -> LLMProvider
-    /// Callers pass the active (possibly cloud) model name, which Ollama wouldn't
-    /// recognise — the fallback needs the locally installed one.
+    /// Callers pass the active (possibly cloud) model name, which Ollama wouldn't recognise.
     private let localModel: @Sendable () async -> String
     private let onFallback: @Sendable (TranslationError) -> Void
 
@@ -25,8 +23,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
         self.onFallback = onFallback
     }
 
-    /// Failures the local engine can still answer. Anything else is a genuine
-    /// problem with the request and must surface as-is.
+    /// Failures the local engine can still answer; anything else is a genuine problem with the request.
     static func fallsBack(_ error: TranslationError) -> Bool {
         switch error {
         case .quotaExhausted, .rateLimited, .missingAPIKey, .invalidAPIKey, .cloudUnreachable: true
@@ -60,8 +57,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                         continuation.finish()
                         return
                     } catch let error as TranslationError where Self.fallsBack(error) && !yielded {
-                        // Restarting mid-stream would duplicate what the popup already shows,
-                        // so a failure after the first token propagates instead.
+                        // Restarting mid-stream would duplicate what the popup already shows.
                         onFallback(error)
                     } catch {
                         continuation.finish(throwing: error)

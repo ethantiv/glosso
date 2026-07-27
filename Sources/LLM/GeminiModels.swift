@@ -8,8 +8,7 @@ struct GeminiRequest: Encodable, Sendable {
     struct GenerationConfig: Encodable, Sendable {
         var temperature: Double
         var maxOutputTokens: Int?
-        // The cloud counterpart of Ollama's `think:false`, and just as load-bearing:
-        // left at the default, Gemma spends 10–26s on reasoning tokens per lookup.
+        // The cloud counterpart of Ollama's `think:false` and just as load-bearing: the default costs 10–26s per lookup.
         var thinkingConfig = ThinkingConfig(thinkingLevel: "minimal")
     }
 
@@ -71,8 +70,7 @@ struct GeminiErrorEnvelope: Decodable, Sendable {
 }
 
 enum GeminiSSEParser {
-    /// One `alt=sse` line → a response chunk. Blank lines, comments and non-data
-    /// fields carry no payload and yield nil.
+    /// One `alt=sse` line → a response chunk; blank lines, comments and non-data fields yield nil.
     static func parse(line: String) -> GeminiResponse? {
         guard line.hasPrefix("data:") else { return nil }
         let payload = line.dropFirst(5).trimmingCharacters(in: .whitespaces)

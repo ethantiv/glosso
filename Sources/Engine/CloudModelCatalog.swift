@@ -1,7 +1,6 @@
 import Foundation
 
-/// The Gemma tiers the Gemini API serves. Both are free-only — Google's pricing
-/// page lists no paid tier for Gemma, so higher limits can't be bought.
+/// The Gemma tiers the Gemini API serves — both free-only, Google lists no paid tier for Gemma.
 enum CloudModelCatalog {
     struct Entry: Sendable, Identifiable, Equatable {
         let id: String

@@ -88,6 +88,8 @@ private struct LanguageMenus: View {
 @MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCenterDelegate {
     nonisolated static let updateNotificationID = "glosso.update"
+    /// One banner per outage, not one per call: a single capture prefetches every verb.
+    nonisolated static let fallbackNotificationID = "glosso.fallback"
     let appState = AppState()
     let settings = SettingsStore()
     /// Shared so the Settings quota line counts the same requests the client books.
@@ -131,8 +133,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             localModel: { [settings] in await MainActor.run { settings.modelName } },
             onFallback: { error in
                 Task { @MainActor in
-                    SystemUserNotifier.post(error.userMessage + " " + loc("Przełączam na model lokalny.",
-                                                                         "Switching to the local model."))
+                    SystemUserNotifier.post(
+                        error.userMessage + " " + loc("Przełączam na model lokalny.",
+                                                      "Switching to the local model."),
+                        identifier: Self.fallbackNotificationID
+                    )
                 }
             }
         )

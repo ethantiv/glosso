@@ -128,8 +128,7 @@ import Testing
     }
 
     @Test func activeModelFollowsTheSelectedProvider() {
-        // The two engines name models differently; every LLM call reads activeModel,
-        // so picking the wrong side means "model not found" at request time.
+        // The engines name models differently; every LLM call reads activeModel, so the wrong side means "model not found".
         let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in })
         store.modelName = "gemma4:26b-mlx"
         store.cloudModel = "gemma-4-31b-it"

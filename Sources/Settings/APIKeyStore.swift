@@ -1,8 +1,7 @@
 import Foundation
 import Security
 
-/// The Google AI key, kept in the Keychain. This is the app's only secret, and
-/// UserDefaults would put it in a plain-text plist that rides along into backups.
+/// The Google AI key in the Keychain — the app's only secret; UserDefaults would put it in a plain-text plist.
 enum APIKeyStore {
     private static let service = "com.mirek.glosso"
     private static let account = "google-api-key"

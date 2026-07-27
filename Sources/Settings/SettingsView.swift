@@ -35,8 +35,14 @@ struct SettingsView: View {
         .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
-            quota = await limiter.quotaUsage()
             await loadModels()
+        }
+        .task {
+            // The counter is the point of the row — a value frozen at window-open is worse than none.
+            while !Task.isCancelled {
+                quota = await limiter.quotaUsage()
+                try? await Task.sleep(for: .seconds(5))
+            }
         }
     }
 
@@ -68,22 +74,24 @@ struct SettingsView: View {
                 rowDivider
                 if store.provider == .cloud {
                     cloudSection
-                } else {
-                    ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
-                        if index > 0 { rowDivider }
-                        modelRow(
-                            id: entry.id,
-                            title: entry.displayName,
-                            icon: entry.icon,
-                            size: entry.size,
-                            isDownloaded: models.contains(entry.id),
-                            isRecommended: entry.id == recommendedModel
-                        )
-                    }
-                    if !otherInstalledModels.isEmpty {
-                        rowDivider
-                        otherModelsRow
-                    }
+                    rowDivider
+                    // The cloud falls back to this one on a spent quota or a dead key, so it has to be installable here.
+                    row(loc("Model zapasowy", "Fallback model")) { EmptyView() }
+                }
+                ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
+                    if index > 0 { rowDivider }
+                    modelRow(
+                        id: entry.id,
+                        title: entry.displayName,
+                        icon: entry.icon,
+                        size: entry.size,
+                        isDownloaded: models.contains(entry.id),
+                        isRecommended: entry.id == recommendedModel
+                    )
+                }
+                if !otherInstalledModels.isEmpty {
+                    rowDivider
+                    otherModelsRow
                 }
             }
 

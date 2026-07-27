@@ -1,15 +1,16 @@
 import Foundation
 
-/// Gemma on the Gemini API. Only the transport primitives live here — the prompt
-/// layer is shared with OllamaClient through PromptRunning.swift.
+/// Gemma on the Gemini API; only the transport primitives live here (see PromptRunning.swift).
 final class GeminiClient: LLMClient, GenerationBackend {
     static let baseURL = URL(string: "https://generativelanguage.googleapis.com/v1beta/models")!
 
-    /// `outputTokenLimit` reported by GET /v1beta/models for the Gemma 4 tiers.
-    /// translateBlock sizes its cap in UTF-8 bytes, which can overshoot this.
+    /// `outputTokenLimit` from GET /v1beta/models — translateBlock's byte-sized cap can overshoot it.
     static let outputTokenLimit = 8192
 
     private static let maxRetries = 2
+
+    /// Past this the local model answers sooner than the retry would.
+    private static let maxRetryDelay: TimeInterval = 5
 
     private let session: URLSession
     private let limiter: GeminiRateLimiter
@@ -29,10 +30,11 @@ final class GeminiClient: LLMClient, GenerationBackend {
     }
 
     func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
+        // Key first, ticket once: an unsent request must not spend quota, and a retried one is still a single request.
+        let request = try makeRequest(prompt: prompt, model: model, stream: false, timeout: timeout, numPredict: numPredict)
+        let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt))
         var attempt = 0
         while true {
-            let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt))
-            let request = try makeRequest(prompt: prompt, model: model, stream: false, timeout: timeout, numPredict: numPredict)
             let (data, response) = try await send(request)
             guard let http = response as? HTTPURLResponse else { throw TranslationError.cloudUnreachable }
 
@@ -48,8 +50,12 @@ final class GeminiClient: LLMClient, GenerationBackend {
                 throw TranslationError.malformedStream
             }
             await limiter.settle(ticket: ticket, actualTokens: decoded.usageMetadata?.promptTokenCount)
-            guard decoded.finishReason != "MAX_TOKENS" else { throw TranslationError.malformedStream }
-            return decoded.text
+            // SAFETY/RECITATION/PROHIBITED_CONTENT come back with no parts — an empty string would render as a blank success.
+            switch decoded.finishReason {
+            case nil, "STOP": return decoded.text
+            case "MAX_TOKENS": throw TranslationError.malformedStream
+            case let reason?: throw TranslationError.cloudError(reason)
+            }
         }
     }
 
@@ -69,6 +75,10 @@ final class GeminiClient: LLMClient, GenerationBackend {
                         let text = chunk.text
                         if !text.isEmpty { continuation.yield(.token(text)) }
                         if let reason = chunk.finishReason {
+                            guard reason == "STOP" || reason == "MAX_TOKENS" else {
+                                continuation.finish(throwing: TranslationError.cloudError(reason))
+                                return
+                            }
                             continuation.yield(.finished(doneReason: reason == "MAX_TOKENS" ? "length" : "stop"))
                             sawFinish = true
                             break
@@ -90,15 +100,14 @@ final class GeminiClient: LLMClient, GenerationBackend {
         }
     }
 
-    /// No-op: there is nothing to keep resident, and AppCoordinator.start() calls
-    /// this on every launch — on the cloud that would burn a request for nothing.
+    /// No-op: nothing is resident to warm, and start() calls it every launch — that would burn a request.
     func prewarm(model: String) async throws {}
 
     private func openStream(prompt: String, model: String) async throws -> (URLSession.AsyncBytes, Int) {
+        let request = try makeRequest(prompt: prompt, model: model, stream: true, timeout: nil, numPredict: nil)
+        let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt))
         var attempt = 0
         while true {
-            let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt))
-            let request = try makeRequest(prompt: prompt, model: model, stream: true, timeout: nil, numPredict: nil)
             let (bytes, response) = try await sendStream(request)
             guard let http = response as? HTTPURLResponse else { throw TranslationError.cloudUnreachable }
             if http.statusCode == 200 { return (bytes, ticket) }
@@ -113,20 +122,21 @@ final class GeminiClient: LLMClient, GenerationBackend {
         }
     }
 
-    /// Returns how long to wait before another try, or nil when the caller should
-    /// give up and map the failure. Throws once the retries are spent.
+    /// How long to wait before retrying, nil to map the failure instead; throws once the retries or maxRetryDelay are spent.
     private func retryDelay(status: Int, body: Data, attempt: inout Int) throws -> TimeInterval? {
         guard status == 429 else { return nil }
         let envelope = try? JSONDecoder().decode(GeminiErrorEnvelope.self, from: body)
         attempt += 1
         let delay = envelope?.retryDelay ?? TimeInterval(1 << attempt)
-        guard attempt <= Self.maxRetries else { throw TranslationError.rateLimited(delay) }
+        guard attempt <= Self.maxRetries, delay <= Self.maxRetryDelay else { throw TranslationError.rateLimited(delay) }
         return delay
     }
 
     private static func mapFailure(status: Int, body: Data) -> TranslationError {
         let envelope = try? JSONDecoder().decode(GeminiErrorEnvelope.self, from: body)
         if envelope?.isInvalidKey == true || status == 403 { return .invalidAPIKey }
+        // A 5xx ("model is overloaded") is routine on the free tier and the local engine can serve it.
+        if (500...599).contains(status) { return .cloudUnreachable }
         if let message = envelope?.message { return .cloudError(message) }
         return .httpStatus(status)
     }
@@ -155,8 +165,7 @@ final class GeminiClient: LLMClient, GenerationBackend {
         guard let key = keyProvider()?.trimmingCharacters(in: .whitespacesAndNewlines), !key.isEmpty else {
             throw TranslationError.missingAPIKey
         }
-        // Built by concatenation, not URL(string:relativeTo:): the "model:method"
-        // segment has a colon, which relative parsing reads as a scheme.
+        // Concatenated, not URL(string:relativeTo:): the colon in "model:method" parses as a scheme.
         let method = stream ? "\(model):streamGenerateContent?alt=sse" : "\(model):generateContent"
         guard let url = URL(string: "\(Self.baseURL.absoluteString)/\(method)") else {
             throw TranslationError.cloudUnreachable

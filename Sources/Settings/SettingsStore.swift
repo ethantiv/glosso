@@ -28,8 +28,7 @@ final class SettingsStore {
         didSet { defaults.set(modelName, forKey: Key.model) }
     }
 
-    /// Which engine serves the prompts. The local Ollama stays the default — the
-    /// cloud is opt-in because it sends the selected text to Google.
+    /// Which engine serves the prompts. Local stays the default — the cloud is opt-in because it sends the text to Google.
     var provider: LLMProvider {
         didSet { defaults.set(provider.rawValue, forKey: Key.provider) }
     }
@@ -43,8 +42,7 @@ final class SettingsStore {
         provider == .cloud ? cloudModel : modelName
     }
 
-    /// Not UserDefaults-backed: the Keychain is the source of truth, same shape as
-    /// `launchAtLogin` deferring to SMAppService.
+    /// Not UserDefaults-backed: the Keychain is the source of truth, like `launchAtLogin` deferring to SMAppService.
     var apiKey: String {
         didSet {
             guard apiKey != oldValue else { return }

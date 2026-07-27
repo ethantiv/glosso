@@ -2,8 +2,7 @@ import Foundation
 import Testing
 @testable import Glosso
 
-/// Hits the real Gemini API. Silently skips when no key is configured, so the
-/// suite stays green on machines that never opted into the cloud.
+/// Hits the real Gemini API; silently skips with no key configured, so the suite stays green without the cloud.
 @Suite struct GeminiLiveTests {
     private var apiKey: String? {
         let stored = APIKeyStore.read()?.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -45,8 +44,7 @@ import Testing
         var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000")!)
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         let (data, response) = try await URLSession.shared.data(for: request)
-        // With a key in hand, anything but 200 is a real failure — returning early
-        // here would make a broken listing look like a passing check.
+        // With a key in hand, anything but 200 is a real failure — returning early would hide a broken listing.
         try #require((response as? HTTPURLResponse)?.statusCode == 200)
 
         struct Listing: Decodable {
@@ -61,8 +59,7 @@ import Testing
         for entry in CloudModelCatalog.models {
             let reported = try #require(served[entry.id], "\(entry.id) is not served by the API any more")
             let limit = try #require(reported, "\(entry.id) reports no outputTokenLimit")
-            // maxOutputTokens is clamped to this constant; above the model's own
-            // ceiling the API would reject every capped call.
+            // maxOutputTokens is clamped to this constant; above the model's own ceiling the API rejects every capped call.
             #expect(GeminiClient.outputTokenLimit <= limit,
                     "\(entry.id) allows \(limit) output tokens, we clamp to \(GeminiClient.outputTokenLimit)")
         }

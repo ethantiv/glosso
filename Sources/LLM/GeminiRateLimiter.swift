@@ -1,7 +1,6 @@
 import Foundation
 
-/// UserDefaults is documented thread-safe but isn't Sendable, so it cannot cross
-/// into an actor on its own. This carries it across without pretending it's a value.
+/// UserDefaults is thread-safe but not Sendable — this carries it into the actor without pretending it's a value.
 struct DefaultsRef: @unchecked Sendable {
     let defaults: UserDefaults
 
@@ -10,17 +9,14 @@ struct DefaultsRef: @unchecked Sendable {
     }
 }
 
-/// Client-side throttle for the free Gemini tier. It blocks rather than fails:
-/// ReaderController aborts a whole article after two consecutive errors, so a
-/// burst of 429s would kill the translation on its second block.
+/// Client-side throttle for the free tier. It blocks rather than fails: ReaderController aborts an article after two consecutive errors.
 actor GeminiRateLimiter {
     struct Limits: Sendable {
         var rpm: Int
         var tpm: Int
         var rpd: Int
 
-        // Google's public rate-limit page lists no Gemma rows at all; these are the
-        // free-tier numbers the API console reports for Gemma 4.
+        // Google's public rate-limit page lists no Gemma rows; these are the console's free-tier numbers for Gemma 4.
         static let free = Limits(rpm: 30, tpm: 16_000, rpd: 14_400)
     }
 
@@ -61,9 +57,7 @@ actor GeminiRateLimiter {
         max(1, prompt.utf8.count / 4)
     }
 
-    /// Waits until the per-minute budget has room, then books a slot. Throws only
-    /// when the daily quota is gone — that one no amount of waiting fixes.
-    /// Returns a ticket for `settle`.
+    /// Waits for per-minute room, then books a slot and returns its ticket. Throws only on the daily quota — waiting can't fix that one.
     func acquire(estimatedTokens: Int) async throws -> Int {
         try admitDaily()
         while true {
@@ -71,8 +65,7 @@ actor GeminiRateLimiter {
             window.removeAll { instant.timeIntervalSince($0.at) >= 60 }
             let usedTokens = window.reduce(0) { $0 + $1.tokens }
             let fitsRequests = window.count < limits.rpm
-            // A prompt bigger than the whole per-minute budget can never "fit"; let it
-            // through on an empty window and leave the verdict to the server.
+            // A prompt bigger than the whole per-minute budget never fits; let it through on an empty window and leave the verdict to the server.
             let fitsTokens = usedTokens + estimatedTokens <= limits.tpm || window.isEmpty
             if fitsRequests && fitsTokens {
                 lastTicket += 1
@@ -85,8 +78,7 @@ actor GeminiRateLimiter {
         }
     }
 
-    /// Replaces the estimate with the real `promptTokenCount` Gemini reports, so the
-    /// next caller measures the minute against what was actually spent.
+    /// Replaces the estimate with Gemini's real `promptTokenCount`, so the minute is measured against what was actually spent.
     func settle(ticket: Int, actualTokens: Int?) {
         guard let actualTokens, let index = window.firstIndex(where: { $0.ticket == ticket }) else { return }
         window[index].tokens = actualTokens

@@ -81,8 +81,7 @@ private final class FallbackLog: @unchecked Sendable {
     }
 
     @Test func exhaustedQuotaFallsBackToTheLocalModelName() async throws {
-        // The caller passes the cloud model id; handing that to Ollama would fail
-        // with "model not found", so the router must swap in the installed one.
+        // The caller passes the cloud model id; Ollama would fail with "model not found" unless the router swaps it.
         let local = StubBackend(text: "local")
         let fallbacks = FallbackLog()
         let client = makeClient(
@@ -98,8 +97,7 @@ private final class FallbackLog: @unchecked Sendable {
     }
 
     @Test func aBadRequestIsNotMaskedByTheFallback() async {
-        // Only cloud-availability failures fall back; a malformed response means the
-        // request itself is wrong and must surface.
+        // Only cloud-availability failures fall back; a malformed response means the request itself is wrong.
         let local = StubBackend(text: "local")
         let client = makeClient(local: local, cloud: StubBackend(failure: .malformedStream), provider: .cloud)
 
@@ -124,8 +122,7 @@ private final class FallbackLog: @unchecked Sendable {
     }
 
     @Test func streamThatAlreadyEmittedTokensDoesNotRestartLocally() async {
-        // Restarting here would replay the translation into a popup that is already
-        // showing the first half of it.
+        // Restarting here would replay the translation into a popup already showing its first half.
         let local = StubBackend(text: "lokalnie")
         let fallbacks = FallbackLog()
         let client = makeClient(

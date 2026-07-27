@@ -217,8 +217,7 @@ enum LLMProvider: String, CaseIterable, Sendable {
     }
 }
 
-/// Transport seam under the prompt layer: everything an engine must do so the
-/// shared `LLMClient` methods in PromptRunning.swift can run against it.
+/// Transport seam under the prompt layer — what an engine must provide for PromptRunning.swift's shared methods.
 protocol GenerationBackend: Sendable {
     func generate(prompt: String, model: String, timeout: TimeInterval?, numPredict: Int?) async throws -> String
     func streamGeneration(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
