@@ -222,6 +222,8 @@ final class ReaderController: ReaderPresenting {
         }
         var failed = 0
         var consecutiveFailures = 0
+        // The setting says cloud, but RoutingLLMClient may be quietly serving from Ollama, which holds the format far worse.
+        var consecutiveBatchFailures = 0
         var done = translatable.count - pending.count
         let batchSize = settings.provider == .cloud ? Self.cloudBatchSize : 1
         for batch in ReaderTemplate.batches(pending, maxCount: batchSize) {
@@ -229,15 +231,20 @@ final class ReaderController: ReaderPresenting {
             setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",
                           "Translating… (\(done + 1)/\(translatable.count))"), in: webView)
             var batched: [Int: String] = [:]
-            if batch.count > 1 {
+            // Two batches in a row failing means whatever is answering can't hold the format; stop paying for the attempt.
+            if batch.count > 1, consecutiveBatchFailures < 2 {
                 // A batch that throws or fails the round trip is discarded whole and costs no failure — its blocks retry one by one below.
                 batched = (try? await llm.translateBlocks(batch.map { (id: $0.id, html: $0.html) },
                                                           into: settings.primaryLanguage,
                                                           model: settings.activeModel)) ?? [:]
                 if Task.isCancelled { return nil }
+                consecutiveBatchFailures = batched.isEmpty ? consecutiveBatchFailures + 1 : 0
             }
             for block in batch {
                 if Task.isCancelled { return nil }
+                // Repainted per block, so a rate-limit message painted while this batch was waiting cannot outlive the wait.
+                setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",
+                              "Translating… (\(done + 1)/\(translatable.count))"), in: webView)
                 let translated: String
                 if let fromBatch = batched[block.id] {
                     translated = ReaderTemplate.unwrap(fromBatch)
