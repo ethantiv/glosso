@@ -33,9 +33,18 @@ final class ArticleExtractor {
 
     private static let driverJS = """
     (function() {
-      // Mirrors Readability's own REGEXPS.videos, so we only ever revive what it already agrees to keep.
-      const VIDEO = /\\/\\/(www\\.)?((dailymotion|youtube|youtube-nocookie|player\\.vimeo|v\\.qq)\\.com|player\\.twitch\\.tv)/i;
-      const isVideoEmbed = el => Array.from(el.attributes).some(a => VIDEO.test(a.value));
+      // The hosts of Readability's own REGEXPS.videos, but matched against a parsed URL: substring-testing
+      // the raw attribute would accept 'javascript:alert(1)//www.youtube.com/' and any ad URL carrying a
+      // player address in its query string.
+      const VIDEO_HOST = /^(www\\.)?((dailymotion|youtube|youtube-nocookie|player\\.vimeo|v\\.qq)\\.com|player\\.twitch\\.tv)$/i;
+      const videoURL = value => {
+        if (!value) { return null; }
+        let url;
+        try { url = new URL(value, location.href); } catch (e) { return null; }
+        if (url.protocol !== 'https:' && url.protocol !== 'http:') { return null; }
+        return VIDEO_HOST.test(url.hostname) ? url : null;
+      };
+      const isVideoEmbed = el => Array.from(el.attributes).some(a => videoURL(a.value));
       if (typeof document.body.checkVisibility === 'function') {
         for (const el of document.body.querySelectorAll('*')) {
           if (el.closest('[data-glosso-hidden]')) { continue; }
@@ -59,8 +68,10 @@ final class ArticleExtractor {
         const src = frame.getAttribute('src') || '';
         if (src !== '' && src !== 'about:blank' && !src.startsWith('data:')) { continue; }
         const source = ['data-src-fallback', 'data-src', 'data-lazy-src']
-          .map(a => frame.getAttribute(a)).find(v => v && VIDEO.test(v));
-        if (source) { frame.setAttribute('src', source.replace(/\\/\\/(www\\.)?youtube\\.com\\//, '//www.youtube-nocookie.com/')); }
+          .map(a => videoURL(frame.getAttribute(a))).find(Boolean);
+        if (!source) { continue; }
+        if (/^(www\\.)?youtube\\.com$/i.test(source.hostname)) { source.hostname = 'www.youtube-nocookie.com'; }
+        frame.setAttribute('src', source.href);
       }
       for (const aside of doc.querySelectorAll('aside')) {
         const embedded = Array.from(aside.querySelectorAll('iframe, object, embed')).some(isVideoEmbed);
