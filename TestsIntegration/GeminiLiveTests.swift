@@ -45,23 +45,26 @@ import Testing
         var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000")!)
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")
         let (data, response) = try await URLSession.shared.data(for: request)
-        guard (response as? HTTPURLResponse)?.statusCode == 200 else { return }
+        // With a key in hand, anything but 200 is a real failure — returning early
+        // here would make a broken listing look like a passing check.
+        try #require((response as? HTTPURLResponse)?.statusCode == 200)
 
         struct Listing: Decodable {
             struct Model: Decodable { var name: String; var outputTokenLimit: Int? }
             var models: [Model]
         }
         let listing = try JSONDecoder().decode(Listing.self, from: data)
-        let served = Set(listing.models.map { $0.name.replacingOccurrences(of: "models/", with: "") })
+        let served = Dictionary(
+            listing.models.map { ($0.name.replacingOccurrences(of: "models/", with: ""), $0.outputTokenLimit) },
+            uniquingKeysWith: { first, _ in first })
 
         for entry in CloudModelCatalog.models {
-            #expect(served.contains(entry.id), "\(entry.id) is not served by the API any more")
-        }
-        // The output cap we clamp maxOutputTokens to must not exceed what the model allows.
-        for model in listing.models where served.contains(model.name.replacingOccurrences(of: "models/", with: "")) {
-            guard CloudModelCatalog.models.contains(where: { model.name.hasSuffix($0.id) }),
-                  let limit = model.outputTokenLimit else { continue }
-            #expect(GeminiClient.outputTokenLimit <= limit)
+            let reported = try #require(served[entry.id], "\(entry.id) is not served by the API any more")
+            let limit = try #require(reported, "\(entry.id) reports no outputTokenLimit")
+            // maxOutputTokens is clamped to this constant; above the model's own
+            // ceiling the API would reject every capped call.
+            #expect(GeminiClient.outputTokenLimit <= limit,
+                    "\(entry.id) allows \(limit) output tokens, we clamp to \(GeminiClient.outputTokenLimit)")
         }
     }
 }
