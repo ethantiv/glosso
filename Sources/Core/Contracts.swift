@@ -240,6 +240,8 @@ protocol LLMClient: Sendable {
     func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String
     func reply(to text: String, model: String) async throws -> [String]
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String
+    /// Several blocks in one request, keyed back by the ids sent — the reader's answer to a per-minute request cap.
+    func translateBlocks(_ blocks: [(id: Int, html: String)], into primary: PrimaryLanguage, model: String) async throws -> [Int: String]
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String
     func askArticle(question: String, history: [(question: String, answer: String)], article: String, into primary: PrimaryLanguage, model: String) async throws -> String
     func articleQuestions(about article: String, into primary: PrimaryLanguage, model: String) async throws -> [String]

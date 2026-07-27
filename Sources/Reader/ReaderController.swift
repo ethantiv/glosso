@@ -22,8 +22,12 @@ final class ReaderController: ReaderPresenting {
     private var chatFrameTarget: NSRect?
     private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
+    // Blocks per cloud request. Batching only buys anything against a per-minute request cap, which the local engine has none of.
+    private static let cloudBatchSize = 5
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
+    // True only while the pipeline is issuing model calls, so a popup's rate-limit wait can't paint over an idle reader.
+    private var translating = false
 
     init(llm: any LLMClient, settings: SettingsStore) {
         self.llm = llm
@@ -60,6 +64,8 @@ final class ReaderController: ReaderPresenting {
                 try await replay(entry, in: webView)
                 return
             }
+            translating = true
+            defer { translating = false }
             setStatus(loc("Wczytuję artykuł…", "Loading article…"), in: webView)
             let article = try await extractor.extract(from: url)
             if Task.isCancelled { return }
@@ -177,6 +183,13 @@ final class ReaderController: ReaderPresenting {
         return true
     }
 
+    /// The limiter blocks rather than failing, so without this the status bar would simply stop moving mid-article.
+    func cloudWait(_ seconds: TimeInterval) {
+        guard translating, let webView else { return }
+        setStatus(loc("Czekam na limit Google AI… (\(Int(seconds.rounded(.up))) s)",
+                      "Waiting for the Google AI rate limit… (\(Int(seconds.rounded(.up))) s)"), in: webView)
+    }
+
     private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws -> [Int: String]? {
         var applied: [Int: String] = [:]
         let translatable = blocks.filter(\.translate)
@@ -191,48 +204,73 @@ final class ReaderController: ReaderPresenting {
             setStatus("", in: webView)
             return applied
         }
-        var failed = 0
-        var consecutiveFailures = 0
-        for (index, block) in translatable.enumerated() {
+        // Applied up front so they never take up room in a batch, and never get sent.
+        var pending: [ReaderTemplate.Block] = []
+        for block in translatable {
             if Task.isCancelled { return nil }
-            setStatus(loc("Tłumaczę… (\(index + 1)/\(translatable.count))",
-                          "Translating… (\(index + 1)/\(translatable.count))"), in: webView)
             if Self.isConfidently(in: settings.primaryLanguage, block.html) {
                 _ = try? await webView.evaluateStringResult(
                     ReaderTemplate.call("glossoApply", String(block.id), block.html))
                 applied[block.id] = block.html
-                continue
+            } else {
+                pending.append(block)
             }
-            let translated: String
-            do {
-                translated = ReaderTemplate.unwrap(
-                    try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.activeModel))
-            } catch is CancellationError {
-                return nil
-            } catch TranslationError.cancelled {
-                return nil
-            } catch {
-                if Task.isCancelled { return nil }
-                failed += 1
-                consecutiveFailures = Self.countsTowardAbort(error) ? consecutiveFailures + 1 : 0
-                if consecutiveFailures >= 2 {
-                    _ = try? await webView.evaluateStringResult("glossoAbort()")
-                    let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
-                    setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
-                                  "Translation stopped — the rest stays in the original language.") + detail, in: webView)
-                    return nil
-                }
-                _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
-                    "glossoApply", String(block.id), block.html))
-                continue
-            }
-            consecutiveFailures = 0
+        }
+        var failed = 0
+        var consecutiveFailures = 0
+        var done = translatable.count - pending.count
+        let batchSize = settings.provider == .cloud ? Self.cloudBatchSize : 1
+        for batch in ReaderTemplate.batches(pending, maxCount: batchSize) {
             if Task.isCancelled { return nil }
-            // An empty result must still un-dim its block — re-apply the original.
-            let html = translated.isEmpty ? block.html : translated
-            _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
-                "glossoApply", String(block.id), html))
-            applied[block.id] = html
+            setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",
+                          "Translating… (\(done + 1)/\(translatable.count))"), in: webView)
+            var batched: [Int: String] = [:]
+            if batch.count > 1 {
+                // A batch that throws or fails the round trip is discarded whole and costs no failure — its blocks retry one by one below.
+                batched = (try? await llm.translateBlocks(batch.map { (id: $0.id, html: $0.html) },
+                                                          into: settings.primaryLanguage,
+                                                          model: settings.activeModel)) ?? [:]
+                if Task.isCancelled { return nil }
+            }
+            for block in batch {
+                if Task.isCancelled { return nil }
+                let translated: String
+                if let fromBatch = batched[block.id] {
+                    translated = ReaderTemplate.unwrap(fromBatch)
+                } else {
+                    do {
+                        translated = ReaderTemplate.unwrap(
+                            try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.activeModel))
+                    } catch is CancellationError {
+                        return nil
+                    } catch TranslationError.cancelled {
+                        return nil
+                    } catch {
+                        if Task.isCancelled { return nil }
+                        failed += 1
+                        done += 1
+                        consecutiveFailures = Self.countsTowardAbort(error) ? consecutiveFailures + 1 : 0
+                        if consecutiveFailures >= 2 {
+                            _ = try? await webView.evaluateStringResult("glossoAbort()")
+                            let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
+                            setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
+                                          "Translation stopped — the rest stays in the original language.") + detail, in: webView)
+                            return nil
+                        }
+                        _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
+                            "glossoApply", String(block.id), block.html))
+                        continue
+                    }
+                }
+                consecutiveFailures = 0
+                if Task.isCancelled { return nil }
+                // An empty result must still un-dim its block — re-apply the original.
+                let html = translated.isEmpty ? block.html : translated
+                _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
+                    "glossoApply", String(block.id), html))
+                applied[block.id] = html
+                done += 1
+            }
         }
         if Task.isCancelled { return nil }
         if failed > 0 {

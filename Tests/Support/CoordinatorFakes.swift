@@ -65,6 +65,8 @@ struct FakeLLMClient: LLMClient {
         var blockHTMLs: [String] = []
         var blockPrimary: PrimaryLanguage?
         var blockModel: String?
+        // translateBlocks(...) — one entry per batch, so a test can assert how the blocks were packed
+        var batches: [[Int]] = []
         // readerSummary(...)
         var summaryText: String?
         var summaryPrimary: PrimaryLanguage?
@@ -263,6 +265,14 @@ struct FakeLLMClient: LLMClient {
         recorder.blockModel = model
         if let blockError { throw blockError }
         return blockResult
+    }
+
+    func translateBlocks(_ blocks: [(id: Int, html: String)], into primary: PrimaryLanguage, model: String) async throws -> [Int: String] {
+        recorder.batches.append(blocks.map(\.id))
+        recorder.blockPrimary = primary
+        recorder.blockModel = model
+        if let blockError { throw blockError }
+        return Dictionary(uniqueKeysWithValues: blocks.map { ($0.id, blockResult) })
     }
 
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {

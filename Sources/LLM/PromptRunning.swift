@@ -29,6 +29,16 @@ extension LLMClient where Self: GenerationBackend {
                                   model: model, timeout: Self.longFormTimeout, numPredict: cap)
     }
 
+    func translateBlocks(_ blocks: [(id: Int, html: String)], into primary: PrimaryLanguage, model: String) async throws -> [Int: String] {
+        let cap = max(256, blocks.reduce(0) { $0 + $1.html.utf8.count + 32 })
+        let answer = try await generate(prompt: PromptBuilder.buildBatchTranslation(blocks: blocks, into: primary),
+                                        model: model, timeout: Self.longFormTimeout, numPredict: cap)
+        guard let parsed = BlockBatchParser.parse(answer, ids: blocks.map(\.id)) else {
+            throw TranslationError.malformedStream
+        }
+        return parsed
+    }
+
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         try await generate(prompt: PromptBuilder.buildReaderSummary(text: text, into: primary),
                            model: model, timeout: Self.longFormTimeout, numPredict: 512)

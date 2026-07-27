@@ -93,7 +93,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     let appState = AppState()
     let settings = SettingsStore()
     /// Shared so the Settings quota line counts the same requests the client books.
-    let cloudLimiter = GeminiRateLimiter()
+    lazy var cloudLimiter = GeminiRateLimiter(onWait: { [weak self] seconds in
+        Task { @MainActor in self?.articleReader?.cloudWait(seconds) }
+    })
+    private var articleReader: ReaderController?
     let engineBox = EngineProcessBox()
     lazy var engine = EngineManager(box: engineBox)
     lazy var modelLister: OllamaModelLister = OllamaModelLister(endpointProvider: Self.endpointProvider(engine))
@@ -141,6 +144,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 }
             }
         )
+        let articleReader = ReaderController(llm: llm, settings: settings)
+        self.articleReader = articleReader
         let coordinator = AppCoordinator(
             llm: llm,
             monitor: GlobalHotkeyMonitor(
@@ -151,7 +156,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
             settings: settings,
-            articleReader: ReaderController(llm: llm, settings: settings)
+            articleReader: articleReader
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator

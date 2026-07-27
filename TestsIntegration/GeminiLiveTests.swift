@@ -37,6 +37,28 @@ import Testing
         #expect(result.contains("<p>"))
     }
 
+    /// The batch format only works if the model honours it; nothing else proves that.
+    @Test func translatesABatchOfBlocksAgainstLiveGemini() async throws {
+        guard let apiKey else { return }
+
+        let blocks = [
+            (id: 12, html: "<p>Good morning, everyone.</p>"),
+            (id: 13, html: "<p>The meeting starts at <b>nine</b>.</p>"),
+            (id: 14, html: "<p>Please read the <a href=\"https://x.com\">agenda</a> first.</p>"),
+        ]
+        let result = try await makeClient(apiKey).translateBlocks(
+            blocks, into: .polish, model: CloudModelCatalog.default.id)
+
+        #expect(result.count == 3)
+        for (id, html) in blocks {
+            let translated = try #require(result[id])
+            #expect(!translated.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+            #expect(translated != html)
+            #expect(translated.contains("<p>"))
+        }
+        #expect(result[14]?.contains("https://x.com") == true)
+    }
+
     /// The catalog hardcodes model ids; this is what catches Google renaming them.
     @Test func catalogModelsAreServedByTheAPI() async throws {
         guard let apiKey else { return }

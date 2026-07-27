@@ -7,6 +7,28 @@ enum ReaderTemplate {
         let translate: Bool
     }
 
+    /// Kept under GeminiClient.outputTokenLimit so a batch's numPredict can never hit the clamp and truncate.
+    private static let batchByteBudget = 4000
+
+    /// Greedy packing under both a count and a byte cap. An oversized block gets its own batch rather than being split.
+    static func batches(_ blocks: [Block], maxCount: Int) -> [[Block]] {
+        var packed: [[Block]] = []
+        var current: [Block] = []
+        var bytes = 0
+        for block in blocks {
+            let size = block.html.utf8.count
+            if !current.isEmpty, current.count >= maxCount || bytes + size > batchByteBudget {
+                packed.append(current)
+                current = []
+                bytes = 0
+            }
+            current.append(block)
+            bytes += size
+        }
+        if !current.isEmpty { packed.append(current) }
+        return packed
+    }
+
     /// Peels what a model wraps its answer in: a markdown fence and an echoed prompt wrapper, in either nesting order.
     static func unwrap(_ text: String) -> String {
         var current = text.trimmingCharacters(in: .whitespacesAndNewlines)
