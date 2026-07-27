@@ -33,6 +33,9 @@ final class ArticleExtractor {
 
     private static let driverJS = """
     (function() {
+      // Mirrors Readability's own REGEXPS.videos, so we only ever revive what it already agrees to keep.
+      const VIDEO = /\\/\\/(www\\.)?((dailymotion|youtube|youtube-nocookie|player\\.vimeo|v\\.qq)\\.com|player\\.twitch\\.tv)/i;
+      const isVideoEmbed = el => Array.from(el.attributes).some(a => VIDEO.test(a.value));
       if (typeof document.body.checkVisibility === 'function') {
         for (const el of document.body.querySelectorAll('*')) {
           if (el.closest('[data-glosso-hidden]')) { continue; }
@@ -51,8 +54,16 @@ final class ArticleExtractor {
         const srcset = img.getAttribute('data-srcset') || img.getAttribute('data-lazy-srcset');
         if (srcset && !img.getAttribute('srcset')) { img.setAttribute('srcset', srcset); }
       }
+      // Consent-gated players carry their URL in data-src only; without this the reader shows an empty box.
+      for (const frame of doc.querySelectorAll('iframe')) {
+        if (frame.getAttribute('src')) { continue; }
+        const source = ['data-src-fallback', 'data-src', 'data-lazy-src']
+          .map(a => frame.getAttribute(a)).find(v => v && VIDEO.test(v));
+        if (source) { frame.setAttribute('src', source.replace('//www.youtube.com/', '//www.youtube-nocookie.com/')); }
+      }
       for (const aside of doc.querySelectorAll('aside')) {
-        if (aside.querySelectorAll('img').length === 0) { continue; }
+        const embedded = Array.from(aside.querySelectorAll('iframe, object, embed')).some(isVideoEmbed);
+        if (!embedded && aside.querySelectorAll('img').length === 0) { continue; }
         const text = aside.textContent.trim();
         const linkText = Array.from(aside.querySelectorAll('a')).map(a => a.textContent.trim()).join('');
         if (text.length - linkText.length <= 120 && linkText.length <= 40) {

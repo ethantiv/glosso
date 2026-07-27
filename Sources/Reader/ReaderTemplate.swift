@@ -153,7 +153,7 @@ enum ReaderTemplate {
          ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
          shape too — revisit if one ever matters. */
       iframe, embed, object { max-width: 100%; border-radius: 4px; }
-      iframe { aspect-ratio: 16 / 9; height: auto; }
+      iframe { width: 100%; aspect-ratio: 16 / 9; height: auto; }
       figure { margin: 2.2em 0; }
       figcaption { font-size: .78em; opacity: .8; margin-top: .7em; }
       blockquote { margin: 1.8em 1.5em; text-align: center; font-size: 1.08em;
