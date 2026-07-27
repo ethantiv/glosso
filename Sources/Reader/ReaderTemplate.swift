@@ -7,14 +7,54 @@ enum ReaderTemplate {
         let translate: Bool
     }
 
-    static func stripFences(_ text: String) -> String {
-        var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard trimmed.hasPrefix("```") else { return trimmed }
-        trimmed = trimmed.replacingOccurrences(
+    /// Kept under GeminiClient.outputTokenLimit so a batch's numPredict can never hit the clamp and truncate.
+    private static let batchByteBudget = 4000
+
+    /// Greedy packing under both a count and a byte cap. An oversized block gets its own batch rather than being split.
+    static func batches(_ blocks: [Block], maxCount: Int) -> [[Block]] {
+        var packed: [[Block]] = []
+        var current: [Block] = []
+        var bytes = 0
+        for block in blocks {
+            let size = block.html.utf8.count
+            if !current.isEmpty, current.count >= maxCount || bytes + size > batchByteBudget {
+                packed.append(current)
+                current = []
+                bytes = 0
+            }
+            current.append(block)
+            bytes += size
+        }
+        if !current.isEmpty { packed.append(current) }
+        return packed
+    }
+
+    /// Peels what a model wraps its answer in: a markdown fence and an echoed prompt wrapper, in either nesting order.
+    static func unwrap(_ text: String) -> String {
+        var current = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        for _ in 0..<3 {
+            let before = current
+            current = peelWrapper(peelFence(current))
+            if current == before { break }
+        }
+        return current
+    }
+
+    private static func peelFence(_ text: String) -> String {
+        guard text.hasPrefix("```") else { return text }
+        var peeled = text.replacingOccurrences(
             of: #"\A```[a-zA-Z]*\s*"#, with: "", options: .regularExpression)
-        trimmed = trimmed.replacingOccurrences(
+        peeled = peeled.replacingOccurrences(
             of: #"\s*```\z"#, with: "", options: .regularExpression)
-        return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
+        return peeled.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Both ends anchored and the same tag required on both, so a legitimate inline tag can never be mistaken for a wrapper.
+    private static func peelWrapper(_ text: String) -> String {
+        let peeled = text.replacingOccurrences(
+            of: #"(?is)\A<\s*(block|text|article)\s*>\s*(.*?)\s*<\s*/\s*\1\s*>\z"#,
+            with: "$2", options: .regularExpression)
+        return peeled == text ? text : peeled.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
     static func call(_ function: String, _ arguments: String...) -> String {

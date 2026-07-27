@@ -22,6 +22,16 @@ private final class FakeClock: @unchecked Sendable {
     }
 }
 
+/// Collects the limiter's wait callbacks, which fire off the test's own actor.
+private final class Waits: @unchecked Sendable {
+    private let lock = NSLock()
+    private var seconds: [TimeInterval] = []
+
+    var all: [TimeInterval] { lock.withLock { seconds } }
+
+    func record(_ value: TimeInterval) { lock.withLock { seconds.append(value) } }
+}
+
 @Suite struct GeminiRateLimiterTests {
     private func makeLimiter(
         _ limits: @escaping @Sendable (String) -> GeminiRateLimiter.Limits,
@@ -175,6 +185,25 @@ private final class FakeClock: @unchecked Sendable {
 
         #expect(await limiter.quotaUsage(model: "tight") == (used: 1, limit: 500))
         #expect(await limiter.quotaUsage(model: "roomy") == (used: 0, limit: 14_400))
+    }
+
+    @Test func aWaitReportsItsLengthSoTheUICanExplainIt() async throws {
+        let clock = FakeClock(Date(timeIntervalSince1970: 0))
+        let waits = Waits()
+        let limiter = GeminiRateLimiter(
+            limits: { _ in .init(rpm: 1, tpm: 100_000, rpd: 1000) },
+            store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!),
+            now: { clock.now },
+            sleep: clock.sleep,
+            onWait: { waits.record($0) }
+        )
+
+        _ = try await limiter.acquire(estimatedTokens: 1, model: "m")
+        #expect(waits.all.isEmpty)
+
+        // Blocking is silent by design, so the reader can only say "waiting" if the limiter tells it.
+        _ = try await limiter.acquire(estimatedTokens: 1, model: "m")
+        #expect(waits.all.first.map { $0 > 59 && $0 <= 60 } == true)
     }
 
     @Test func tokenEstimateOvershootsRatherThanUndershoots() {

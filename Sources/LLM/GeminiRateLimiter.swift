@@ -40,6 +40,8 @@ actor GeminiRateLimiter {
     private var defaults: UserDefaults { store.defaults }
     private let now: @Sendable () -> Date
     private let sleep: @Sendable (Duration) async throws -> Void
+    /// The wait is invisible otherwise: acquire blocks, so the reader's status bar just stops moving.
+    private let onWait: @Sendable (TimeInterval) -> Void
 
     private var windows: [String: [Entry]] = [:]
     private var lastTicket = 0
@@ -48,8 +50,10 @@ actor GeminiRateLimiter {
         limits: @escaping @Sendable (String) -> Limits = { CloudModelCatalog.limits(for: $0) },
         store: DefaultsRef = DefaultsRef(),
         now: @escaping @Sendable () -> Date = { Date() },
-        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
+        onWait: @escaping @Sendable (TimeInterval) -> Void = { _ in }
     ) {
+        self.onWait = onWait
         self.limits = limits
         self.store = store
         self.now = now
@@ -82,6 +86,7 @@ actor GeminiRateLimiter {
             windows[model] = window
             let oldest = window.map(\.at).min() ?? instant
             let wait = 60 - instant.timeIntervalSince(oldest)
+            onWait(max(wait, 0))
             do {
                 try await sleep(.milliseconds(Int(max(wait, 0.05) * 1000)))
             } catch {
