@@ -169,6 +169,14 @@ final class ReaderController: ReaderPresenting {
         return cleaned
     }
 
+    /// Two consecutive failures abort the whole article, which is right when the
+    /// engine is down and wrong when the model merely refused a passage: RECITATION
+    /// on adjacent verbatim paragraphs would stop an article that translates fine.
+    nonisolated static func countsTowardAbort(_ error: Error) -> Bool {
+        if case TranslationError.contentBlocked = error { return false }
+        return true
+    }
+
     private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws -> [Int: String]? {
         var applied: [Int: String] = [:]
         let translatable = blocks.filter(\.translate)
@@ -206,7 +214,7 @@ final class ReaderController: ReaderPresenting {
             } catch {
                 if Task.isCancelled { return nil }
                 failed += 1
-                consecutiveFailures += 1
+                consecutiveFailures = Self.countsTowardAbort(error) ? consecutiveFailures + 1 : 0
                 if consecutiveFailures >= 2 {
                     _ = try? await webView.evaluateStringResult("glossoAbort()")
                     let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""

@@ -50,12 +50,20 @@ final class GeminiClient: LLMClient, GenerationBackend {
                 throw TranslationError.malformedStream
             }
             await limiter.settle(ticket: ticket, actualTokens: decoded.usageMetadata?.promptTokenCount)
-            // SAFETY/RECITATION/PROHIBITED_CONTENT come back with no parts — an empty string would render as a blank success.
+            // A refusal must never read as a blank success. It arrives in two shapes:
+            // per-candidate (SAFETY/RECITATION/PROHIBITED_CONTENT) and prompt-level,
+            // where the response carries promptFeedback and no candidates at all.
+            if let refusal = decoded.promptRefusal { throw TranslationError.contentBlocked(refusal) }
             switch decoded.finishReason {
-            case nil, "STOP": return decoded.text
             case "MAX_TOKENS": throw TranslationError.malformedStream
-            case let reason?: throw TranslationError.cloudError(reason)
+            case let reason? where reason != "STOP": throw TranslationError.contentBlocked(reason)
+            default: break
             }
+            // No reason and nothing to show is a broken response, not a refusal.
+            guard decoded.finishReason != nil || !decoded.text.isEmpty else {
+                throw TranslationError.malformedStream
+            }
+            return decoded.text
         }
     }
 
@@ -72,11 +80,15 @@ final class GeminiClient: LLMClient, GenerationBackend {
                         }
                         guard let chunk = GeminiSSEParser.parse(line: line) else { continue }
                         await limiter.settle(ticket: ticket, actualTokens: chunk.usageMetadata?.promptTokenCount)
+                        if let refusal = chunk.promptRefusal {
+                            continuation.finish(throwing: TranslationError.contentBlocked(refusal))
+                            return
+                        }
                         let text = chunk.text
                         if !text.isEmpty { continuation.yield(.token(text)) }
                         if let reason = chunk.finishReason {
                             guard reason == "STOP" || reason == "MAX_TOKENS" else {
-                                continuation.finish(throwing: TranslationError.cloudError(reason))
+                                continuation.finish(throwing: TranslationError.contentBlocked(reason))
                                 return
                             }
                             continuation.yield(.finished(doneReason: reason == "MAX_TOKENS" ? "length" : "stop"))

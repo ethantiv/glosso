@@ -67,6 +67,38 @@ import Testing
         }
     }
 
+    @Test func promptLevelRefusalIsNotABlankSuccess() async {
+        // A refused prompt comes back with promptFeedback and no candidates at all,
+        // so finishReason is nil and the text is "" — returning that would paint an
+        // empty translation with no error.
+        respond(200, #"{"promptFeedback":{"blockReason":"SAFETY"}}"#)
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.contentBlocked("SAFETY")) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func emptyResponseWithoutAReasonIsMalformedNotBlocked() async {
+        // Nothing says the model refused, so this is a broken response — the reader
+        // is right to count it toward its abort, unlike a refusal.
+        respond(200, #"{"candidates":[]}"#)
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.malformedStream) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func streamSurfacesAPromptLevelRefusal() async {
+        respond(200, Self.sse([#"{"promptFeedback":{"blockReason":"PROHIBITED_CONTENT"}}"#]))
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.contentBlocked("PROHIBITED_CONTENT")) {
+            for try await _ in makeClient().run("Hi", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
+        }
+    }
+
     @Test func missingKeyFailsWithoutTouchingTheNetwork() async {
         MockURLProtocol.handler = { _ in
             Issue.record("no request should be sent without an API key")
@@ -132,7 +164,7 @@ import Testing
         respond(200, #"{"candidates":[{"finishReason":"SAFETY"}]}"#)
         defer { MockURLProtocol.handler = nil }
 
-        await #expect(throws: TranslationError.cloudError("SAFETY")) {
+        await #expect(throws: TranslationError.contentBlocked("SAFETY")) {
             _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         }
     }

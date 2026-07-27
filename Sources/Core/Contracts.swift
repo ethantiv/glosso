@@ -137,6 +137,9 @@ enum TranslationError: Error, Sendable, Equatable {
     case invalidAPIKey
     case rateLimited(TimeInterval?)
     case quotaExhausted
+    /// The model refused this particular text on content-policy grounds. Unlike the
+    /// other cloud errors, retrying or waiting cannot change the answer.
+    case contentBlocked(String)
 
     var userMessage: String {
         switch self {
@@ -179,6 +182,9 @@ enum TranslationError: Error, Sendable, Equatable {
         case .quotaExhausted:
             loc("Wyczerpał się dzienny darmowy limit Google AI. Odnowi się jutro.",
                 "The free Google AI daily quota is used up. It resets tomorrow.")
+        case .contentBlocked:
+            loc("Google AI odmówiło przetworzenia tego tekstu.",
+                "Google AI refused to process this text.")
         }
     }
 }

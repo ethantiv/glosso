@@ -29,9 +29,13 @@ struct GeminiResponse: Decodable, Sendable {
         var finishReason: String?
     }
     struct UsageMetadata: Decodable, Sendable { var promptTokenCount: Int? }
+    /// A prompt-level refusal arrives here instead of as a candidate: the response
+    /// carries no `candidates` at all, so `finishReason` alone can't see it.
+    struct PromptFeedback: Decodable, Sendable { var blockReason: String? }
 
     var candidates: [Candidate]?
     var usageMetadata: UsageMetadata?
+    var promptFeedback: PromptFeedback?
 
     /// All text parts of the first candidate, concatenated.
     var text: String {
@@ -39,6 +43,10 @@ struct GeminiResponse: Decodable, Sendable {
     }
 
     var finishReason: String? { candidates?.first?.finishReason }
+
+    /// Set when the model refused the prompt itself, which arrives with no candidates
+    /// and therefore no finishReason to switch on.
+    var promptRefusal: String? { promptFeedback?.blockReason }
 }
 
 struct GeminiErrorEnvelope: Decodable, Sendable {
