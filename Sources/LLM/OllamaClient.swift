@@ -1,6 +1,6 @@
 import Foundation
 
-final class OllamaClient: LLMClient {
+final class OllamaClient: LLMClient, GenerationBackend {
     private let session: URLSession
     private let config: LLMConfig
     private let endpointProvider: @Sendable () async throws -> URL
@@ -11,64 +11,7 @@ final class OllamaClient: LLMClient {
         self.endpointProvider = endpointProvider
     }
 
-    func run(_ text: String, action: Action, model: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, style: Bool) -> AsyncThrowingStream<TranslationEvent, Error> {
-        stream(prompt: PromptBuilder.build(for: text, action: action, primary: primary, second: second, formality: formality, style: style), model: model)
-    }
-
-    func reword(original: String, to chosen: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
-        stream(prompt: PromptBuilder.buildReword(original: original, chosen: chosen, translation: translation, source: source, primary: primary, second: second, formality: formality), model: model)
-    }
-
-    func alternatives(for word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> [String] {
-        let prompt = PromptBuilder.buildAlternatives(word: word, translation: translation, source: source, primary: primary, second: second)
-        return AlternativesParser.parse(try await generate(prompt: prompt, model: model), original: word)
-    }
-
-    func reply(to text: String, model: String) async throws -> [String] {
-        let prompt = PromptBuilder.buildReply(text: text)
-        return ReplyParser.parse(try await generate(prompt: prompt, model: model))
-    }
-
-    func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        let cap = max(256, html.utf8.count)
-        return try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
-                                  model: model, timeout: Self.longFormTimeout, numPredict: cap)
-    }
-
-    func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text, into: primary),
-                           model: model, timeout: Self.longFormTimeout, numPredict: 512)
-    }
-
-    func askArticle(question: String, history: [(question: String, answer: String)], article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildAskArticle(question: question, history: history, article: article, into: primary),
-                           model: model, timeout: Self.longFormTimeout, numPredict: 1024)
-    }
-
-    func articleQuestions(about article: String, into primary: PrimaryLanguage, model: String) async throws -> [String] {
-        let raw = try await generate(prompt: PromptBuilder.buildArticleQuestions(article: article, into: primary),
-                                     model: model, timeout: Self.longFormTimeout, numPredict: 256)
-        return Array(AlternativesParser.parse(raw, original: "").prefix(5))
-    }
-
-    func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplain(word: word, translation: translation, source: source, primary: primary, second: second)
-        return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
-    }
-
-    func explainFix(error: String, correction: String, original: String, corrected: String, primary: PrimaryLanguage, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplainFix(error: error, correction: correction, original: original, corrected: corrected, primary: primary, second: second, englishRules: englishRules, style: style)
-        return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
-    }
-
-    func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
-        let prompt = PromptBuilder.buildExplainRegister(previous: previous, current: current, from: from, to: to, source: source, primary: primary, second: second)
-        return ExplanationParser.clean(try await generate(prompt: prompt, model: model))
-    }
-
-    private static let longFormTimeout: TimeInterval = 300
-
-    private func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
+    func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
         let endpoint = try await endpointProvider()
         let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint, timeout: timeout, numPredict: numPredict)
         let (data, response): (Data, URLResponse)
@@ -88,7 +31,7 @@ final class OllamaClient: LLMClient {
         return body
     }
 
-    private func stream(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+    func streamGeneration(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         let session = self.session
         let baseConfig = self.config
         let endpointProvider = self.endpointProvider

@@ -6,6 +6,8 @@ import Observation
 final class SettingsStore {
     private enum Key {
         static let model = "llm.model"
+        static let provider = "llm.provider"
+        static let cloudModel = "llm.cloudModel"
         static let primaryLanguage = "app.primaryLanguage"
         static let secondLanguage = "translation.secondLanguage"
         static let formality = "translation.formality"
@@ -20,9 +22,32 @@ final class SettingsStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let loginItem: any LoginItemManaging
+    @ObservationIgnored private let writeAPIKey: (String) -> Void
 
     var modelName: String {
         didSet { defaults.set(modelName, forKey: Key.model) }
+    }
+
+    /// Which engine serves the prompts. Local stays the default — the cloud is opt-in because it sends the text to Google.
+    var provider: LLMProvider {
+        didSet { defaults.set(provider.rawValue, forKey: Key.provider) }
+    }
+
+    var cloudModel: String {
+        didSet { defaults.set(cloudModel, forKey: Key.cloudModel) }
+    }
+
+    /// The model every LLM call must use — the two providers name models differently.
+    var activeModel: String {
+        provider == .cloud ? cloudModel : modelName
+    }
+
+    /// Not UserDefaults-backed: the Keychain is the source of truth, like `launchAtLogin` deferring to SMAppService.
+    var apiKey: String {
+        didSet {
+            guard apiKey != oldValue else { return }
+            writeAPIKey(apiKey)
+        }
     }
 
     var primaryLanguage: PrimaryLanguage {
@@ -72,11 +97,18 @@ final class SettingsStore {
     init(
         defaults: UserDefaults = .standard,
         loginItem: any LoginItemManaging = SMAppServiceLoginItem(),
-        systemLanguages: [String] = Locale.preferredLanguages
+        systemLanguages: [String] = Locale.preferredLanguages,
+        readAPIKey: () -> String? = { APIKeyStore.read() },
+        writeAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0) }
     ) {
         self.defaults = defaults
         self.loginItem = loginItem
+        self.writeAPIKey = writeAPIKey
         self.modelName = defaults.string(forKey: Key.model) ?? EmbeddedModelCatalog.recommended.id
+        self.provider = defaults.string(forKey: Key.provider)
+            .flatMap(LLMProvider.init(rawValue:)) ?? .local
+        self.cloudModel = defaults.string(forKey: Key.cloudModel) ?? CloudModelCatalog.default.id
+        self.apiKey = readAPIKey() ?? ""
         let primary = defaults.string(forKey: Key.primaryLanguage)
             .flatMap(PrimaryLanguage.init(rawValue:))
             ?? (defaults.object(forKey: Key.hasCompletedOnboarding) != nil

@@ -5,10 +5,12 @@ struct SettingsView: View {
     let lister: any ModelListing
     let engine: any EngineProviding
     let modelManager: any ModelManaging
+    let limiter: GeminiRateLimiter
 
     @State private var models: [String] = []
     @State private var loadGeneration = 0
     @State private var pulling: [String: Double] = [:]
+    @State private var quota: (used: Int, limit: Int)?
 
     private let recommendedModel = EmbeddedModelCatalog.recommended.id
 
@@ -35,6 +37,13 @@ struct SettingsView: View {
             store.refreshLaunchAtLogin()
             await loadModels()
         }
+        .task {
+            // The counter is the point of the row — a value frozen at window-open is worse than none.
+            while !Task.isCancelled {
+                quota = await limiter.quotaUsage()
+                try? await Task.sleep(for: .seconds(5))
+            }
+        }
     }
 
     private var titleBar: some View {
@@ -51,6 +60,24 @@ struct SettingsView: View {
     private var settingsGroups: some View {
         VStack(spacing: 14) {
             group("Model") {
+                row(loc("Silnik", "Engine")) {
+                    Picker("", selection: $store.provider) {
+                        ForEach(LLMProvider.allCases, id: \.self) { option in
+                            Text(option.displayName).tag(option)
+                        }
+                    }
+                    .labelsHidden()
+                    .pickerStyle(.segmented)
+                    .accessibilityLabel(loc("Silnik tłumaczenia", "Translation engine"))
+                    .fixedSize()
+                }
+                rowDivider
+                if store.provider == .cloud {
+                    cloudSection
+                    rowDivider
+                    // The cloud falls back to this one on a spent quota or a dead key, so it has to be installable here.
+                    row(loc("Model zapasowy", "Fallback model")) { EmptyView() }
+                }
                 ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
                     if index > 0 { rowDivider }
                     modelRow(
@@ -115,6 +142,71 @@ struct SettingsView: View {
             }
         }
         .padding(16)
+    }
+
+    @ViewBuilder private var cloudSection: some View {
+        row(loc("Klucz API", "API key")) {
+            SecureField("", text: $store.apiKey)
+                .textFieldStyle(.roundedBorder)
+                .labelsHidden()
+                .accessibilityLabel(loc("Klucz API Google AI", "Google AI API key"))
+                .frame(width: 200)
+        }
+        rowDivider
+        row("") {
+            Link(loc("Pobierz darmowy klucz w Google AI Studio",
+                     "Get a free key in Google AI Studio"),
+                 destination: URL(string: "https://aistudio.google.com/apikey")!)
+                .font(PopupTheme.fontMeta)
+        }
+        ForEach(Array(CloudModelCatalog.models.enumerated()), id: \.element.id) { _, entry in
+            rowDivider
+            cloudModelRow(entry)
+        }
+        rowDivider
+        row(loc("Zapytania dzisiaj", "Requests today")) {
+            Text(quota.map { "\($0.used) / \($0.limit)" } ?? "—")
+                .font(PopupTheme.fontMeta)
+                .foregroundStyle(.secondary)
+        }
+        rowDivider
+        Label(loc("W tym trybie zaznaczony tekst jest wysyłany do Google.",
+                  "In this mode the selected text is sent to Google."),
+              systemImage: "exclamationmark.triangle.fill")
+            .font(PopupTheme.fontMeta)
+            .foregroundStyle(PopupTheme.warn)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func cloudModelRow(_ entry: CloudModelCatalog.Entry) -> some View {
+        let isActive = store.cloudModel == entry.id
+        return HStack(spacing: 12) {
+            Button { store.cloudModel = entry.id } label: {
+                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
+                    .font(.system(size: 16))
+                    .foregroundStyle(isActive ? PopupTheme.accent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .disabled(isActive)
+            .accessibilityLabel(loc("Użyj modelu \(entry.displayName)", "Use model \(entry.displayName)"))
+            .accessibilityAddTraits(isActive ? .isSelected : [])
+
+            Image(systemName: entry.icon)
+                .font(.system(size: 16))
+                .foregroundStyle(.secondary)
+                .frame(width: 22)
+
+            Text(entry.displayName).font(PopupTheme.fontSource)
+            Spacer(minLength: 8)
+            Text(entry.id)
+                .font(PopupTheme.fontMeta)
+                .foregroundStyle(.secondary)
+        }
+        .padding(.horizontal, 13)
+        .padding(.vertical, 8)
     }
 
     private var otherModelsRow: some View {

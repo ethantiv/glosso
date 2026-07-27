@@ -13,7 +13,9 @@ Grab the latest `Glosso.zip` from [Releases](https://github.com/ethantiv/glosso/
 3. Grant **Accessibility** when asked. It's the only permission the app needs.
 4. A first-run wizard guides you through downloading a translation model and selecting your languages.
 
-Everything runs locally. The model and its engine download on first use, so you don't need to install [Ollama](https://ollama.com) yourself (an existing local installation is reused if you have one).
+By default everything runs locally. The model and its engine download on first use, so you don't need to install [Ollama](https://ollama.com) yourself (an existing local installation is reused if you have one).
+
+If you'd rather not download a 7–20 GB model, the wizard also offers **Google AI**: the same Gemma models served by the Gemini API, free, with only an API key to paste. In that mode the selected text is sent to Google. Local stays the default.
 
 ## Requirements
 
@@ -53,7 +55,9 @@ Two headless chords act on the current selection without opening the panel and p
 
 ## Settings
 
-From the menu bar you can pick the Ollama model, the primary language (Polish or English) and the second language (English, German, Russian, Spanish, Dutch or French, or automatic detection). The translation direction is detected per capture. The app's UI language follows your macOS language, independently of these settings.
+From the menu bar you can pick the engine (local Ollama or Google AI), the model, the primary language (Polish or English) and the second language (English, German, Russian, Spanish, Dutch or French, or automatic detection). The translation direction is detected per capture. The app's UI language follows your macOS language, independently of these settings.
+
+Picking **Google AI** reveals a field for the API key ([free from Google AI Studio](https://aistudio.google.com/apikey)), a choice of Gemma tier and today's request count. The key is stored in the Keychain. Glosso paces itself to the free tier's limits — 30 requests and 16k input tokens per minute, 14 400 requests per day — waiting rather than getting rejected, and it falls back to the local model when the daily quota runs out.
 
 A **Launch at login** toggle starts the app quietly in the menu bar.
 
