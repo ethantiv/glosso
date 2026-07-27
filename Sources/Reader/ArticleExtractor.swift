@@ -56,10 +56,11 @@ final class ArticleExtractor {
       }
       // Consent-gated players carry their URL in data-src only; without this the reader shows an empty box.
       for (const frame of doc.querySelectorAll('iframe')) {
-        if (frame.getAttribute('src')) { continue; }
+        const src = frame.getAttribute('src') || '';
+        if (src !== '' && src !== 'about:blank' && !src.startsWith('data:')) { continue; }
         const source = ['data-src-fallback', 'data-src', 'data-lazy-src']
           .map(a => frame.getAttribute(a)).find(v => v && VIDEO.test(v));
-        if (source) { frame.setAttribute('src', source.replace('//www.youtube.com/', '//www.youtube-nocookie.com/')); }
+        if (source) { frame.setAttribute('src', source.replace(/\\/\\/(www\\.)?youtube\\.com\\//, '//www.youtube-nocookie.com/')); }
       }
       for (const aside of doc.querySelectorAll('aside')) {
         const embedded = Array.from(aside.querySelectorAll('iframe, object, embed')).some(isVideoEmbed);

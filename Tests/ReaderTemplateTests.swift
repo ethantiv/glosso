@@ -71,6 +71,9 @@ import Testing
 
     @Test func markdownLeavesWhatIsNotMarkdownAlone() {
         #expect(ReaderTemplate.markdown("2 * 3 = 6") == "2 * 3 = 6")
+        // Two unrelated asterisks on one line: a mark must hug its text to count as emphasis.
+        #expect(ReaderTemplate.markdown("3 * 4 = 12 * 2") == "3 * 4 = 12 * 2")
+        #expect(ReaderTemplate.markdown("a ** b **") == "a ** b **")
         #expect(ReaderTemplate.markdown("plik snake_case_name.txt") == "plik snake_case_name.txt")
         // Emphasis never pairs across a line break — two list-ish lines must not become one italic run.
         #expect(ReaderTemplate.markdown("gwiazdka *tu\ni *tam") == "gwiazdka *tu\ni *tam")

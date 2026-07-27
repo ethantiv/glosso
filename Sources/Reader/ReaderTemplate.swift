@@ -71,11 +71,12 @@ enum ReaderTemplate {
             of: #"(?m)^[ \t]*[-*+][ \t]+"#, with: "• ", options: .regularExpression)
         html = html.replacingOccurrences(
             of: #"(?m)^[ \t]*#{1,6}[ \t]+(.+)$"#, with: "<strong>$1</strong>", options: .regularExpression)
-        // Bold before italic, or `**x**` falls apart into two empty emphases.
+        // Bold before italic, or `**x**` falls apart into two empty emphases. Both marks must hug their
+        // text, as in CommonMark — otherwise "3 * 4 = 12 * 2" would italicise the middle of the sentence.
         html = html.replacingOccurrences(
-            of: #"\*\*([^*\n]+)\*\*"#, with: "<strong>$1</strong>", options: .regularExpression)
+            of: #"\*\*([^\s*]([^*\n]*[^\s*])?)\*\*"#, with: "<strong>$1</strong>", options: .regularExpression)
         html = html.replacingOccurrences(
-            of: #"\*([^*\n]+)\*"#, with: "<em>$1</em>", options: .regularExpression)
+            of: #"\*([^\s*]([^*\n]*[^\s*])?)\*"#, with: "<em>$1</em>", options: .regularExpression)
         return html
     }
 
