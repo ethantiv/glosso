@@ -57,6 +57,29 @@ enum ReaderTemplate {
         return peeled == text ? text : peeled.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
+    /// Chat answers arrive with markdown emphasis whatever the prompt asks for; render the few marks models actually use.
+    static func markdown(_ text: String) -> String {
+        // Escaping first is what makes this safe: afterwards the only tags in the string are the ones we add ourselves.
+        var html = text
+            .replacingOccurrences(of: "&", with: "&amp;")
+            .replacingOccurrences(of: "<", with: "&lt;")
+            .replacingOccurrences(of: ">", with: "&gt;")
+        html = html.replacingOccurrences(
+            of: #"`([^`\n]+)`"#, with: "<code>$1</code>", options: .regularExpression)
+        // Before the emphasis rules: a list marker would otherwise go looking for a closing asterisk.
+        html = html.replacingOccurrences(
+            of: #"(?m)^[ \t]*[-*+][ \t]+"#, with: "• ", options: .regularExpression)
+        html = html.replacingOccurrences(
+            of: #"(?m)^[ \t]*#{1,6}[ \t]+(.+)$"#, with: "<strong>$1</strong>", options: .regularExpression)
+        // Bold before italic, or `**x**` falls apart into two empty emphases. Both marks must hug their
+        // text, as in CommonMark — otherwise "3 * 4 = 12 * 2" would italicise the middle of the sentence.
+        html = html.replacingOccurrences(
+            of: #"\*\*([^\s*]([^*\n]*[^\s*])?)\*\*"#, with: "<strong>$1</strong>", options: .regularExpression)
+        html = html.replacingOccurrences(
+            of: #"\*([^\s*]([^*\n]*[^\s*])?)\*"#, with: "<em>$1</em>", options: .regularExpression)
+        return html
+    }
+
     static func call(_ function: String, _ arguments: String...) -> String {
         let encoded = arguments.map { argument -> String in
             let data = try? JSONEncoder().encode(argument)
@@ -131,7 +154,7 @@ enum ReaderTemplate {
          ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
          shape too — revisit if one ever matters. */
       iframe, embed, object { max-width: 100%; border-radius: 4px; }
-      iframe { aspect-ratio: 16 / 9; height: auto; }
+      iframe { width: 100%; aspect-ratio: 16 / 9; height: auto; }
       figure { margin: 2.2em 0; }
       figcaption { font-size: .78em; opacity: .8; margin-top: .7em; }
       blockquote { margin: 1.8em 1.5em; text-align: center; font-size: 1.08em;
@@ -477,8 +500,9 @@ enum ReaderTemplate {
       const pending = document.querySelector('.glosso-chat-pending');
       if (!pending) { return; }
       pending.classList.remove('glosso-chat-pending');
-      pending.textContent = answer || error;
-      if (!answer) { pending.classList.add('glosso-chat-error'); }
+      // The answer arrives as rendered markdown; the error is our own string and stays text.
+      if (answer) { pending.innerHTML = answer; glossoSanitize(pending); }
+      else { pending.textContent = error; pending.classList.add('glosso-chat-error'); }
       glossoChatBusy(false);
       const messages = document.getElementById('glosso-chat-messages');
       messages.scrollTop = messages.scrollHeight;

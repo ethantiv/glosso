@@ -377,7 +377,8 @@ final class ReaderController: ReaderPresenting {
                     into: self.settings.primaryLanguage, model: self.settings.activeModel))
                 if Task.isCancelled { return }
                 self.chatHistory.append((question, answer))
-                _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoAnswer", answer, ""))
+                _ = try? await webView.evaluateStringResult(
+                    ReaderTemplate.call("glossoAnswer", ReaderTemplate.markdown(answer), ""))
             } catch {
                 if Task.isCancelled { return }
                 let message = (error as? TranslationError)?.userMessage

@@ -41,6 +41,44 @@ import Testing
         #expect(ReaderTemplate.unwrap("<em>a</em> i <em>b</em>") == "<em>a</em> i <em>b</em>")
     }
 
+    @Test func markdownRendersTheEmphasisModelsActuallyUse() {
+        #expect(ReaderTemplate.markdown("a **b** c") == "a <strong>b</strong> c")
+        #expect(ReaderTemplate.markdown("a *b* c") == "a <em>b</em> c")
+        #expect(ReaderTemplate.markdown("użyj `git push`") == "użyj <code>git push</code>")
+    }
+
+    @Test func markdownRendersTheReportedAnswer() {
+        // The literal string from the bug report: game titles italicised despite the prompt asking for plain prose.
+        #expect(ReaderTemplate.markdown("takie tytuły jak *Doom*, *Wolfenstein II: The New Colossus* czy *Rocket League*.")
+                == "takie tytuły jak <em>Doom</em>, <em>Wolfenstein II: The New Colossus</em> czy <em>Rocket League</em>.")
+    }
+
+    @Test func markdownTurnsListMarkersIntoBullets() {
+        #expect(ReaderTemplate.markdown("- pierwszy\n* drugi\n  + trzeci") == "• pierwszy\n• drugi\n• trzeci")
+    }
+
+    @Test func markdownBoldsHeadingLines() {
+        #expect(ReaderTemplate.markdown("## Tytuł\ntekst") == "<strong>Tytuł</strong>\ntekst")
+    }
+
+    @Test func markdownEscapesBeforeItAddsAnyTag() {
+        // The whole safety argument: nothing the model writes can reach the page as markup.
+        #expect(ReaderTemplate.markdown("<script>alert(1)</script>")
+                == "&lt;script&gt;alert(1)&lt;/script&gt;")
+        #expect(ReaderTemplate.markdown("Tom & Jerry") == "Tom &amp; Jerry")
+        #expect(ReaderTemplate.markdown("<b>*x*</b>") == "&lt;b&gt;<em>x</em>&lt;/b&gt;")
+    }
+
+    @Test func markdownLeavesWhatIsNotMarkdownAlone() {
+        #expect(ReaderTemplate.markdown("2 * 3 = 6") == "2 * 3 = 6")
+        // Two unrelated asterisks on one line: a mark must hug its text to count as emphasis.
+        #expect(ReaderTemplate.markdown("3 * 4 = 12 * 2") == "3 * 4 = 12 * 2")
+        #expect(ReaderTemplate.markdown("a ** b **") == "a ** b **")
+        #expect(ReaderTemplate.markdown("plik snake_case_name.txt") == "plik snake_case_name.txt")
+        // Emphasis never pairs across a line break — two list-ish lines must not become one italic run.
+        #expect(ReaderTemplate.markdown("gwiazdka *tu\ni *tam") == "gwiazdka *tu\ni *tam")
+    }
+
     private func block(_ id: Int, bytes: Int) -> ReaderTemplate.Block {
         ReaderTemplate.Block(id: id, html: String(repeating: "a", count: bytes), translate: true)
     }
