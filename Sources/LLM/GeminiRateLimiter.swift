@@ -11,18 +11,22 @@ struct DefaultsRef: @unchecked Sendable {
 
 /// Client-side throttle for the free tier. It blocks rather than fails: ReaderController aborts an article after two consecutive errors.
 actor GeminiRateLimiter {
-    struct Limits: Sendable {
+    struct Limits: Sendable, Equatable {
         var rpm: Int
         var tpm: Int
         var rpd: Int
-
-        // Google's public rate-limit page lists no Gemma rows; these are the console's free-tier numbers for Gemma 4.
-        static let free = Limits(rpm: 30, tpm: 16_000, rpd: 14_400)
     }
 
+    /// Booked slot. Carries its model so settling can't credit another model's window.
+    struct Ticket: Sendable {
+        let id: Int
+        let model: String
+    }
+
+    // Suffixed with the model id: Google's free tier meters each model separately.
     private enum Key {
-        static let day = "gemini.quotaDay"
-        static let count = "gemini.requestsToday"
+        static func day(_ model: String) -> String { "gemini.quotaDay.\(model)" }
+        static func count(_ model: String) -> String { "gemini.requestsToday.\(model)" }
     }
 
     private struct Entry {
@@ -31,17 +35,17 @@ actor GeminiRateLimiter {
         var ticket: Int
     }
 
-    private let limits: Limits
+    private let limits: @Sendable (String) -> Limits
     private let store: DefaultsRef
     private var defaults: UserDefaults { store.defaults }
     private let now: @Sendable () -> Date
     private let sleep: @Sendable (Duration) async throws -> Void
 
-    private var window: [Entry] = []
+    private var windows: [String: [Entry]] = [:]
     private var lastTicket = 0
 
     init(
-        limits: Limits = .free,
+        limits: @escaping @Sendable (String) -> Limits = { CloudModelCatalog.limits(for: $0) },
         store: DefaultsRef = DefaultsRef(),
         now: @escaping @Sendable () -> Date = { Date() },
         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }
@@ -57,11 +61,13 @@ actor GeminiRateLimiter {
         max(1, prompt.utf8.count / 4)
     }
 
-    /// Waits for per-minute room, then books a slot and returns its ticket. Throws only on the daily quota — waiting can't fix that one.
-    func acquire(estimatedTokens: Int) async throws -> Int {
-        try admitDaily()
+    /// Waits for the model's per-minute room, then books a slot and returns its ticket. Throws only on the daily quota — waiting can't fix that one.
+    func acquire(estimatedTokens: Int, model: String) async throws -> Ticket {
+        let limits = limits(model)
+        try admitDaily(model: model, limits: limits)
         while true {
             let instant = now()
+            var window = windows[model, default: []]
             window.removeAll { instant.timeIntervalSince($0.at) >= 60 }
             let usedTokens = window.reduce(0) { $0 + $1.tokens }
             let fitsRequests = window.count < limits.rpm
@@ -70,8 +76,10 @@ actor GeminiRateLimiter {
             if fitsRequests && fitsTokens {
                 lastTicket += 1
                 window.append(Entry(at: instant, tokens: estimatedTokens, ticket: lastTicket))
-                return lastTicket
+                windows[model] = window
+                return Ticket(id: lastTicket, model: model)
             }
+            windows[model] = window
             let oldest = window.map(\.at).min() ?? instant
             let wait = 60 - instant.timeIntervalSince(oldest)
             try await sleep(.milliseconds(Int(max(wait, 0.05) * 1000)))
@@ -79,26 +87,29 @@ actor GeminiRateLimiter {
     }
 
     /// Replaces the estimate with Gemini's real `promptTokenCount`, so the minute is measured against what was actually spent.
-    func settle(ticket: Int, actualTokens: Int?) {
-        guard let actualTokens, let index = window.firstIndex(where: { $0.ticket == ticket }) else { return }
-        window[index].tokens = actualTokens
+    func settle(ticket: Ticket, actualTokens: Int?) {
+        guard let actualTokens,
+              let index = windows[ticket.model]?.firstIndex(where: { $0.ticket == ticket.id }) else { return }
+        windows[ticket.model]?[index].tokens = actualTokens
     }
 
-    /// Backs the Settings quota line.
-    func quotaUsage() -> (used: Int, limit: Int) {
-        let used = defaults.string(forKey: Key.day) == currentDay() ? defaults.integer(forKey: Key.count) : 0
-        return (used, limits.rpd)
+    /// Backs the Settings quota line, for the model the user currently has selected.
+    func quotaUsage(model: String) -> (used: Int, limit: Int) {
+        let used = defaults.string(forKey: Key.day(model)) == currentDay()
+            ? defaults.integer(forKey: Key.count(model))
+            : 0
+        return (used, limits(model).rpd)
     }
 
-    private func admitDaily() throws {
+    private func admitDaily(model: String, limits: Limits) throws {
         let day = currentDay()
-        if defaults.string(forKey: Key.day) != day {
-            defaults.set(day, forKey: Key.day)
-            defaults.set(0, forKey: Key.count)
+        if defaults.string(forKey: Key.day(model)) != day {
+            defaults.set(day, forKey: Key.day(model))
+            defaults.set(0, forKey: Key.count(model))
         }
-        let used = defaults.integer(forKey: Key.count)
+        let used = defaults.integer(forKey: Key.count(model))
         guard used < limits.rpd else { throw TranslationError.quotaExhausted }
-        defaults.set(used + 1, forKey: Key.count)
+        defaults.set(used + 1, forKey: Key.count(model))
     }
 
     // Google's daily quotas roll over at midnight Pacific, not in the user's zone.

@@ -127,6 +127,13 @@ import Testing
         #expect(store.activeModel == store.modelName)
     }
 
+    @Test func aFreshInstallDoesNotPersistTheCloudModel() {
+        // Nothing written means a changed catalog default reaches everyone who never picked a model themselves.
+        let defaults = transientDefaults()
+        _ = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        #expect(defaults.object(forKey: "llm.cloudModel") == nil)
+    }
+
     @Test func activeModelFollowsTheSelectedProvider() {
         // The engines name models differently; every LLM call reads activeModel, so the wrong side means "model not found".
         let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in })
