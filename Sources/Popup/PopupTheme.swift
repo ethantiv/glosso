@@ -10,17 +10,12 @@ enum PopupTheme {
     }
     static let accent = Color(nsColor: accentNSColor)
 
-    // Solid, matte fill for the alternatives menu — opaque on purpose (not the
-    // translucent .popover material) so it reads lighter and less glassy.
     static let menuSurfaceNSColor = NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark ? NSColor(white: 0.22, alpha: 1) : NSColor(white: 1, alpha: 1)
     }
     static let menuSurface = Color(nsColor: menuSurfaceNSColor)
 
-    // Solid window surface — pure white in light (matches the brand mockups), a warm
-    // graphite in dark. Replaces the translucent .popover vibrancy so the popup and
-    // Settings read like native Notes/Reminders rather than a glassy gray panel.
     static let surfaceNSColor = NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark
@@ -29,8 +24,6 @@ enum PopupTheme {
     }
     static let surface = Color(nsColor: surfaceNSColor)
 
-    // Grouped-section card in Settings — sits slightly raised above `surface`
-    // (System Settings' grouped-box look), so its own fill, not a gray recess.
     static let groupedCardNSColor = NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark ? NSColor(white: 0.16, alpha: 1) : NSColor(white: 1, alpha: 1)
@@ -44,8 +37,6 @@ enum PopupTheme {
     static var warnBg: Color { Color.orange.opacity(0.10) }
     static var copied: Color { Color(red: 0.18, green: 0.62, blue: 0.34) }
 
-    // Brick red for diff deletions (the mockups' .del), separate from `warn`,
-    // which stays for genuine warnings.
     static let diffDelNSColor = NSColor(name: nil) { appearance in
         let isDark = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua
         return isDark
@@ -61,8 +52,6 @@ enum PopupTheme {
     static let padPane: CGFloat = 15
     static let padWindow: CGFloat = 9
 
-    // Settings keeps the smaller native sizing; the popup sizes mirror the
-    // landing-page mockup panel (result and source both 16, labels 11).
     static let fontLabel = Font.system(size: 11, weight: .semibold)
     static let fontMeta = Font.system(size: 12, weight: .medium)
     static let fontSource = Font.system(size: 15)

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Glosso
 
-// A dedicated URLProtocol (not the shared MockURLProtocol) so this suite's
-// process-global handler can't race OllamaClientTests' handler when Swift Testing
-// runs the two suites in parallel.
 final class MockTagsURLProtocol: URLProtocol {
     nonisolated(unsafe) static var handler: ((URLRequest) throws -> (HTTPURLResponse, Data))?
 
@@ -41,8 +38,6 @@ private final class URLRecorder: @unchecked Sendable {
         return OllamaModelLister(session: session)
     }
 
-    // Parses the model names AND proves the lister derives /api/tags from the
-    // generate endpoint rather than POSTing to /api/generate.
     @Test func parsesModelNamesAndHitsTagsEndpoint() async throws {
         let recorder = URLRecorder()
         MockTagsURLProtocol.handler = { request in

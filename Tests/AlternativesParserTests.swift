@@ -12,8 +12,6 @@ import Testing
         #expect(result == ["awesome", "great"])
     }
 
-    // The prompt asks for no numbering/bullets, but models add them anyway; strip
-    // them defensively so the dropdown shows the bare word.
     @Test func stripsLeadingBulletsAndNumbering() {
         let result = AlternativesParser.parse("1. awesome\n2) great\n- incredible\n• brilliant", original: "amazing")
         #expect(result == ["awesome", "great", "incredible", "brilliant"])

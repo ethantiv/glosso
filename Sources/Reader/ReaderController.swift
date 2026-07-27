@@ -3,11 +3,6 @@ import NaturalLanguage
 import QuartzCore
 import WebKit
 
-/// The reader window (feature: double Cmd+C on an article URL). A normal titled,
-/// resizable NSWindow — unlike the popup's borderless FloatingPanel — showing the
-/// reader template in a WKWebView. One window: a new show() cancels the in-flight
-/// translation and reuses it. The window is also the error surface; there is no
-/// fallback to the translation popup.
 @MainActor
 final class ReaderController: ReaderPresenting {
     private let llm: any LLMClient
@@ -18,8 +13,6 @@ final class ReaderController: ReaderPresenting {
     private var window: NSWindow?
     private var webView: WKWebView?
     private var translationTask: Task<Void, Never>?
-    // Chat tasks are separate from translationTask: a chat query must never
-    // cancel the running translation pipeline, and vice versa.
     private var suggestTask: Task<Void, Never>?
     private var askTask: Task<Void, Never>?
     private var chatHistory: [(question: String, answer: String)] = []
@@ -27,9 +20,6 @@ final class ReaderController: ReaderPresenting {
     private var chatWidthDelta: CGFloat = 0
     // Destination of the in-flight chat resize animation, nil when settled.
     private var chatFrameTarget: NSRect?
-    // Identifies the animation owning chatFrameTarget: rect value-equality
-    // would let a superseded run wipe a live target when geometry repeats
-    // (open→close→open lands on the identical rect).
     private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
     private var closeObserver: NSObjectProtocol?
@@ -46,8 +36,6 @@ final class ReaderController: ReaderPresenting {
         suggestTask?.cancel()
         askTask?.cancel()
         chatHistory = []
-        // The template reload closes the panel in JS; the window must shrink
-        // back with it or a new article opens in a widened window.
         setChatPanel(open: false)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
@@ -55,8 +43,6 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
-    // The template's re-translate pill: drop the cached entry and re-run the
-    // full pipeline (show() cancels the in-flight task; post-remove it's a miss).
     fileprivate func refreshCurrentArticle() {
         guard let currentURL else { return }
         cache.remove(currentURL, primary: settings.primaryLanguage)
@@ -67,8 +53,6 @@ final class ReaderController: ReaderPresenting {
         do {
             let watcher = NavigationWatcher()
             webView.navigationDelegate = watcher
-            // baseURL = the article URL: costs nothing and resolves any relative
-            // URL Readability missed (images come back absolute anyway).
             try await watcher.awaitNavigation(in: webView, timeout: .seconds(5)) {
                 webView.loadHTMLString(ReaderTemplate.html, baseURL: url)
             }
@@ -94,18 +78,12 @@ final class ReaderController: ReaderPresenting {
             }
         } catch is CancellationError {
         } catch let error as ReaderError {
-            // A superseded task can reach here with a real error (cancellation is
-            // swallowed inside extract's sleeps) — it must not paint over the new
-            // show()'s content in the shared webview.
             if !Task.isCancelled { setStatus(error.message, in: webView) }
         } catch {
             if !Task.isCancelled { setStatus(ReaderError.fetchFailed.message, in: webView) }
         }
     }
 
-    // A cache hit re-runs the exact insert path (sanitization, deterministic block
-    // ids) over the stored original, then paints the stored title/summary/blocks —
-    // zero fetch, zero LLM.
     private func replay(_ entry: ReaderCache.Entry, in webView: WKWebView) async throws {
         let article = ArticleExtractor.ExtractedArticle(
             title: entry.title, byline: entry.byline, content: entry.content)
@@ -127,8 +105,6 @@ final class ReaderController: ReaderPresenting {
         guard let json = try await webView.evaluateStringResult(call),
               let blocks = try? JSONDecoder().decode([ReaderTemplate.Block].self, from: Data(json.utf8))
         else { throw ReaderError.extractionFailed }
-        // Both paths (fresh run and cache replay) pass through here, so the
-        // segment gets its language codes exactly once per page load.
         if let labels = Self.languageLabels(primary: settings.primaryLanguage, content: article.content) {
             _ = try? await webView.evaluateStringResult(
                 ReaderTemplate.call("glossoSetLanguages", labels.translated, labels.original))
@@ -136,10 +112,6 @@ final class ReaderController: ReaderPresenting {
         return blocks
     }
 
-    // The segment's labels: the primary's code plus the article's detected one
-    // (PL | NL). nil — keeping the template's Tłumaczenie/Oryginał fallback —
-    // when the text is too short to trust, detection fails, or the article is
-    // already in the primary language (PL | PL would label a no-op toggle).
     nonisolated static func languageLabels(
         primary: PrimaryLanguage, content: String
     ) -> (translated: String, original: String)? {
@@ -149,8 +121,6 @@ final class ReaderController: ReaderPresenting {
         guard text.count >= 40 else { return nil }
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(String(text.prefix(6000)))
-        // Same 0.8 floor as isConfidently: a low-confidence read (mixed page,
-        // Slavic kin) must fall back to word labels, not mislabel the segment.
         guard let (source, confidence) = recognizer.languageHypotheses(withMaximum: 3)
                 .max(by: { $0.value < $1.value }),
               confidence >= 0.8, source != primary.nl else { return nil }
@@ -162,13 +132,8 @@ final class ReaderController: ReaderPresenting {
         return (code(primary.nl), code(source))
     }
 
-    // Best-effort: any failure leaves the original title in place (and un-dims
-    // it) — a title must never block the article's translation. Returns the title
-    // it applied, so the caller can cache it.
     private func translateTitle(_ title: String, in webView: WKWebView) async -> String {
         var final = title
-        // An empty title must not reach the model: it answers an empty block with
-        // whatever it likes, and that would become the article's heading.
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
             setStatus(loc("Tłumaczę tytuł…", "Translating title…"), in: webView)
@@ -186,9 +151,6 @@ final class ReaderController: ReaderPresenting {
         window?.title = title
     }
 
-    // Best-effort tl;dr under the title: a failure just leaves the section
-    // hidden, never blocks the block translation. Returns the applied summary
-    // ("" when none), so the caller can cache it.
     private func summarize(in webView: WKWebView) async -> String {
         // ponytail: 6000-char cap — the summary reads the article's head; raise
         // it if long-article summaries come out thin. Sliced in JS so a long
@@ -207,16 +169,9 @@ final class ReaderController: ReaderPresenting {
         return cleaned
     }
 
-    // Returns the applied HTML per block id on a complete run, nil on any early
-    // exit (cancel, model failure) — only a complete run is cacheable.
     private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws -> [Int: String]? {
         var applied: [Int: String] = [:]
         let translatable = blocks.filter(\.translate)
-        // An article already in the primary language would go to the model block
-        // by block as a degenerate "output it unchanged" self-translation — the
-        // per-block guard below misses short blocks (<40 chars), and small models
-        // loop on exactly those calls. One confident article-level read skips the
-        // model entirely.
         if Self.isConfidently(in: settings.primaryLanguage,
                               String(translatable.map(\.html).joined(separator: " ").prefix(6000))) {
             for block in translatable {
@@ -249,12 +204,6 @@ final class ReaderController: ReaderPresenting {
             } catch TranslationError.cancelled {
                 return nil
             } catch {
-                // One misbehaving block (runaway generation, truncation) must not
-                // cost the rest of the article: it keeps its original, un-dimmed,
-                // and the loop moves on. Two failures in a row mean the engine
-                // itself is gone — then stop instead of grinding through every
-                // remaining block at full timeout. A superseded task must not
-                // paint over its successor in the shared webview.
                 if Task.isCancelled { return nil }
                 failed += 1
                 consecutiveFailures += 1
@@ -287,11 +236,6 @@ final class ReaderController: ReaderPresenting {
         return applied
     }
 
-    // The prompt's "already in the target → unchanged" costs a full generation per
-    // block; a confident local read skips that round-trip entirely. Unconstrained
-    // recognition (not DirectionDetector's constrained set) so kindred languages
-    // can't masquerade as the target, and only on text long enough to trust —
-    // short or ambiguous blocks still go to the model.
     private static func isConfidently(in primary: PrimaryLanguage, _ html: String) -> Bool {
         let text = html
             .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
@@ -302,23 +246,11 @@ final class ReaderController: ReaderPresenting {
         return (recognizer.languageHypotheses(withMaximum: 3)[primary.nl] ?? 0) >= 0.8
     }
 
-    // Opening the chat widens the window by the panel's width (and closing
-    // shrinks it back), so the article column keeps its size — the panel gets
-    // new screen space instead of squeezing the text. Clamped to the screen:
-    // when there's no room on the right, the window slides left instead.
     fileprivate func setChatPanel(open: Bool, animated: Bool = true) {
         guard open != chatPanelOpen, let window else { return }
         chatPanelOpen = open
-        // Base the math on the in-flight animation's destination, not the live
-        // frame: a toggle mid-animation would otherwise read a transient width,
-        // ratchet the window wider (the screen cap makes the drift one-way) and
-        // poison the autosaved frame for every future reader window.
         var frame = chatFrameTarget ?? window.frame
         if open {
-            // Growth is capped at the screen's visible width (an already-wide
-            // window would push the right-pinned panel off-screen), and the
-            // applied delta is what closing gives back — subtracting the full
-            // panel width after a capped grow would shrink the user's window.
             let visible = window.screen?.visibleFrame
             let target = min(frame.width + Self.chatPanelWidth, visible?.width ?? .greatestFiniteMagnitude)
             chatWidthDelta = target - frame.width
@@ -331,9 +263,6 @@ final class ReaderController: ReaderPresenting {
             chatWidthDelta = 0
         }
         if animated {
-            // Duration and curve must match the .25s ease-in-out transitions in
-            // ReaderTemplate: the body margin animates in step with the growing
-            // window, so the article column never moves or reflows mid-slide.
             let target = frame
             chatAnimSeq += 1
             let seq = chatAnimSeq
@@ -343,8 +272,6 @@ final class ReaderController: ReaderPresenting {
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 window.animator().setFrame(target, display: true)
             }, completionHandler: { [weak self] in
-                // A superseded animation's completion must not wipe the newer
-                // toggle's target, so only the latest animation clears it.
                 if self?.chatAnimSeq == seq { self?.chatFrameTarget = nil }
             })
         } else {
@@ -362,8 +289,6 @@ final class ReaderController: ReaderPresenting {
             "document.getElementById('glosso-content').textContent.slice(0, 12000)")) ?? ""
     }
 
-    // First panel open: generate the suggested-question chips. Best-effort — a
-    // failure paints an empty list so the panel's chip spinner always resolves.
     fileprivate func suggestQuestions() {
         guard let webView else { return }
         suggestTask?.cancel()
@@ -397,8 +322,6 @@ final class ReaderController: ReaderPresenting {
                 self.chatHistory.append((question, answer))
                 _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoAnswer", answer, ""))
             } catch {
-                // A superseded task must not paint into the reloaded page's chat —
-                // same guard discipline as the translation pipeline.
                 if Task.isCancelled { return }
                 let message = (error as? TranslationError)?.userMessage
                     ?? loc("Nie udało się uzyskać odpowiedzi.", "Could not get an answer.")
@@ -444,20 +367,11 @@ final class ReaderController: ReaderPresenting {
         return (window, webView)
     }
 
-    // Dropping the strong refs on close lets the window, the webview and its
-    // WebContent process (the whole rendered article) deallocate — a menu-bar
-    // app must not keep a closed page resident. The next show() recreates the
-    // pair; the frame autosave name preserves size and position.
     private func windowWillClose() {
         translationTask?.cancel()
         suggestTask?.cancel()
         askTask?.cancel()
         chatHistory = []
-        // The window is still alive during willClose, so shrinking here is what
-        // the frame autosave records — otherwise every close-with-open-panel
-        // would compound the widened width into the next launch. Not animated:
-        // an in-flight animation would let the window deallocate mid-resize and
-        // autosave an intermediate frame.
         setChatPanel(open: false, animated: false)
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
@@ -467,8 +381,6 @@ final class ReaderController: ReaderPresenting {
     }
 }
 
-// WKUserContentController retains its handler strongly — this proxy holds the
-// controller weakly so the pair can't retain-cycle.
 @MainActor
 private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
     private weak var controller: ReaderController?

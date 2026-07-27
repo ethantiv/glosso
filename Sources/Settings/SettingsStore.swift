@@ -1,10 +1,6 @@
 import Foundation
 import Observation
 
-/// User-editable, persisted translation settings: which Ollama model to use,
-/// the app's primary language and the other side of the pair. Backed by
-/// UserDefaults; the SwiftUI Settings view binds to it and AppCoordinator reads
-/// it at translate time.
 @MainActor
 @Observable
 final class SettingsStore {
@@ -29,8 +25,6 @@ final class SettingsStore {
         didSet { defaults.set(modelName, forKey: Key.model) }
     }
 
-    /// The fixed side of the pair. Switching it away from a conflicting second
-    /// (the pair must never be X↔X) flips the second to the PL/EN counterpart.
     var primaryLanguage: PrimaryLanguage {
         didSet {
             defaults.set(primaryLanguage.rawValue, forKey: Key.primaryLanguage)
@@ -59,24 +53,16 @@ final class SettingsStore {
         didSet { defaults.set(try? JSONEncoder().encode(translateInPlaceChord), forKey: Key.translateInPlaceChord) }
     }
 
-    /// False on a fresh install (absent key) — drives the first-run wizard. Set
-    /// true once the user finishes (or skips) onboarding.
     var hasCompletedOnboarding: Bool {
         didSet { defaults.set(hasCompletedOnboarding, forKey: Key.hasCompletedOnboarding) }
     }
 
-    /// The release version we have already shown a notification for, so the update
-    /// dymek fires exactly once per version (empty until the first one fires).
     var lastNotifiedVersion: String {
         didSet { defaults.set(lastNotifiedVersion, forKey: Key.lastNotifiedVersion) }
     }
 
-    // Source of truth is the system registration, not UserDefaults: the user can
-    // revoke it in System Settings, so a mirrored flag would drift.
     var launchAtLogin: Bool {
         didSet {
-            // Skip when the value already matches reality (a refresh or a revert),
-            // so this only acts on a genuine user toggle.
             guard launchAtLogin != loginItem.isEnabled else { return }
             do { try loginItem.setEnabled(launchAtLogin) }
             catch { launchAtLogin = oldValue }
@@ -91,25 +77,17 @@ final class SettingsStore {
         self.defaults = defaults
         self.loginItem = loginItem
         self.modelName = defaults.string(forKey: Key.model) ?? EmbeddedModelCatalog.recommended.id
-        // Existing installs (any onboarding flag present) predate the primary
-        // language setting and were Polish-axis — keep their behavior. Fresh
-        // installs seed the translation axis from the system language.
         let primary = defaults.string(forKey: Key.primaryLanguage)
             .flatMap(PrimaryLanguage.init(rawValue:))
             ?? (defaults.object(forKey: Key.hasCompletedOnboarding) != nil
                 ? .polish
                 : (systemLanguages.first?.hasPrefix("pl") == true ? .polish : .english))
-        // didSet doesn't fire during init, so persist the resolved value here —
-        // otherwise a fresh install's seed is absent on the second launch and the
-        // migration branch above would silently revert it to Polish.
         defaults.set(primary.rawValue, forKey: Key.primaryLanguage)
         self.primaryLanguage = primary
         let storedSecond = defaults.string(forKey: Key.secondLanguage)
         let second: SecondLanguage? = storedSecond == Self.autoSecond
             ? nil
             : storedSecond.flatMap(SecondLanguage.init(rawValue:)) ?? primary.counterpart.asSecond
-        // A stored second equal to the primary (e.g. defaults written by hand)
-        // would make the pair X↔X — flip it to the counterpart.
         self.secondLanguage = second == primary.asSecond ? primary.counterpart.asSecond : second
         self.formality = defaults.string(forKey: Key.formality)
             .flatMap(Formality.init(rawValue:)) ?? .automatic
@@ -122,8 +100,6 @@ final class SettingsStore {
         self.launchAtLogin = loginItem.isEnabled
     }
 
-    /// Re-reads the real registration status; the user may have toggled the login
-    /// item in System Settings while the app was running.
     func refreshLaunchAtLogin() {
         let actual = loginItem.isEnabled
         if launchAtLogin != actual { launchAtLogin = actual }

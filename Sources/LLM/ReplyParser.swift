@@ -1,9 +1,5 @@
 import Foundation
 
-/// Splits the model's reply-drafts response into clean blocks for the popup's
-/// pick-one list (issue #60). Drafts are separated by a line that is only dashes
-/// (`---`), so — unlike `AlternativesParser`, which splits on every newline — a
-/// multi-paragraph draft stays intact. De-duplicates and caps the count defensively.
 enum ReplyParser {
     static let maxCount = 5
 
@@ -31,8 +27,6 @@ enum ReplyParser {
         return result
     }
 
-    // A draft boundary: a line of only dashes (3+), tolerating surrounding spaces
-    // and a trailing CR from CRLF input.
     private static func isSeparator(_ line: Substring) -> Bool {
         let trimmed = line.trimmingCharacters(in: .whitespaces)
         return trimmed.count >= 3 && trimmed.allSatisfy { $0 == "-" }

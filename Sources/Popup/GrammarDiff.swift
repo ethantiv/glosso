@@ -1,11 +1,5 @@
 import Foundation
 
-/// One span of the word-level diff between the learner's original text and the
-/// `fixGrammar` correction (issue #51). `.same` is unchanged; `.change` is one
-/// contiguous edit region — `removed` is the struck-through error, `added` the
-/// correction (either may be "" for a pure insertion or deletion). Lossless per
-/// side: joining the `.same` texts with each `.change`'s `removed` reproduces the
-/// original; joining them with each `.change`'s `added` reproduces the correction.
 enum DiffPart: Identifiable {
     case same(id: Int, text: String)
     case change(id: Int, removed: String, added: String)
@@ -19,10 +13,6 @@ enum DiffPart: Identifiable {
 }
 
 enum GrammarDiff {
-    /// Word-level diff via `CollectionDifference` over `Tokenizer` segments — no
-    /// model call, no new dependency. Adjacent removals and insertions between two
-    /// unchanged spans collapse into a single `.change`, so a substitution reads as
-    /// one tappable unit (struck error → correction) rather than scattered tokens.
     static func parts(original: String, corrected: String) -> [DiffPart] {
         let before = Tokenizer.segments(original).map(\.text)
         let after = Tokenizer.segments(corrected).map(\.text)
@@ -37,8 +27,6 @@ enum GrammarDiff {
             }
         }
 
-        // Merge both token streams in order: a removed token, an inserted token, or
-        // a kept token shared by both (the kept tokens line up 1:1 in both streams).
         enum Op { case same(String), remove(String), insert(String) }
         var ops: [Op] = []
         var bi = 0, ai = 0
@@ -52,9 +40,6 @@ enum GrammarDiff {
             }
         }
 
-        // Coalesce: a run of `same` ops becomes one `.same`; a run touching any
-        // remove/insert becomes one `.change` with its removed and added text
-        // concatenated separately.
         var parts: [DiffPart] = []
         var nextID = 0
         var i = 0

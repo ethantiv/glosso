@@ -1,8 +1,5 @@
 import Foundation
 
-/// Pulls and deletes models on the active engine (see `ModelManaging`). The
-/// `/api/pull` and `/api/delete` URLs are derived per call from the resolved
-/// `/api/generate` endpoint, so they track whichever engine is active.
 final class OllamaModelManager: ModelManaging {
     private let session: URLSession
     private let endpointProvider: @Sendable () async throws -> URL

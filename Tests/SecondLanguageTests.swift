@@ -2,10 +2,6 @@ import Testing
 @testable import Glosso
 
 @Suite struct SecondLanguageTests {
-    // The offered languages, locked so the Settings picker and the persisted
-    // raw values can't silently drift. Polish is last: it joined the list when
-    // the primary language became configurable (it shows only under an English
-    // primary), appended so the existing picker order didn't churn.
     @Test func offersExactlyTheConfiguredLanguages() {
         #expect(SecondLanguage.allCases == [.english, .german, .russian, .spanish, .dutch, .french, .polish])
     }
@@ -14,8 +10,6 @@ import Testing
         #expect(SecondLanguage.allCases.map(\.rawValue) == ["en", "de", "ru", "es", "nl", "fr", "pl"])
     }
 
-    // englishName feeds the prompt instruction; a wrong value would translate to
-    // the wrong language.
     @Test func englishNamesDriveThePrompt() {
         #expect(SecondLanguage.english.englishName == "English")
         #expect(SecondLanguage.german.englishName == "German")

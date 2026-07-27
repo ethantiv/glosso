@@ -26,17 +26,12 @@ import Testing
         #expect(!blocks[1].translate)
     }
 
-    // Article text goes into the page exclusively through JSON string literals —
-    // raw interpolation would let a quote or </script> break out of the call.
     @Test func callEncodesArgumentsAsJSONStringLiterals() {
         let call = ReaderTemplate.call("glossoApply", "1", #"a "quoted" </script> line"#)
 
         #expect(call == #"glossoApply("1", "a \"quoted\" <\/script> line")"#)
     }
 
-    // The chat's question list travels as ONE JSON-array string (call takes only
-    // String args); JS JSON.parses it back. Pins the double-encoding contract
-    // the controller and glossoSetQuestions rely on.
     @Test func callDoubleEncodesAJSONArrayArgument() {
         let call = ReaderTemplate.call("glossoSetQuestions", #"["A?","B?"]"#)
 

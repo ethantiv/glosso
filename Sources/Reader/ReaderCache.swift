@@ -1,10 +1,6 @@
 import CryptoKit
 import Foundation
 
-/// Disk cache of fully translated reader articles: one JSON file per URL under
-/// ~/Library/Caches/Glosso/reader, keyed by SHA256 of the URL, replayed into the
-/// template on a hit so a re-opened article costs zero fetch/extraction/LLM.
-/// Entries expire after 7 days; a partial (cancelled/failed) run is never saved.
 struct ReaderCache: Sendable {
     struct Entry: Codable {
         var url: URL
@@ -14,12 +10,8 @@ struct ReaderCache: Sendable {
         /// Feeds glossoSetTitle and the window title.
         var translatedTitle: String
         var byline: String
-        /// Original extracted HTML — glossoSetArticle's walk is deterministic, so
-        /// re-inserting it re-derives the same block ids the translations map uses.
         var content: String
         var summary: String
-        /// Block id → applied HTML (including Polish-skip blocks, so a replay
-        /// un-dims every block).
         var translations: [Int: String]
     }
 
@@ -28,10 +20,6 @@ struct ReaderCache: Sendable {
     let directory: URL
     private let version: String
 
-    // The app version is folded into the file key: block ids are deterministic
-    // only within one build (the template's walk/SKIP/thresholds can change), so
-    // an entry from another version must miss instead of mis-applying its
-    // translations. Orphaned old-version files age out via the TTL sweep.
     init(directory: URL = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask)[0]
         .appendingPathComponent("Glosso/reader", isDirectory: true),
          version: String = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "") {
@@ -52,14 +40,10 @@ struct ReaderCache: Sendable {
         return entry
     }
 
-    /// Deletes the entry for a URL (no-op on miss) — backs the reader's
-    /// re-translate button.
     func remove(_ url: URL, primary: PrimaryLanguage) {
         try? FileManager.default.removeItem(at: fileURL(for: url, primary: primary))
     }
 
-    /// Best-effort (all throws swallowed): creates the directory, writes the entry,
-    /// then sweeps expired sibling files so never-revisited URLs don't pile up.
     func save(_ entry: Entry, primary: PrimaryLanguage) {
         let fm = FileManager.default
         try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
@@ -68,8 +52,6 @@ struct ReaderCache: Sendable {
         sweepExpired()
     }
 
-    // The file is written at savedAt, so its modification date approximates the
-    // entry's age — one stat per file instead of a full decode.
     private func sweepExpired() {
         let fm = FileManager.default
         let files = (try? fm.contentsOfDirectory(
@@ -83,9 +65,6 @@ struct ReaderCache: Sendable {
         }
     }
 
-    // The target language is folded into the key too: a cached article holds
-    // translations INTO one primary language, so switching the primary must miss
-    // and re-translate instead of replaying the old language's blocks.
     private func fileURL(for url: URL, primary: PrimaryLanguage) -> URL {
         let hash = SHA256.hash(data: Data("\(version)|\(primary.rawValue)|\(url.absoluteString)".utf8))
             .map { String(format: "%02x", $0) }.joined()

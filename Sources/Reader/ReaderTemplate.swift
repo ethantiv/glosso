@@ -1,34 +1,12 @@
 import Foundation
 
-/// The reader window's page: a self-contained HTML template (kept as a Swift
-/// constant — a second bundle resource plus load plumbing would be pure overhead)
-/// and the small helpers the controller uses to talk to it.
-///
-/// Template JS contract:
-/// - `glossoSetArticle(title, byline, html)` inserts the extracted article, tags
-///   translatable top-level blocks with `data-glosso-id` + `.glosso-pending`
-///   (the dimmed original text is its own skeleton) and returns the block list
-///   as a JSON string for Swift to loop over.
-/// - `glossoApply(id, html)` swaps in one block's translation.
-/// - `glossoSetLanguages(translated, original)` relabels the view segment with
-///   language codes ("PL" | "NL") once the article's language is detected.
-/// - `glossoAbort()` un-dims every still-pending block (translation gave up).
-/// - `glossoStatus(msg)` shows progress/errors in the bottom bar ('' hides it).
-/// - `glossoSetQuestions(json)` fills the chat panel's suggested-question chips
-///   (one JSON-encoded array argument — `call` only passes strings).
-/// - `glossoAnswer(answer, error)` resolves the pending chat bubble; empty
-///   `error` means success, empty `answer` means failure.
 enum ReaderTemplate {
-    /// One tagged block of the rendered article, as returned by glossoSetArticle.
-    /// `translate == false` marks blocks kept verbatim (figures, code, empty).
     struct Block: Decodable {
         let id: Int
         let html: String
         let translate: Bool
     }
 
-    /// Gemma occasionally wraps the fragment in Markdown fences despite the
-    /// prompt; peel them so raw ``` never lands in the article.
     static func stripFences(_ text: String) -> String {
         var trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard trimmed.hasPrefix("```") else { return trimmed }
@@ -39,9 +17,6 @@ enum ReaderTemplate {
         return trimmed.trimmingCharacters(in: .whitespacesAndNewlines)
     }
 
-    /// Builds a JS call with every argument passed as a JSON string literal —
-    /// never raw interpolation, so quotes/newlines/script tags in article text
-    /// can't break out of the call.
     static func call(_ function: String, _ arguments: String...) -> String {
         let encoded = arguments.map { argument -> String in
             let data = try? JSONEncoder().encode(argument)
@@ -50,8 +25,6 @@ enum ReaderTemplate {
         return "\(function)(\(encoded.joined(separator: ", ")))"
     }
 
-    // Computed, not stored: the pill labels resolve in the app's current UI
-    // language at load time (each show() reloads the template).
     static var html: String { """
     <!DOCTYPE html>
     <html>
@@ -65,9 +38,6 @@ enum ReaderTemplate {
               --ink-soft: light-dark(#605D6C, #A29FB0);
               --hairline: light-dark(#E6E4EA, #37343E);
               --ui-font: "Avenir Next", -apple-system, system-ui, sans-serif; }
-      /* The cloth band, earning its keep: a fixed full-bleed reading-progress
-         bar. The track keeps the band's tint; the fill scales with scroll.
-         A page shorter than the viewport reads as fully visible → full band. */
       #glosso-progress { position: fixed; top: 0; left: 0; right: 0; height: 6px;
                          background: color-mix(in srgb, var(--accent) 22%, Canvas);
                          z-index: 20; }
@@ -76,7 +46,6 @@ enum ReaderTemplate {
       body { font-family: "Athelas", "Palatino", ui-serif, Georgia, serif;
              font-size: 18px; line-height: 1.72; max-width: 41em; margin: 0 auto;
              padding: 2.2em 1.5em 4em; overflow-wrap: break-word; }
-      /* Book title page: everything centered, ornament between title and byline. */
       h1#glosso-title { font-size: 2.5em; line-height: 1.18; margin: 0 auto .4em;
                         font-weight: 400; text-align: center; letter-spacing: 0; }
       #glosso-fleuron { display: none; text-align: center; color: var(--accent);
@@ -84,7 +53,6 @@ enum ReaderTemplate {
       #glosso-byline { text-align: center; font-variant-caps: small-caps;
                        letter-spacing: .12em; font-size: .95em;
                        color: var(--ink-soft); margin-bottom: 2.6em; }
-      /* Translator's note (the tl;dr): rules above and below, like a preface. */
       #glosso-summary { border-top: 1px solid CanvasText;
                         border-bottom: 1px solid CanvasText;
                         padding: 1.1em .2em; margin: 0 0 2.8em;
@@ -97,7 +65,6 @@ enum ReaderTemplate {
       #glosso-content figcaption { font-family: var(--ui-font); text-align: center; }
       #glosso-pills { position: fixed; top: .9em; right: .9em; z-index: 10;
                       display: none; gap: .5em; font-family: var(--ui-font); }
-      /* Keep the pills over the article column, not inside the open chat panel. */
       #glosso-pills { transition: right .25s ease-in-out; }
       body.glosso-chat-open #glosso-pills { right: calc(320px + .9em); }
       .glosso-pill { display: flex; align-items: center; gap: .4em;
@@ -109,7 +76,6 @@ enum ReaderTemplate {
                      border: 1px solid color-mix(in srgb, var(--accent) 26%, Canvas); }
       .glosso-pill:hover { background: color-mix(in srgb, var(--accent) 16%, Canvas); }
       .glosso-pill svg { width: 1.05em; height: 1.05em; }
-      /* The translated/original switch is a two-state segment, not an eye pill. */
       #glosso-seg { display: flex; padding: 0; border-radius: 999px; overflow: hidden;
                     cursor: pointer; color: var(--accent-ink);
                     background: color-mix(in srgb, var(--accent) 9%, Canvas);
@@ -128,7 +94,6 @@ enum ReaderTemplate {
       iframe { aspect-ratio: 16 / 9; height: auto; }
       figure { margin: 2.2em 0; }
       figcaption { font-size: .78em; opacity: .8; margin-top: .7em; }
-      /* Quotes set as centered epigraphs, book-style — no side rule. */
       blockquote { margin: 1.8em 1.5em; text-align: center; font-size: 1.08em;
                    font-style: italic; line-height: 1.55; }
       pre { overflow-x: auto; background: color-mix(in srgb, CanvasText 7%, Canvas);
@@ -136,12 +101,7 @@ enum ReaderTemplate {
       code { font-family: ui-monospace, monospace; }
       a { color: var(--accent-ink); }
       .glosso-pending { opacity: .45; }
-      /* A translated block invites a click for its interlinear original —
-         cursor only, no hover fill: a shifting background distracts while
-         reading. */
       .glosso-dual { cursor: pointer; }
-      /* Interlinear original: an indented italic quotation under the block,
-         like a source citation in a printed bilingual edition — no box. */
       .glosso-interlinear { margin: .5em 0 .2em 1.6em; font-style: italic;
                             font-size: .9em; line-height: 1.6; cursor: default;
                             color: color-mix(in srgb, CanvasText 74%, Canvas); }
@@ -149,12 +109,6 @@ enum ReaderTemplate {
                                  font-size: .64rem; font-weight: 700; letter-spacing: .14em;
                                  text-transform: uppercase; color: var(--accent-ink);
                                  display: block; margin-bottom: .3em; }
-      /* Chat: a conversation with the translator — questions are the only
-         bubbles; answers read as numbered footnotes. */
-      /* Slid off-screen instead of display-toggled, so open/close can animate in
-         step with the Swift window resize (same .25s ease-in-out — keep in sync
-         with setChatPanel). visibility delays hiding until the slide-out ends
-         and keeps the closed panel unfocusable. */
       #glosso-chat-panel { position: fixed; top: 6px; right: 0; bottom: 0; width: 320px;
                            display: flex; flex-direction: column; gap: .9em;
                            transform: translateX(100%); visibility: hidden;
@@ -166,16 +120,11 @@ enum ReaderTemplate {
       body.glosso-chat-open #glosso-chat-panel { transform: none; visibility: visible;
                                                  transition: transform .25s ease-in-out,
                                                              visibility 0s; }
-      /* Shift the article column out from under the open panel; margin-left stays
-         auto, so the column keeps all remaining slack on the left. Not animated:
-         during the transition glossoToggleChat pins the column's width and left
-         margin instead, so this margin swap can never reflow the text. */
       body.glosso-chat-open { margin-right: 340px; }
       .glosso-chat-label { font-family: var(--ui-font); font-size: .68rem;
                            font-weight: 600; letter-spacing: .2em;
                            text-transform: uppercase; text-align: center;
                            color: var(--accent-ink); }
-      /* padding-right keeps the overlay scrollbar off the bubbles */
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
                               display: flex; flex-direction: column;
                               counter-reset: glosso-footnote; }
@@ -200,19 +149,13 @@ enum ReaderTemplate {
                               color: var(--ink-soft);
                               display: none; }
       #glosso-chat-suggestions { display: flex; flex-direction: column; }
-      /* Once a conversation is running the suggestions collapse into one
-         horizontally scrollable row of single-line chips (full text in the
-         tooltip), so the messages get the panel's height back. */
       .glosso-chat-started #glosso-suggest-label { display: none !important; }
-      /* padding-bottom keeps the overlay scrollbar off the chips */
       .glosso-chat-started #glosso-chat-suggestions { flex-direction: row;
                                                       overflow-x: auto; flex: none;
                                                       gap: 1em; padding-bottom: .7em; }
       .glosso-chat-started .glosso-chip { flex: none; max-width: 15em;
                                           white-space: nowrap; overflow: hidden;
                                           text-overflow: ellipsis; border-top: 0; }
-      /* Suggestions read as an index of questions, each led by a dagger —
-         not buttons. */
       .glosso-chip { font-family: inherit; font-style: italic; font-size: .88em;
                      line-height: 1.45; text-align: left; cursor: pointer;
                      color: CanvasText; background: transparent; border: 0;
@@ -276,9 +219,6 @@ enum ReaderTemplate {
     </div>
     <div id="glosso-status"></div>
     <script>
-    // Readability strips <script> but keeps on* handler attributes and
-    // javascript: URLs, and innerHTML fires e.g. <img onerror> on insert —
-    // strip both before any extracted or model-produced HTML goes live.
     function glossoSanitize(root) {
       for (const el of root.querySelectorAll('*')) {
         for (const attr of Array.from(el.attributes)) {
@@ -291,12 +231,6 @@ enum ReaderTemplate {
         }
       }
     }
-    // Original/translated live side by side: `original`/`translated` keep every
-    // block's two renderings, `mode` says which one the DOM shows, and the eye
-    // button flips between them without touching Swift. Translation keeps
-    // writing into `translated` while the original is on display, so toggling
-    // back shows all progress made meanwhile. Each show() reloads the template
-    // (fresh JS context), so the state never needs resetting.
     const glosso = {
       mode: 'translated',
       original: {},          // id -> original innerHTML
@@ -335,25 +269,12 @@ enum ReaderTemplate {
       };
       (function walk(node) {
         for (const el of Array.from(node.children)) {
-          // Readability wraps everything in div.page containers — recurse through
-          // structural wrappers, treat everything else (whole blockquote
-          // included) as one block. A wrapper with no element children only has
-          // bare text nodes, which recursion would silently skip — treat it as a
-          // block instead.
           if (['DIV', 'SECTION', 'ARTICLE', 'MAIN'].includes(el.tagName)
               && el.children.length > 0) { walk(el); continue; }
-          // A figure's images stay verbatim, but its caption is translatable
-          // content — register each non-empty figcaption as its own block.
           if (el.tagName === 'FIGURE') {
             for (const caption of el.querySelectorAll('figcaption')) { register(caption, true); }
             continue;
           }
-          // A list translated as one block loses its <li> tags in the model's
-          // output and innerHTML on the <ol> drops the numbering — register each
-          // direct <li> instead, so the ol/li skeleton stays in the DOM and only
-          // li content is translated. Nested lists stay inside their parent li's
-          // block: registering nested li would let a parent apply wipe the
-          // children's data-glosso-id.
           if (['UL', 'OL'].includes(el.tagName)) {
             for (const li of el.querySelectorAll(':scope > li')) { register(li, true); }
             continue;
@@ -364,15 +285,9 @@ enum ReaderTemplate {
       document.getElementById('glosso-pills').style.display = 'flex';
       // The ornament belongs to the loaded title page, not the empty template.
       document.getElementById('glosso-fleuron').style.display = 'block';
-      // The page just became scrollable — drop the bar from the full-band
-      // resting state to the real fraction without waiting for a scroll.
       glossoProgress();
       return JSON.stringify(blocks);
     }
-    // Renders one block's html into the DOM. The model occasionally drops an
-    // <img> while translating a mixed block; re-append any image the replacement
-    // lost so translation never costs pictures (position within the block may
-    // shift — acceptable).
     function glossoRender(id, html) {
       const el = document.querySelector('[data-glosso-id="' + id + '"]');
       if (!el) { return; }
@@ -388,14 +303,10 @@ enum ReaderTemplate {
     function glossoApply(id, html) {
       glosso.translated[id] = html;
       glosso.pending.delete(Number(id));
-      // classList survives glossoRender's innerHTML writes, so tagging once
-      // here is enough for the hover affordance + interlinear click.
       const el = document.querySelector('[data-glosso-id="' + id + '"]');
       if (el) { el.classList.add('glosso-dual'); }
       if (glosso.mode === 'translated') { glossoRender(id, html); }
     }
-    // Language codes for the segment (e.g. "PL", "NL") once Swift has detected
-    // the article's language; until then the buttons keep their word labels.
     function glossoSetLanguages(translated, original) {
       document.getElementById('glosso-seg-translated').textContent = translated;
       document.getElementById('glosso-seg-original').textContent = original;
@@ -416,16 +327,11 @@ enum ReaderTemplate {
     function glossoRefreshSummary() {
       const summary = document.getElementById('glosso-summary');
       summary.textContent = glosso.summary;
-      // The tl;dr is our addition, not part of the article — the original view
-      // shows the page as-published, so it hides there.
       summary.style.display = (glosso.summary && glosso.mode === 'translated') ? 'block' : 'none';
     }
     function glossoToggleOriginal() {
       const toOriginal = glosso.mode === 'translated';
       glosso.mode = toOriginal ? 'original' : 'translated';
-      // Only blocks that HAVE a translation differ between the two views —
-      // everything else already shows its original, so re-rendering it would
-      // reparse HTML and drop any selection inside it for nothing.
       for (const id of Object.keys(glosso.translated)) {
         glossoRender(id, toOriginal ? glosso.original[id] : glosso.translated[id]);
       }
@@ -445,8 +351,6 @@ enum ReaderTemplate {
     }
     function glossoAbort() {
       glosso.pending.clear();
-      // Nothing is in flight any more, so the title is final at whatever it now
-      // shows — or toggling back would re-dim it forever.
       glosso.translatedTitle = glosso.translatedTitle || glosso.originalTitle;
       for (const el of document.querySelectorAll('.glosso-pending')) {
         el.classList.remove('glosso-pending');
@@ -459,12 +363,6 @@ enum ReaderTemplate {
     }
     function glossoToggleChat() {
       const open = !document.body.classList.contains('glosso-chat-open');
-      // Freeze the column geometry for the transition: with width and left
-      // margin pinned in px, neither the margin-right swap nor the animated
-      // window resize can reflow the article text. Unpinned once both 250ms
-      // animations settle — auto layout then resolves to the same geometry
-      // (window delta == margin delta), so nothing jumps. Re-pinning while
-      // pinned reads back the pinned values, so rapid toggles stay stable.
       const cs = getComputedStyle(document.body);
       document.body.style.width = cs.width;
       document.body.style.marginLeft = cs.marginLeft;
@@ -474,8 +372,6 @@ enum ReaderTemplate {
         document.body.style.marginLeft = '';
       }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
-      // Swift widens the window by the panel's width, so the article column
-      // keeps its size instead of being squeezed under the open panel.
       window.webkit?.messageHandlers?.glosso?.postMessage({action: 'panel', open: open ? '1' : ''});
       if (open && !glosso.questionsRequested) {
         glosso.questionsRequested = true;
@@ -486,15 +382,11 @@ enum ReaderTemplate {
       }
       if (open) { document.getElementById('glosso-chat-input').focus(); }
     }
-    // One JSON-encoded array argument: ReaderTemplate.call only passes strings.
-    // Chips render via textContent — model output never becomes markup here.
     function glossoSetQuestions(json) {
       const box = document.getElementById('glosso-chat-suggestions');
       box.textContent = '';
       let questions = [];
       try { questions = JSON.parse(json); } catch (e) {}
-      // Empty = the suggest failed or found nothing; re-arm so reopening the
-      // panel retries instead of leaving the chips permanently blank.
       if (!questions.length) { glosso.questionsRequested = false; return; }
       for (const q of questions) {
         if (glosso.asked.includes(q.trim())) { continue; }
@@ -519,8 +411,6 @@ enum ReaderTemplate {
     }
     function glossoAsk(question) {
       question = question.trim();
-      // No queue: while an answer is pending, asking is a no-op (send + chips
-      // are disabled too — this guard covers Enter in the input).
       if (!question || glosso.chatBusy) { return; }
       glosso.asked.push(question);
       document.getElementById('glosso-chat-panel').classList.add('glosso-chat-started');
@@ -543,9 +433,6 @@ enum ReaderTemplate {
       glossoChatBusy(true);
       window.webkit?.messageHandlers?.glosso?.postMessage({action: 'ask', question: question});
     }
-    // Empty error = success. Answers land via textContent (pre-wrap CSS keeps
-    // paragraphs) — no innerHTML, so no glossoSanitize needed on this path.
-    // A stale call after a template reload finds no pending bubble and no-ops.
     function glossoAnswer(answer, error) {
       const pending = document.querySelector('.glosso-chat-pending');
       if (!pending) { return; }
@@ -557,8 +444,6 @@ enum ReaderTemplate {
       messages.scrollTop = messages.scrollHeight;
       document.getElementById('glosso-chat-input').focus();
     }
-    // Bound here rather than as an inline onclick: glossoSanitize strips on*
-    // attributes, so an inline handler would die the day it runs any wider.
     document.getElementById('glosso-seg-original').addEventListener('click', function() {
       if (glosso.mode !== 'original') { glossoToggleOriginal(); }
     });
@@ -566,10 +451,6 @@ enum ReaderTemplate {
       if (glosso.mode !== 'translated') { glossoToggleOriginal(); }
     });
     document.getElementById('glosso-chat').addEventListener('click', glossoToggleChat);
-    // Interlinear original: clicking a translated block opens its original
-    // right under it, like a source citation in a bilingual edition. The note
-    // lives inside the block, so a view toggle's innerHTML write clears it and
-    // a second click (anywhere in the block, note included) closes it.
     document.getElementById('glosso-content').addEventListener('click', function(e) {
       if (glosso.mode !== 'translated' || e.target.closest('a')) { return; }
       const block = e.target.closest('[data-glosso-id]');
@@ -583,15 +464,11 @@ enum ReaderTemplate {
       lang.textContent = '\(loc("Oryginał", "Original"))';
       const text = document.createElement('div');
       text.innerHTML = glosso.original[block.dataset.glossoId];
-      // Originals are stored pre-sanitized, but the invariant is "sanitize
-      // after every innerHTML" — keep the guard local, not a non-local fact.
       glossoSanitize(text);
       note.appendChild(lang);
       note.appendChild(text);
       block.appendChild(note);
     });
-    // Auto-grow: reset to auto first so shrinking works too; max-height + CSS
-    // overflow take over past ~8em.
     function glossoGrowInput() {
       const input = document.getElementById('glosso-chat-input');
       input.style.height = 'auto';
@@ -606,21 +483,15 @@ enum ReaderTemplate {
       glossoGrowInput();
     });
     document.getElementById('glosso-chat-input').addEventListener('input', glossoGrowInput);
-    // A textarea never submits its form on Enter — without this, Enter would
-    // stop sending. Shift+Enter keeps the native newline.
     document.getElementById('glosso-chat-input').addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && !e.shiftKey) {
         e.preventDefault();
         document.getElementById('glosso-chat-form').requestSubmit();
       }
     });
-    // Optional chaining: the bridge only exists inside the app's WKWebView, and
-    // the template must not throw when opened standalone (file://).
     document.getElementById('glosso-refresh').addEventListener('click', function() {
       window.webkit?.messageHandlers?.glosso?.postMessage('refresh');
     });
-    // Reading progress: fill fraction = scroll position over scrollable range.
-    // No range (page fits the viewport) = everything visible = full band.
     function glossoProgress() {
       const max = document.documentElement.scrollHeight - window.innerHeight;
       const fraction = max > 0 ? Math.min(1, window.scrollY / max) : 1;

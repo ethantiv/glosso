@@ -2,9 +2,6 @@ import Foundation
 import CoreGraphics
 @testable import Glosso
 
-/// A one-shot gate a test can use to suspend a producer mid-stream and release
-/// it on demand, so cancellation/reassignment can be exercised while a stream is
-/// genuinely in flight rather than already drained.
 final class StreamGate: @unchecked Sendable {
     private let stream: AsyncStream<Void>
     private let continuation: AsyncStream<Void>.Continuation
@@ -28,8 +25,6 @@ struct FakeLLMClient: LLMClient {
         var receivedFormality: Formality?
         var receivedAction: Action?
         var receivedStyle: Bool?
-        // Call counts/order so cache + prefetch tests can assert the model is hit the
-        // expected number of times (a cache hit must not re-run it).
         var runCount = 0
         var runActions: [Action] = []
         var replyCount = 0
@@ -96,9 +91,6 @@ struct FakeLLMClient: LLMClient {
     let recorder = Recorder()
     let events: [TranslationEvent]
     let error: TranslationError?
-    /// When set, the stream yields the first event, then suspends on the gate
-    /// until the test releases it before yielding the rest — so a test can cancel
-    /// or supersede the capture while the stream is still mid-flight.
     let gate: StreamGate?
     let alternativesResult: [String]
     let alternativesError: TranslationError?
@@ -313,9 +305,6 @@ final class FakePasteboardReader: PasteboardReading {
     var currentChangeCount: Int = 0
     /// Throw this many `.nothingSelected` before the copy "lands". nil = never lands.
     var readyAfterAttempts: Int?
-    /// The change count a landed copy reports. readSelection only returns text
-    /// once it rises strictly above the passed baseline, mirroring SelectionGuard,
-    /// so the coordinator's baseline handshake is actually exercised here.
     var landedChangeCount: Int = 1
     var text: String = "Cześć"
     private var attempts = 0
@@ -334,9 +323,6 @@ final class FakePasteboardReader: PasteboardReading {
 @MainActor
 final class FakeAXSelectionReader: AXSelectionReading {
     var text: String?
-    /// When non-empty, successive selectedText() calls return these in order so a
-    /// test can model a selection that collapses between the capture read and the
-    /// pre-paste re-check; falls back to `text` once drained.
     var texts: [String?] = []
     private(set) var callCount = 0
     func selectedText() -> String? {
@@ -434,8 +420,6 @@ final class FakeHotkeyMonitor: HotkeyMonitor {
     var onFixGrammar: (@MainActor () -> Void)?
     var onTranslateInPlace: (@MainActor () -> Void)?
     private(set) var stopCount = 0
-    /// When set, `start()` throws it — so a test can assert the coordinator
-    /// surfaces a failed monitor start as `start() == false`.
     var startError: (any Error)?
     func start() throws { if let startError { throw startError } }
     func stop() { stopCount += 1 }

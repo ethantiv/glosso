@@ -38,20 +38,14 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
             throw HotkeyError.accessibilityNotGranted
         }
         monitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
-            // The global monitor handler is delivered on the main thread, but its SDK
-            // signature is not @MainActor; assume isolation synchronously to keep ordering.
             MainActor.assumeIsolated {
                 self?.handle(event)
             }
         }
-        // A nil return means AppKit failed to install the monitor (e.g. AX revoked
-        // between the check above and here); don't report listening when it isn't.
         guard monitor != nil else { throw HotkeyError.accessibilityNotGranted }
     }
 
     private func handle(_ event: NSEvent) {
-        // Match the typed character, not the physical key position (keyCode 8),
-        // so double Cmd+C also fires on Dvorak/AZERTY/Colemak layouts.
         let chordModifiers: NSEvent.ModifierFlags = [.command, .shift, .control, .option]
         let mods = event.modifierFlags.intersection(chordModifiers)
         let key = event.charactersIgnoringModifiers?.lowercased() ?? ""
@@ -67,8 +61,6 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
         }
     }
 
-    // Pure chord resolution, testable without fabricating an NSEvent. The fix chord
-    // wins a tie if a user ever points both at the same combo.
     func resolveChord(key: String, modifiers: UInt, isRepeat: Bool) -> ChordHit? {
         guard !isRepeat else { return nil }
         let chords = chordProvider()
@@ -77,12 +69,6 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
         return nil
     }
 
-    // Returns the changeCount baseline to translate against when this press
-    // completes a double, or nil for a (possible) first press. The baseline is
-    // sampled at the FIRST Cmd+C, not when the double is detected: a foreground
-    // app that copies synchronously on the second press has already bumped
-    // changeCount by the time our passive monitor runs, so a baseline read then
-    // would equal the post-copy value and the poll loop would never see it rise.
     func registerPress(changeCount: Int, at now: TimeInterval) -> Int? {
         if detector.registerCopy(at: now) {
             defer { pendingBaseline = nil }
@@ -93,9 +79,6 @@ final class GlobalHotkeyMonitor: HotkeyMonitor {
     }
 
     func stop() {
-        // Clear any in-progress double-press window (and its baseline) so a
-        // stop/start cycle (e.g. the AX-revocation auto-restart) can't pair a
-        // pre-flap Cmd+C with a single post-restart press.
         detector.reset()
         pendingBaseline = nil
         if let monitor {

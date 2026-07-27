@@ -2,9 +2,6 @@ import Testing
 @testable import Glosso
 
 @Suite struct GrammarDiffTests {
-    // Joining the .same texts with each .change's removed must rebuild the original;
-    // with each .change's added, the correction. This is the core contract: the
-    // diff is purely a rearrangement of both texts, never a mutation of them.
     private func rebuiltOriginal(_ parts: [DiffPart]) -> String {
         parts.map { part in
             switch part {
@@ -47,8 +44,6 @@ import Testing
         }
     }
 
-    // Substitutions separated by an unchanged space stay separate tappable changes,
-    // so a learner sees each word's fix on its own rather than one merged blob.
     @Test func substitutionMakesEachWordItsOwnChange() {
         let parts = GrammarDiff.parts(original: "i has went", corrected: "I have gone")
         let c = changes(parts)
@@ -90,8 +85,6 @@ import Testing
         #expect(c[0].added == "koty")
     }
 
-    // The popup anchors the reason dropdown to a part's id, so ids must be unique
-    // and stable (sequential) across the whole part list.
     @Test func partsHaveUniqueSequentialIDs() {
         let parts = GrammarDiff.parts(original: "i has went", corrected: "I have gone")
         #expect(parts.map(\.id) == Array(0..<parts.count))

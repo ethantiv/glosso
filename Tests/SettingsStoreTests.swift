@@ -9,9 +9,6 @@ import Testing
         UserDefaults(suiteName: "SettingsStoreTests-\(UUID().uuidString)")!
     }
 
-    // A fresh install must start on the model recommended for this Mac's RAM (not a
-    // hardcoded tag), and on the hardcoded MVP defaults for everything else, so the
-    // app behaves predictably until the user changes anything.
     @Test func defaultsMatchTheHardcodedConfig() {
         let store = SettingsStore(defaults: transientDefaults(), systemLanguages: ["pl-PL"])
         #expect(store.modelName == EmbeddedModelCatalog.recommended.id)
@@ -24,8 +21,6 @@ import Testing
 
     // MARK: Primary language (internationalization)
 
-    // A fresh install seeds the primary from the system language, so onboarding
-    // renders in it; the second then defaults to the counterpart, never X↔X.
     @Test func freshInstallSeedsPrimaryFromSystemLanguage() {
         let polish = SettingsStore(defaults: transientDefaults(), systemLanguages: ["pl-PL", "en-US"])
         #expect(polish.primaryLanguage == .polish)
@@ -39,9 +34,6 @@ import Testing
         #expect(german.primaryLanguage == .english)
     }
 
-    // Existing installs predate the primary-language setting and were Polish-axis:
-    // the onboarding flag's presence is the migration marker, and their stored
-    // English second language must survive untouched.
     @Test func existingInstallMigratesToPolishPrimary() {
         let defaults = transientDefaults()
         defaults.set(true, forKey: "app.hasCompletedOnboarding")
@@ -51,9 +43,6 @@ import Testing
         #expect(store.secondLanguage == .english)
     }
 
-    // The seed must be persisted during init (didSet doesn't fire there): after
-    // onboarding completes without the user touching the primary picker, the next
-    // launch would otherwise see the key absent and migration-revert to Polish.
     @Test func seededPrimarySurvivesOnboardingCompletion() {
         let defaults = transientDefaults()
         let first = SettingsStore(defaults: defaults, systemLanguages: ["en-US"])
@@ -70,8 +59,6 @@ import Testing
         #expect(SettingsStore(defaults: defaults).primaryLanguage == .english)
     }
 
-    // The pair must never be X↔X: switching the primary onto the current second
-    // flips the second to the PL/EN counterpart, live and on load.
     @Test func switchingPrimaryOntoSecondFlipsTheSecond() {
         let store = SettingsStore(defaults: transientDefaults(), systemLanguages: ["pl-PL"])
         #expect(store.secondLanguage == .english)
@@ -97,9 +84,6 @@ import Testing
         #expect(reloaded.secondLanguage == nil)
     }
 
-    // The first-run wizard must show exactly once: a fresh install starts
-    // not-onboarded, and once finished the flag must survive a restart so the wizard
-    // never reappears.
     @Test func onboardingFlagDefaultsFalseAndPersists() {
         let defaults = transientDefaults()
         #expect(SettingsStore(defaults: defaults).hasCompletedOnboarding == false)
@@ -108,8 +92,6 @@ import Testing
         #expect(SettingsStore(defaults: defaults).hasCompletedOnboarding == true)
     }
 
-    // The configurable action shortcuts (issue #21) must survive a restart, or the
-    // user's rebinding is lost the moment the app relaunches.
     @Test func persistsChordsAcrossReload() {
         let defaults = transientDefaults()
         let cmdOpt = NSEvent.ModifierFlags([.command, .option]).rawValue
@@ -122,8 +104,6 @@ import Testing
         #expect(reloaded.translateInPlaceChord == KeyChord(key: "r", modifiers: cmdOpt))
     }
 
-    // A reload (app restart) must see the previously chosen values, proving they
-    // were persisted and not just held in memory — the whole point of the feature.
     @Test func persistsChangesAcrossReload() {
         let defaults = transientDefaults()
         let first = SettingsStore(defaults: defaults)
@@ -137,8 +117,6 @@ import Testing
         #expect(reloaded.formality == .formal)
     }
 
-    // A corrupt/unknown persisted language code must fall back to English rather
-    // than leave the picker on an invalid selection.
     @Test func unknownPersistedLanguageFallsBackToEnglish() {
         let defaults = transientDefaults()
         defaults.set("xx", forKey: "translation.secondLanguage")
@@ -154,8 +132,6 @@ import Testing
         #expect(store.formality == .automatic)
     }
 
-    // The toggle is the whole point of the setting: flipping it on/off must drive
-    // the actual login-item registration, and the store must mirror fresh state.
     @Test func togglingLaunchAtLoginRegistersAndUnregisters() {
         let login = FakeLoginItem(isEnabled: false)
         let store = SettingsStore(defaults: transientDefaults(), loginItem: login)
@@ -170,8 +146,6 @@ import Testing
         #expect(login.isEnabled == false)
     }
 
-    // If the system rejects registration, the toggle must snap back, so the UI
-    // never claims an enabled state that isn't actually in effect.
     @Test func launchAtLoginRevertsWhenRegistrationFails() {
         struct Boom: Error {}
         let login = FakeLoginItem(isEnabled: false)
@@ -183,8 +157,6 @@ import Testing
         #expect(login.isEnabled == false)
     }
 
-    // A status change made in System Settings (revocation) must surface on
-    // refresh — and refresh must only reflect it, never re-trigger registration.
     @Test func refreshReflectsExternalStatusWithoutReRegistering() {
         let login = FakeLoginItem(isEnabled: true)
         let store = SettingsStore(defaults: transientDefaults(), loginItem: login)

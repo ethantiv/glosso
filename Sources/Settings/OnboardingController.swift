@@ -1,10 +1,6 @@
 import AppKit
 import SwiftUI
 
-/// Hosts the first-run wizard in a standard, activating titled window — unlike the
-/// non-activating popup `FloatingPanel`, the wizard needs focus for its picker and
-/// buttons. Both the "Zakończ" button and the window's close button mark onboarding
-/// done (via the willClose observer), so the wizard never reappears once dismissed.
 @MainActor
 final class OnboardingController {
     private let store: SettingsStore

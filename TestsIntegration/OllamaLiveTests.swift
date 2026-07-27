@@ -30,8 +30,6 @@ import Testing
         #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
-    // Regression guard for the in-code target resolution — see
-    // PromptBuilder.instruction and CLAUDE.md subtlety #2 for the NL/RU rationale.
     @Test func translatesDutchToPolishAgainstLiveOllama() async throws {
         guard await ollamaReachable() else { return }
 
@@ -47,9 +45,6 @@ import Testing
             }
         }
 
-        // Constrained to the three plausible outcomes (Polish, Dutch echo, English
-        // drift): DirectionDetector's two-language constraint would force an English
-        // answer into one of its buckets and could pass on wrong-language output.
         let recognizer = NLLanguageRecognizer()
         recognizer.languageConstraints = [.polish, .dutch, .english]
         recognizer.processString(output)
@@ -67,8 +62,6 @@ import Testing
         #expect(!explanation.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
-    // The whole point of the register coach (#53): the note must name the concrete
-    // pronoun shift a T–V language makes, not just say "the tone is now informal".
     @Test func explainsRegisterShiftAgainstLiveOllama() async throws {
         guard await ollamaReachable() else { return }
 

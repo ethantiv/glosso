@@ -3,8 +3,6 @@ import Testing
 @testable import Glosso
 
 @Suite struct UpdateDownloaderTests {
-    // Finder-style collision avoidance: an existing download must never be silently
-    // overwritten — the name gets a "-2", "-3", … suffix until it is free.
     @Test func uniqueNameAvoidsCollisions() throws {
         let fm = FileManager.default
         let dir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)

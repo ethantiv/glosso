@@ -1,8 +1,5 @@
 import Foundation
 
-/// Parses one NDJSON line of an Ollama `POST /api/pull` stream. Distinct from
-/// `NDJSONStreamParser` (generate): pull lines carry `status` plus per-layer
-/// `completed`/`total` byte counts, and a terminal `{"status":"success"}`.
 enum PullProgressParser {
     struct Result: Equatable {
         var progress: PullProgress

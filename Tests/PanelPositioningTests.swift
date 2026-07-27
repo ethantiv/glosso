@@ -68,10 +68,6 @@ struct PanelPositioningTests {
         #expect(rect.minY >= screen.minY)
     }
 
-    // The same clamp serves the initial placement and the controller's
-    // applyContentSize (a grip-stretched panel can outgrow the screen): the top
-    // edge must win, so the header with the close button stays reachable while
-    // the overflow drops off the bottom.
     @Test("Panel taller than the screen: the top edge wins")
     func tallerThanScreen() {
         let topLeft = PanelPositioning.clampedTopLeft(
@@ -83,9 +79,6 @@ struct PanelPositioningTests {
         #expect(topLeft.y == screen.maxY)
     }
 
-    // Cursor reported above the active screen's maxY (multi-display setups can
-    // briefly map a cursor past the local frame). y=1075 < maxY=1080 would skip
-    // the clamp entirely and pass trivially; y=1100 actually exercises it.
     @Test("Cursor above top edge: panel is clamped below the top bound")
     func topEdge() {
         let mouse = CGPoint(x: 960, y: 1100)

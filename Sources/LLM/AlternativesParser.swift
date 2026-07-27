@@ -1,9 +1,5 @@
 import Foundation
 
-/// Parses the model's free-form alternatives reply (one per line) into a clean,
-/// de-duplicated list for the popup dropdown (issue #17). Defensive about the
-/// model occasionally adding bullets or numbering despite the prompt asking for
-/// none, and drops any echo of the original word.
 enum AlternativesParser {
     static let maxCount = 6
 
@@ -24,8 +20,6 @@ enum AlternativesParser {
         return result
     }
 
-    // Drops a leading bullet ("- ", "• ", "* ") or numbering ("1. ", "2) ") the
-    // model may prepend, plus any wrapping quotes, leaving the bare alternative.
     private static func stripLeadingMarker(_ line: String) -> String {
         var s = Substring(line)
         if let range = s.range(of: #"^(\d+[.)]|[-•*])\s+"#, options: .regularExpression) {

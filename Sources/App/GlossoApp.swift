@@ -40,10 +40,6 @@ struct GlossoApp: App {
             Button(loc("O aplikacji…", "About…")) { appDelegate.showAbout() }
             Button(loc("Zakończ", "Quit")) { NSApplication.shared.terminate(nil) }
         } label: {
-            // While an update waits, swap in a glyph variant with a download arrow
-            // baked into the same template artwork — a SwiftUI overlay can't keep a
-            // distinct colour through the menu bar's monochrome tint, and the menu
-            // bar adapts this template image to light/dark on its own.
             Image(appDelegate.appState.updateAvailable != nil ? "MenuBarIconUpdate" : "MenuBarIcon")
                 .accessibilityLabel("Glosso")
         }
@@ -59,11 +55,6 @@ struct GlossoApp: App {
     }
 }
 
-// Replaces `SettingsLink`, which on an `LSUIElement` agent opens the window in
-// the background and on the launch Space. Reading `openSettings` inside a view
-// (not the `App`) guarantees the environment action resolves; activating the app
-// after opening brings the window to the front and — together with the window's
-// `.moveToActiveSpace` collection behavior — onto the currently active Space.
 private struct OpenSettingsButton: View {
     @Environment(\.openSettings) private var openSettings
 
@@ -75,10 +66,6 @@ private struct OpenSettingsButton: View {
     }
 }
 
-// Quick language switching without opening Settings: two pickers, which the
-// MenuBarExtra's default menu style renders as submenus with checkmarks. The
-// second-language list mirrors SettingsView: an Automatic entry plus every
-// language except the primary (the pair is never X↔X).
 private struct LanguageMenus: View {
     @Bindable var store: SettingsStore
 
@@ -102,20 +89,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     nonisolated static let updateNotificationID = "glosso.update"
     let appState = AppState()
     let settings = SettingsStore()
-    // Shared with EngineManager so a spawned `ollama serve` can be killed
-    // synchronously on quit (applicationWillTerminate can't await the actor).
     let engineBox = EngineProcessBox()
     lazy var engine = EngineManager(box: engineBox)
     lazy var modelLister: OllamaModelLister = OllamaModelLister(endpointProvider: Self.endpointProvider(engine))
     lazy var modelManager: OllamaModelManager = OllamaModelManager(endpointProvider: Self.endpointProvider(engine))
 
-    // Builds the `@Sendable` endpoint resolver off the MainActor so its closure
-    // isn't inferred as main-actor-isolated (which can't also be Sendable).
     nonisolated static func endpointProvider(_ engine: EngineManager) -> @Sendable () async throws -> URL {
         { try await engine.activeBaseURL() }
     }
-    // Injectable so tests can drive the granted↔revoked transitions in
-    // recheckAccessibility() with a fake; production keeps the real AXChecker.
     var ax: any AccessibilityAuthorizing = AXChecker()
     var coordinator: AppCoordinator?
     private var activationObserver: NSObjectProtocol?
@@ -156,9 +137,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         appState.listening = coordinator.start()
         self.coordinator = coordinator
 
-        // Best-effort, silent: surfaces a "download" item + badge when a newer
-        // release exists, and fires one notification per new version (the menu line
-        // alone is easy to miss). Any failure leaves updateAvailable nil (no noise).
         UNUserNotificationCenter.current().delegate = self
         let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
         Task { [appState, settings] in
@@ -175,8 +153,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             }
         }
 
-        // Accessibility can be revoked while we run; re-check whenever an app
-        // activates so the menu stops claiming "Nasłuch aktywny" when it isn't.
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
         ) { [weak self] _ in
@@ -196,9 +172,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         ax.openSystemSettings()
     }
 
-    // The standard panel pulls icon/name/version from the bundle; only the author
-    // line and the two links are supplied via .credits. Activating is needed for an
-    // LSUIElement agent — the panel otherwise opens behind, like the Settings window.
     func showAbout() {
         let center = NSMutableParagraphStyle()
         center.alignment = .center
@@ -219,15 +192,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         NSApp.activate(ignoringOtherApps: true)
     }
 
-    /// Fetches the pending release `.zip` into ~/Downloads. Shared by the menu item
-    /// and the notification tap; a no-op if no update is currently known.
     func downloadUpdate() {
         guard let asset = appState.updateAvailable?.asset else { return }
         Task { await UpdateDownloader.download(asset) }
     }
 
-    // Tapping the update notification downloads straight away (the menu item's job),
-    // so the user never has to hunt for the menu-bar icon afterwards.
     nonisolated func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         didReceive response: UNNotificationResponse,

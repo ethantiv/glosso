@@ -14,9 +14,6 @@ extension KeyChord {
     }
 }
 
-/// Click-to-record field for a headless shortcut (issue #21). A SwiftUI DragGesture
-/// can't read keyDown, so this is a small AppKit view that becomes first responder
-/// on click and captures the next valid chord.
 struct KeyChordRecorder: NSViewRepresentable {
     @Binding var chord: KeyChord
     let otherChord: KeyChord
@@ -44,9 +41,6 @@ struct KeyChordRecorder: NSViewRepresentable {
         override var acceptsFirstResponder: Bool { true }
         override var intrinsicContentSize: NSSize { NSSize(width: 96, height: 24) }
 
-        // Recording is armed by an explicit click, not by merely holding focus —
-        // otherwise the field the window auto-focuses on open would sit in the
-        // "press a combo" state and swallow keys without the user asking.
         override func mouseDown(with event: NSEvent) {
             window?.makeFirstResponder(self)
             isRecording = true
@@ -58,8 +52,6 @@ struct KeyChordRecorder: NSViewRepresentable {
             if event.keyCode == 53 { window?.makeFirstResponder(nil); return } // Esc cancels
             let chordMods: NSEvent.ModifierFlags = [.command, .control, .option, .shift]
             let flags = event.modifierFlags.intersection(chordMods)
-            // Require Command + (Control or Option) so the chord can't shadow plain
-            // typing or a common single-Command shortcut; needs a letter/digit key.
             guard flags.contains(.command), flags.contains(.control) || flags.contains(.option),
                   let key = event.charactersIgnoringModifiers?.lowercased(),
                   key.count == 1, let c = key.first, c.isLetter || c.isNumber else {

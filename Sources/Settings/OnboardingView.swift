@@ -1,9 +1,5 @@
 import SwiftUI
 
-/// First-run setup wizard: pick & download a model, choose the second language, and
-/// read the how-to (including the one-time Accessibility grant). Reuses the same
-/// catalog, store and download flow as Settings — it's a guided front door, not new
-/// machinery. Shown once; `onFinish` closes the window and marks onboarding done.
 struct OnboardingView: View {
     @Bindable var store: SettingsStore
     let lister: any ModelListing

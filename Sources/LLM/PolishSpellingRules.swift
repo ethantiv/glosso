@@ -36,8 +36,5 @@ enum PolishSpellingRules {
     - wata słowna: urzędowe wypełniacze zastępuje się krótką formą — „w dniu dzisiejszym" → „dziś", „na chwilę obecną" → „obecnie/teraz", „w miesiącu bieżącym" → „w tym miesiącu", „celem realizacji…" → „aby…", „z uwagi na fakt, że" → „ponieważ". Treść zostaje, słów ubywa. (styl: zwięzłość)
     """
 
-    // The style cards join the prompt only for a grammar+style correction — in
-    // grammar-only mode they could not govern any change and would only invite a
-    // mis-citation (see PromptBuilder.buildExplainFix).
     static let block: String = spellingBlock + "\n" + styleBlock
 }

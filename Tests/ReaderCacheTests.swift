@@ -43,8 +43,6 @@ import Testing
         #expect(cache.load(URL(string: "https://example.com/other")!, primary: .polish) == nil)
     }
 
-    // The 7-day TTL is the whole point of the cache: a stale article must be
-    // re-fetched and re-translated, and its file must not linger on disk.
     @Test func expiredEntryIsDeletedOnLoad() {
         let entry = makeEntry(savedAt: .now.addingTimeInterval(-8 * 24 * 3600))
         cache.save(entry, primary: .polish)
@@ -54,8 +52,6 @@ import Testing
         #expect(files?.isEmpty == true)
     }
 
-    // Never-revisited URLs would otherwise pile up forever; each save sweeps
-    // expired siblings by file modification date.
     @Test func saveSweepsExpiredSiblings() throws {
         let old = makeEntry(url: "https://example.com/old")
         cache.save(old, primary: .polish)
@@ -73,8 +69,6 @@ import Testing
         #expect(files.count == 1)
     }
 
-    // Refresh must force a full re-run: after remove the next load is a miss,
-    // and removing an absent entry must not disturb its siblings.
     @Test func removeDeletesEntryAndMissesUnknownURL() {
         let entry = makeEntry()
         cache.save(entry, primary: .polish)
@@ -86,9 +80,6 @@ import Testing
         #expect(cache.load(entry.url, primary: .polish) == nil)
     }
 
-    // Block ids are deterministic only within one build, so an entry written by
-    // another app version must miss — replaying it could land translations on the
-    // wrong blocks.
     @Test func entryFromAnotherVersionMisses() {
         let oldVersion = ReaderCache(directory: cache.directory, version: "0.6.0")
         let newVersion = ReaderCache(directory: cache.directory, version: "0.6.1")
@@ -99,8 +90,6 @@ import Testing
         #expect(oldVersion.load(entry.url, primary: .polish) != nil)
     }
 
-    // A cached article holds translations INTO one primary language; switching
-    // the primary must miss and re-translate, not replay the old language.
     @Test func entryForAnotherPrimaryLanguageMisses() {
         let entry = makeEntry()
         cache.save(entry, primary: .polish)

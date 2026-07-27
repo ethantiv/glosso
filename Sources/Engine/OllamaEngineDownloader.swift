@@ -1,11 +1,5 @@
 import Foundation
 
-/// Provisions the Ollama engine for the "no installed Ollama" path: downloads the
-/// official macOS app zip and extracts only its `Contents/Resources/` — the signed
-/// `ollama` binary, the MLX runner (`mlx_metal_*`) and the ggml libs — into an
-/// app-private directory. Spike-confirmed (2026-06-18): the engine runs relocated
-/// from here and serves `-mlx` tags. NOT trimmed: removing the bundled ggml libs
-/// (only ~18 MB) kills `ollama serve` at startup, so the whole ~450 MB ships.
 final class OllamaEngineDownloader: Sendable {
     static let downloadURL = URL(string: "https://ollama.com/download/Ollama-darwin.zip")!
 
@@ -15,9 +9,6 @@ final class OllamaEngineDownloader: Sendable {
     }
     static var engineDir: URL { appSupport().appendingPathComponent("engine", isDirectory: true) }
 
-    /// A runnable `ollama` binary already on disk, or nil when only a download
-    /// would help. Prefers Glosso's own extracted engine, falls back to an
-    /// installed Ollama.app.
     static func installedBinary() -> URL? {
         let own = engineDir.appendingPathComponent("ollama")
         if FileManager.default.isExecutableFile(atPath: own.path) { return own }
@@ -26,9 +17,6 @@ final class OllamaEngineDownloader: Sendable {
         return nil
     }
 
-    /// Idempotent: no-op when Glosso's engine is already extracted. Otherwise
-    /// downloads the zip (reporting 0…1 progress), unzips, and moves the app's
-    /// `Resources/` into `engineDir`.
     func download(progress: @escaping @Sendable (Double) -> Void) async throws {
         let fm = FileManager.default
         if fm.isExecutableFile(atPath: Self.engineDir.appendingPathComponent("ollama").path) { return }
@@ -72,8 +60,6 @@ final class OllamaEngineDownloader: Sendable {
                 }
             }
             func urlSession(_ s: URLSession, downloadTask: URLSessionDownloadTask, didFinishDownloadingTo location: URL) {
-                // didFinishDownloadingTo fires for any completed transfer, including
-                // non-2xx responses whose error-page body lands in the temp file.
                 if let http = downloadTask.response as? HTTPURLResponse, http.statusCode != 200 {
                     cont?.resume(throwing: TranslationError.engineUnavailable)
                     cont = nil

@@ -2,9 +2,6 @@ import Testing
 @testable import Glosso
 
 @Suite struct ReplyParserTests {
-    // The whole reason ReplyParser exists rather than reusing AlternativesParser:
-    // a draft is a block delimited by a --- line, so a multi-paragraph reply must
-    // survive intact instead of being split on every newline.
     @Test func keepsMultiParagraphDraftsIntact() {
         let raw = """
         Dzięki za wiadomość!
@@ -31,8 +28,6 @@ import Testing
         #expect(drafts == ["Jasne", "Nie, dziękuję"])
     }
 
-    // Tolerate the model emitting longer dashed rules and surrounding whitespace as
-    // the separator, not just exactly three dashes.
     @Test func acceptsLongerAndPaddedSeparators() {
         let raw = "A\n  -----  \nB\n---\nC"
         #expect(ReplyParser.parse(raw) == ["A", "B", "C"])

@@ -2,9 +2,6 @@ import Foundation
 import Testing
 @testable import Glosso
 
-// Serialized: every case mutates the process-global MockURLProtocol.handler,
-// so Swift Testing's default parallelism would let one case's request read
-// another's handler (or nil), flaking the suite.
 @Suite(.serialized) struct OllamaClientTests {
     private func makeClient() -> OllamaClient {
         let configuration = URLSessionConfiguration.ephemeral
@@ -64,9 +61,6 @@ import Testing
         }
     }
 
-    // num_predict caps a runaway generation; a fragment cut off mid-markup must
-    // never be applied to the reader DOM, so a "length" finish is an error, not
-    // a result.
     @Test func translateBlockTreatsLengthTruncationAsError() async {
         MockURLProtocol.handler = { request in
             let body = #"{"model":"m","response":"<b>Cześć","done":true,"done_reason":"length"}"#.data(using: .utf8)!
@@ -241,9 +235,6 @@ import Testing
         }
     }
 
-    // A 404 carries Ollama's actionable "model not found, try pulling it first"
-    // in the body; surface it instead of a bare HTTP code so the user knows to
-    // `ollama pull` rather than assuming the daemon is broken.
     @Test func nonOKStatusWithErrorBodySurfacesOllamaError() async {
         MockURLProtocol.handler = { request in
             let body = (#"{"error":"model not found, try pulling it first"}"# + "\n").data(using: .utf8)!

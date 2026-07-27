@@ -37,10 +37,6 @@ struct SettingsView: View {
         }
     }
 
-    // The macOS Settings window's titlebar is made transparent and full-size (see
-    // SettingsWindowConfigurator) so the material runs edge to edge; this draws the
-    // mockup's centered "Ustawienia" title in that zone, with the traffic lights
-    // floating over its left.
     private var titleBar: some View {
         Text(loc("Ustawienia", "Settings"))
             .font(.system(size: 13, weight: .semibold))
@@ -121,10 +117,6 @@ struct SettingsView: View {
         .padding(16)
     }
 
-    // The user's own non-catalog Ollama models can grow unbounded, so they collapse
-    // into one picker instead of a row each. Selecting one makes it the active model;
-    // when a catalog Gemma is active the picker shows no selection (the radios above
-    // carry it). Glosso manages only its own Gemmas, so there's no delete here.
     private var otherModelsRow: some View {
         row(loc("Inne zainstalowane", "Other installed")) {
             Picker("", selection: $store.modelName) {
@@ -179,9 +171,6 @@ struct SettingsView: View {
     }
 
     private func loadModels() async {
-        // Tag this load so a slow earlier fetch (e.g. .task) can't overwrite the
-        // result of a later one (e.g. one triggered after a pull) once it finally
-        // resolves.
         loadGeneration += 1
         let generation = loadGeneration
         do {
@@ -227,9 +216,6 @@ struct SettingsView: View {
                 .truncationMode(.tail)
             Spacer(minLength: 8)
 
-            // Fixed-width trailing columns so size and action line up across rows;
-            // the badge slot is reserved even when empty so the size column's left
-            // edge stays put whether or not a row is recommended.
             Group { if isRecommended { recommendedBadge } }
                 .frame(width: 64, alignment: .trailing)
             if let progress = pulling[id] {
@@ -293,12 +279,6 @@ struct SettingsView: View {
     }
 }
 
-// The Settings scene ignores `.windowStyle(.hiddenTitleBar)`, so the AppKit window
-// is configured directly to drop the opaque titlebar backing/title and let the
-// `.containerBackground` material run continuously through the titlebar zone.
-// SwiftUI re-imposes the standard Settings window treatment *after* the view first
-// attaches, so a one-shot set in viewDidMoveToWindow gets clobbered — the config is
-// deferred to the next runloop and reapplied whenever the window becomes key/main.
 private struct SettingsWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { ConfiguringView() }
     func updateNSView(_ nsView: NSView, context: Context) {}

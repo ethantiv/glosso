@@ -1,24 +1,13 @@
 import SwiftUI
 
-/// One run of the finished translation: either a clickable word or a separator
-/// (whitespace/punctuation) rendered inline but not clickable. Splitting is
-/// lossless — `segments(_:).map(\.text).joined()` reproduces the input — so the
-/// canonical `model.text` (used by Copy and reword) never drifts from the display.
 struct TextSegment: Identifiable, Hashable {
     let id: Int
     let text: String
     let isWord: Bool
-    // True only for a non-word run that is pure whitespace (collapses to a single
-    // space and to a wrap-collapsible `.space` in the flow); punctuation runs and
-    // words are false. Classified once here so display and layout can't disagree.
     let isWhitespace: Bool
 }
 
 enum Tokenizer {
-    /// Alternates word / separator runs. Letters, digits and apostrophes (so
-    /// English contractions like "don't" stay one token) are word characters;
-    /// everything else — spaces, newlines, punctuation, hyphens — is a separator.
-    /// Iterates `Character` (graphemes) so Polish diacritics stay intact.
     static func segments(_ string: String) -> [TextSegment] {
         var out: [TextSegment] = []
         var buffer = ""
@@ -45,9 +34,6 @@ enum Tokenizer {
     }
 }
 
-/// One item laid out by `FlowLayout`: either a word with its hugging punctuation
-/// (a `.chunk`, never split across lines) or a `.gap` between words (whitespace,
-/// which collapses at a wrap, or a spaced separator like an em-dash).
 enum FlowRun: Identifiable {
     case chunk(id: Int, leading: String, word: TextSegment, trailing: String)
     case gap(id: Int, text: String, isWhitespace: Bool)
@@ -60,15 +46,7 @@ enum FlowRun: Identifiable {
     }
 }
 
-/// Groups `Tokenizer` segments into flow runs so punctuation never wraps onto a new
-/// line on its own: closing punctuation (",.;:!?)" etc.) rides with the preceding
-/// word, opening punctuation ("([" etc.) with the following word, and only the
-/// whitespace between them is a break opportunity. Stays lossless — concatenating
-/// every run's text reproduces the input — so Copy/reword never drift.
 enum FlowComposer {
-    // A separator run splits at its whitespace: text before the first space hugs the
-    // previous word, text after the last space hugs the next, the rest is the gap.
-    // No whitespace at all (e.g. a hyphen) means no break — it hugs the previous word.
     private static func split(_ s: String) -> (closing: String, gap: String, opening: String) {
         guard let firstWS = s.firstIndex(where: \.isWhitespace),
               let lastWS = s.lastIndex(where: \.isWhitespace) else {
@@ -94,8 +72,6 @@ enum FlowComposer {
             } else {
                 let parts = split(seg.text)
                 var gap = parts.gap
-                // A leading/trailing separator (no word on that side) keeps the punctuation
-                // the adjacent word didn't consume, so nothing is dropped.
                 if !(i > 0 && segments[i - 1].isWord) { gap = parts.closing + gap }
                 if !(i + 1 < n && segments[i + 1].isWord) { gap += parts.opening }
                 if !gap.isEmpty {
@@ -107,9 +83,6 @@ enum FlowComposer {
     }
 }
 
-/// How a flow subview behaves at wrap points. Whitespace collapses when it would
-/// land at the start of a wrapped line (no leading indent); words and punctuation
-/// keep their width.
 enum FlowItemKind {
     case word
     case space
@@ -120,11 +93,6 @@ struct FlowItemKindKey: LayoutValueKey {
     static let defaultValue: FlowItemKind = .other
 }
 
-/// A wrapping flow of inline items (macOS-native `Layout`). Reports a correct
-/// `sizeThatFits` so the controller-owned window sizing (PopupView's ideal-size
-/// measuring) keeps working. A `.popover`/`Menu` is deliberately NOT used for the dropdown
-/// (see AlternativesDropdown) — it would force key-window status and break the
-/// non-activating panel's focus model.
 struct FlowLayout: Layout {
     var lineSpacing: CGFloat = 5
 
@@ -174,8 +142,6 @@ struct FlowLayout: Layout {
     }
 }
 
-/// Per-word frames, captured via `.anchorPreference`, so the alternatives dropdown
-/// can anchor itself just below the clicked word.
 struct WordAnchorKey: PreferenceKey {
     static let defaultValue: [Int: Anchor<CGRect>] = [:]
     static func reduce(value: inout [Int: Anchor<CGRect>], nextValue: () -> [Int: Anchor<CGRect>]) {
@@ -183,9 +149,6 @@ struct WordAnchorKey: PreferenceKey {
     }
 }
 
-/// The small floating list anchored under a clicked word. An in-window SwiftUI
-/// overlay — NOT an NSPopover/Menu, which would force the panel to become key and
-/// steal focus from the foreground app, breaking the whole non-activating model.
 struct AlternativesDropdown: View {
     let model: PopupModel
     let onPick: (String) -> Void
@@ -214,9 +177,6 @@ struct AlternativesDropdown: View {
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
-    // The grammar-diff reason view (issue #51): a non-interactive header (there is
-    // no alternatives list to go back to), then the spinner or the one-line Polish
-    // reason for the tapped correction (or a fallback when the fetch failed).
     @ViewBuilder
     private var fixReasonContent: some View {
         HStack(spacing: 6) {
@@ -254,8 +214,6 @@ struct AlternativesDropdown: View {
         }
     }
 
-    // The learner-facing "Dlaczego tak?" view (issue #39): a back row, then the
-    // spinner or the one-line explanation (or a fallback when the fetch failed).
     @ViewBuilder
     private var explanationContent: some View {
         Button(action: onBack) {
@@ -295,8 +253,6 @@ struct AlternativesDropdown: View {
 
     @ViewBuilder
     private var alternativesContent: some View {
-        // Always offered (it explains the word, not the list), so it sits above
-        // whatever state the alternatives fetch is in.
         Button(action: onExplain) {
             HStack(spacing: 6) {
                 Image(systemName: "lightbulb")

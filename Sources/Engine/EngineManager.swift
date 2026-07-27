@@ -1,16 +1,12 @@
 import Foundation
 import Darwin
 
-/// Thread-safe holder for the spawned `ollama serve` process, so `AppDelegate`
-/// (MainActor) can terminate it synchronously on quit without awaiting the actor.
 final class EngineProcessBox: @unchecked Sendable {
     private let lock = NSLock()
     private var process: Process?
 
     func set(_ p: Process?) {
         lock.lock(); defer { lock.unlock() }
-        // Two independent spawn paths (resolve / ensureEngine) can race; kill the
-        // prior process before reassigning so it can't be orphaned holding a port.
         if process !== p { process?.terminate() }
         process = p
     }
@@ -21,11 +17,6 @@ final class EngineProcessBox: @unchecked Sendable {
     }
 }
 
-/// Resolves the active engine's `/api/generate` URL (see `EngineProviding`).
-/// Resolution ladder: (1) reuse the user's Ollama on 11434 when reachable;
-/// (2) else spawn a private `ollama serve` on a free port from a local binary
-/// (Glosso's downloaded engine or an installed Ollama.app); (3) else throw
-/// `engineUnavailable` — only an explicit `ensureEngine` downloads the engine.
 actor EngineManager: EngineProviding {
     private let session: URLSession
     private let downloader: OllamaEngineDownloader
@@ -128,8 +119,6 @@ actor EngineManager: EngineProviding {
 
     private static func generate(_ base: String) -> URL { URL(string: base + "/api/generate")! }
 
-    // Reuse the shared store when the user already has one (no duplicate downloads);
-    // otherwise an app-private dir.
     private static func modelsDir() -> String {
         let shared = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".ollama/models")
         if FileManager.default.fileExists(atPath: shared.path) { return shared.path }
@@ -138,8 +127,6 @@ actor EngineManager: EngineProviding {
         return priv.path
     }
 
-    // Bind to port 0 and read back the kernel-assigned port. Small TOCTOU window
-    // before `ollama serve` grabs it, acceptable for a single local spawn.
     private static func freePort() -> Int {
         let fd = socket(AF_INET, SOCK_STREAM, 0)
         guard fd >= 0 else { return 11435 }

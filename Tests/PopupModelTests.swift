@@ -10,8 +10,6 @@ import Testing
 
     // MARK: Split fix view (dense diff + clean corrected text)
 
-    // The split (and its eye) exists to make a DENSE diff readable; a sparse diff
-    // nearly equals the clean text, so up to three changes it must stay one view.
     @Test func splitFixViewRequiresMoreThanThreeChanges() {
         let model = PopupModel()
         model.capturedSource = "aa bb cc dd ee ff gg hh"
@@ -25,9 +23,6 @@ import Testing
         #expect(model.splitFixView == true)
     }
 
-    // Adjacent removals coalesce into ONE tappable change (GrammarDiff), and the
-    // count must follow that unit — not raw token edits — or the threshold would
-    // fire on what the user sees as a single correction.
     @Test func diffChangeCountUsesCoalescedChangeSpans() {
         let model = PopupModel()
         model.capturedSource = "to jest bardzo bardzo dobre"
@@ -37,8 +32,6 @@ import Testing
         #expect(model.splitFixView == false)
     }
 
-    // Hiding the diff removes every dropdown anchor with it, so an open reason
-    // dropdown must close along; showing it back must not resurrect the dropdown.
     @Test func toggleDiffHiddenClosesOpenDropdown() {
         let model = PopupModel()
         model.openFixReason(id: 1, before: "błendy", after: "błędy")
@@ -54,9 +47,6 @@ import Testing
         #expect(model.dropdownVisible == false)
     }
 
-    // The tone note contrasts two finished translations, so the "before" side is only
-    // worth snapshotting when there IS one — mid-stream or under another verb the
-    // chip must stay hidden rather than promise a comparison we can't make (#53).
     @Test func noteToneChangeSnapshotsOnlyAFinishedTranslation() {
         let model = PopupModel()
         model.text = "Könnten Sie kommen?"
@@ -77,8 +67,6 @@ import Testing
         #expect(model.toneChange?.to == .informal)
     }
 
-    // A reword replaces the very result the note describes, so the note (and its
-    // chip) must not survive it — otherwise it explains text that's no longer shown.
     @Test func rewordSnapshotClearsToneNote() {
         let model = PopupModel()
         model.phase = .done
@@ -141,8 +129,6 @@ import Testing
         model.phase = .done
         model.snapshotForUndo()
 
-        // The reword failed: the pane reset wiped the text and showError flipped
-        // the phase to .error.
         model.text = ""
         model.errorMessage = "Błąd tłumaczenia."
         model.phase = .error
@@ -171,8 +157,6 @@ import Testing
 
     // MARK: Reply drafts (issue #60)
 
-    // Picking a draft must mirror it into `text`, because the Copy button copies
-    // `text` — so the chosen draft is what lands on the clipboard.
     @Test func selectDraftMirrorsIntoTextForCopy() {
         let model = PopupModel()
         model.replyDrafts = ["pierwsza", "druga", "trzecia"]
@@ -238,8 +222,6 @@ import Testing
         #expect(model.explanationText.isEmpty)
     }
 
-    // Opening the dropdown on another word must start on the alternatives list, not
-    // inherit the prior word's explanation view (issue #39).
     @Test func openDropdownClearsPriorExplanation() {
         let model = PopupModel()
         model.openDropdown(for: 1)
