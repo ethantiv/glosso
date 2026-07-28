@@ -1,4 +1,32 @@
 import Foundation
+import Synchronization
+
+/// Who owns the popup — decided once, under one lock, so a token and the deadline can never both win. Mutex is noncopyable, so the two racers reach it through a reference.
+private final class StreamProgress: Sendable {
+    private enum State { case idle, started, timedOut }
+
+    private let state = Mutex(State.idle)
+
+    var hasStarted: Bool { state.withLock { $0 == .started } }
+
+    /// Claims the stream for the cloud, unless the deadline already gave up on it.
+    func claim() -> Bool {
+        state.withLock {
+            guard $0 != .timedOut else { return false }
+            $0 = .started
+            return true
+        }
+    }
+
+    /// Gives up on the cloud, unless it already spoke.
+    func giveUp() -> Bool {
+        state.withLock {
+            guard $0 != .started else { return false }
+            $0 = .timedOut
+            return true
+        }
+    }
+}
 
 /// Picks the engine per call, falling back to the local one when the cloud can't serve.
 final class RoutingLLMClient: LLMClient, GenerationBackend {
@@ -8,19 +36,27 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     /// Callers pass the active (possibly cloud) model name, which Ollama wouldn't recognise.
     private let localModel: @Sendable () async -> String
     private let onFallback: @Sendable (TranslationError) -> Void
+    /// A cloud model that says nothing for this long is worse than the local one: gemini-3.5-flash-lite answers a 43-token prompt in ~30s and delivers its whole stream in one shot, so nothing errors and the popup just sits there.
+    private let deadline: TimeInterval
+    /// Asked only when the deadline is about to fire, since resolving the engine can start it. The cloud is sold as the no-download path, so a hand-over on those installs would turn a slow answer into no answer at all.
+    private let localReady: @Sendable () async -> Bool
 
     init(
         local: any GenerationBackend,
         cloud: any GenerationBackend,
         provider: @escaping @Sendable () async -> LLMProvider,
         localModel: @escaping @Sendable () async -> String,
-        onFallback: @escaping @Sendable (TranslationError) -> Void
+        onFallback: @escaping @Sendable (TranslationError) -> Void,
+        deadline: TimeInterval = 6,
+        localReady: @escaping @Sendable () async -> Bool = { true }
     ) {
         self.local = local
         self.cloud = cloud
         self.provider = provider
         self.localModel = localModel
         self.onFallback = onFallback
+        self.deadline = deadline
+        self.localReady = localReady
     }
 
     /// Failures the local engine can still answer; anything else is a genuine problem with the request.
@@ -36,7 +72,10 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
             return try await local.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
         }
         do {
-            return try await cloud.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
+            // Long-form reader calls bring their own timeout and legitimately run for minutes; only interactive lookups get the deadline.
+            return try await withDeadline(timeout == nil) {
+                try await self.cloud.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
+            }
         } catch let error as TranslationError where Self.fallsBack(error) {
             onFallback(error)
             return try await local.generate(prompt: prompt, model: await localModel(), timeout: timeout, numPredict: numPredict)
@@ -48,15 +87,35 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
             let task = Task {
                 let useCloud = await provider() == .cloud
                 if useCloud {
-                    var yielded = false
+                    let progress = StreamProgress()
                     do {
-                        for try await event in cloud.streamGeneration(prompt: prompt, model: model) {
-                            yielded = true
-                            continuation.yield(event)
+                        try await withThrowingTaskGroup(of: Bool.self) { group in
+                            group.addTask {
+                                for try await event in self.cloud.streamGeneration(prompt: prompt, model: model) {
+                                    // Losing the claim means the local model has the popup; a late token would land in the middle of its answer.
+                                    guard progress.claim() else { return false }
+                                    continuation.yield(event)
+                                }
+                                return true
+                            }
+                            // Deadline only on the first token: a stream that already speaks may pause as long as it likes.
+                            group.addTask {
+                                try await Task.sleep(for: .seconds(self.deadline))
+                                // With no local engine to hand over to, waiting out a slow cloud still beats an empty popup.
+                                guard await self.localReady(), progress.giveUp() else { return false }
+                                throw TranslationError.cloudUnreachable
+                            }
+                            // The timer merely stops mattering once the stream speaks; waiting for it too would hold every finished cloud answer open until the deadline.
+                            while let streamFinished = try await group.next() {
+                                if streamFinished {
+                                    group.cancelAll()
+                                    break
+                                }
+                            }
                         }
                         continuation.finish()
                         return
-                    } catch let error as TranslationError where Self.fallsBack(error) && !yielded {
+                    } catch let error as TranslationError where Self.fallsBack(error) && !progress.hasStarted {
                         // Restarting mid-stream would duplicate what the popup already shows.
                         onFallback(error)
                     } catch {
@@ -75,6 +134,25 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                 }
             }
             continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    /// Runs `work` under the deadline, reporting a silent cloud as `.cloudUnreachable` so the caller's fallback path takes over.
+    private func withDeadline<T: Sendable>(_ enabled: Bool, _ work: @escaping @Sendable () async throws -> T) async throws -> T {
+        guard enabled else { return try await work() }
+        return try await withThrowingTaskGroup(of: T?.self) { group in
+            group.addTask { try await work() }
+            group.addTask {
+                try await Task.sleep(for: .seconds(self.deadline))
+                // nil means the deadline stands down — with no local engine to hand over to, the slow cloud is still the only answer.
+                guard await self.localReady() else { return nil }
+                throw TranslationError.cloudUnreachable
+            }
+            defer { group.cancelAll() }
+            while let result = try await group.next() {
+                if let result { return result }
+            }
+            throw TranslationError.cloudUnreachable
         }
     }
 

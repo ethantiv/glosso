@@ -7,10 +7,13 @@ private struct StubBackend: GenerationBackend {
     var failure: TranslationError?
     /// Tokens to emit before failing, so a mid-stream failure can be exercised.
     var tokensBeforeFailure: [String] = []
+    /// Silence before anything is produced — how a slow cloud model looks from here.
+    var delay: TimeInterval = 0
     var seenModels: ModelLog = ModelLog()
 
     func generate(prompt: String, model: String, timeout: TimeInterval?, numPredict: Int?) async throws -> String {
         seenModels.record(model)
+        if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
         if let failure { throw failure }
         return text
     }
@@ -18,14 +21,18 @@ private struct StubBackend: GenerationBackend {
     func streamGeneration(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         seenModels.record(model)
         return AsyncThrowingStream { continuation in
-            for token in tokensBeforeFailure { continuation.yield(.token(token)) }
-            if let failure {
-                continuation.finish(throwing: failure)
-            } else {
-                continuation.yield(.token(text))
-                continuation.yield(.finished(doneReason: "stop"))
-                continuation.finish()
+            let task = Task {
+                for token in tokensBeforeFailure { continuation.yield(.token(token)) }
+                if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+                if let failure {
+                    continuation.finish(throwing: failure)
+                } else {
+                    continuation.yield(.token(text))
+                    continuation.yield(.finished(doneReason: "stop"))
+                    continuation.finish()
+                }
             }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
         }
     }
 
@@ -53,14 +60,18 @@ private final class FallbackLog: @unchecked Sendable {
         local: StubBackend,
         cloud: StubBackend,
         provider: LLMProvider,
-        fallbacks: FallbackLog = FallbackLog()
+        fallbacks: FallbackLog = FallbackLog(),
+        deadline: TimeInterval = 0.05,
+        localReady: @escaping @Sendable () async -> Bool = { true }
     ) -> RoutingLLMClient {
         RoutingLLMClient(
             local: local,
             cloud: cloud,
             provider: { provider },
             localModel: { "gemma4:26b-mlx" },
-            onFallback: { fallbacks.record($0) }
+            onFallback: { fallbacks.record($0) },
+            deadline: deadline,
+            localReady: localReady
         )
     }
 
@@ -137,5 +148,129 @@ private final class FallbackLog: @unchecked Sendable {
         }
         #expect(local.seenModels.all.isEmpty)
         #expect(fallbacks.all.isEmpty)
+    }
+
+    @Test func aSilentCloudStreamHandsOverToTheLocalModel() async throws {
+        // gemini-3.5-flash-lite answers a trivial prompt in ~30s and nothing errors, so without the deadline the popup just sits on its skeleton.
+        let fallbacks = FallbackLog()
+        let client = makeClient(
+            local: StubBackend(text: "lokalnie"),
+            cloud: StubBackend(text: "z chmury", delay: 5),
+            provider: .cloud,
+            fallbacks: fallbacks
+        )
+
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
+        #expect(tokens == ["lokalnie"])
+        #expect(fallbacks.all == [.cloudUnreachable])
+    }
+
+    @Test func aStreamThatSpokeInTimeMayPausePastTheDeadline() async throws {
+        // The deadline covers the first token only; killing a live stream over a slow middle would lose what the popup shows.
+        let local = StubBackend(text: "lokalnie")
+        let client = makeClient(
+            local: local,
+            cloud: StubBackend(text: "reszta", tokensBeforeFailure: ["Dzień "], delay: 0.3),
+            provider: .cloud
+        )
+
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
+        #expect(tokens == ["Dzień ", "reszta"])
+        #expect(local.seenModels.all.isEmpty)
+    }
+
+    @Test func aSilentInteractiveLookupHandsOverToTheLocalModel() async throws {
+        // Non-streaming lookups (alternatives, why, replies) hang the same way; only the whole answer counts as a response there.
+        let local = StubBackend(text: "słowo")
+        let fallbacks = FallbackLog()
+        let client = makeClient(
+            local: local,
+            cloud: StubBackend(text: "z chmury", delay: 5),
+            provider: .cloud,
+            fallbacks: fallbacks
+        )
+
+        _ = try await client.reply(to: "Hi", model: "gemma-4-31b-it")
+        #expect(local.seenModels.all == ["gemma4:26b-mlx"])
+        #expect(fallbacks.all == [.cloudUnreachable])
+    }
+
+    @Test func theReaderKeepsItsOwnTimeoutInsteadOfTheDeadline() async throws {
+        // Translating a block legitimately outruns the deadline; applying it there would send every article to the local model.
+        let client = makeClient(
+            local: StubBackend(text: "lokalnie"),
+            cloud: StubBackend(text: "z chmury", delay: 0.3),
+            provider: .cloud
+        )
+
+        #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma-4-31b-it") == "z chmury")
+    }
+
+    @Test func withNoLocalEngineTheSlowCloudKeepsTheStream() async throws {
+        // The cloud is the no-download path: an install that took it has no Ollama, so handing over would turn a slow answer into none at all.
+        let local = StubBackend(text: "lokalnie")
+        let fallbacks = FallbackLog()
+        let client = makeClient(
+            local: local,
+            cloud: StubBackend(text: "z chmury", delay: 0.3),
+            provider: .cloud,
+            fallbacks: fallbacks,
+            localReady: { false }
+        )
+
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemini-3.5-flash-lite", primary: .polish, second: .english, formality: .automatic, style: false))
+        #expect(tokens == ["z chmury"])
+        #expect(local.seenModels.all.isEmpty)
+        #expect(fallbacks.all.isEmpty)
+    }
+
+    @Test func withNoLocalEngineTheSlowCloudKeepsAnInteractiveLookup() async throws {
+        let local = StubBackend(text: "lokalnie")
+        let client = makeClient(
+            local: local,
+            cloud: StubBackend(text: "z chmury", delay: 0.3),
+            provider: .cloud,
+            localReady: { false }
+        )
+
+        #expect(try await client.reply(to: "Hi", model: "gemini-3.5-flash-lite") == ReplyParser.parse("z chmury"))
+        #expect(local.seenModels.all.isEmpty)
+    }
+
+    @Test func aSlowReadinessProbeDoesNotHoldTheCloudAnswer() async throws {
+        // The probe sits in the group the answer has to leave, so it must be cancellable — wiring it to the engine's provisioning path (spawn + up to ~2min wait) would outlast the deadline it gates.
+        let probed = FallbackLog()
+        let client = makeClient(
+            local: StubBackend(text: "lokalnie"),
+            // Slower than the deadline on purpose: the timer has to fire and enter the probe, or the test would guard nothing.
+            cloud: StubBackend(text: "z chmury", delay: 0.2),
+            provider: .cloud,
+            deadline: 0.05,
+            localReady: {
+                probed.record(.cloudUnreachable)
+                try? await Task.sleep(for: .seconds(5))
+                return true
+            }
+        )
+
+        let start = ContinuousClock.now
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
+
+        // Without this the test would pass on a cloud that answers before the timer even fires, guarding nothing.
+        #expect(probed.all.count == 1)
+        #expect(tokens == ["z chmury"])
+        #expect(ContinuousClock.now - start < .milliseconds(500))
+    }
+
+    @Test func aFinishedCloudStreamDoesNotWaitOutTheDeadline() async throws {
+        // Waiting for the timer too would hold the popup's task open for 6s after the answer is complete, delaying everything the caller does once the stream ends.
+        let client = makeClient(local: StubBackend(text: "lokalnie"), cloud: StubBackend(text: "z chmury"), provider: .cloud, deadline: 2)
+
+        let start = ContinuousClock.now
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
+        let elapsed = ContinuousClock.now - start
+
+        #expect(tokens == ["z chmury"])
+        #expect(elapsed < .milliseconds(500), "the stream stayed open for \(elapsed)")
     }
 }

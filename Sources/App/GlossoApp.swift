@@ -142,7 +142,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                         identifier: Self.fallbackNotificationID
                     )
                 }
-            }
+            },
+            // Cloud-only installs never download an engine, so there is nothing for the deadline to hand over to. Anything short of `.needsDownload` is enough, since the local path provisions on demand — the same bar the error-driven fallbacks already clear. `status`, not `activeBaseURL`: the latter provisions here and now, spawning `ollama serve` and waiting up to ~2min inside an uncancellable task, which would outlast the very deadline it gates.
+            localReady: { [engine] in await engine.status() != .needsDownload }
         )
         let articleReader = ReaderController(llm: llm, settings: settings)
         self.articleReader = articleReader
