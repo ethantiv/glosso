@@ -239,12 +239,15 @@ private final class FallbackLog: @unchecked Sendable {
 
     @Test func aSlowReadinessProbeDoesNotHoldTheCloudAnswer() async throws {
         // The probe sits in the group the answer has to leave, so it must be cancellable — wiring it to the engine's provisioning path (spawn + up to ~2min wait) would outlast the deadline it gates.
+        let probed = FallbackLog()
         let client = makeClient(
             local: StubBackend(text: "lokalnie"),
-            cloud: StubBackend(text: "z chmury"),
+            // Slower than the deadline on purpose: the timer has to fire and enter the probe, or the test would guard nothing.
+            cloud: StubBackend(text: "z chmury", delay: 0.2),
             provider: .cloud,
             deadline: 0.05,
             localReady: {
+                probed.record(.cloudUnreachable)
                 try? await Task.sleep(for: .seconds(5))
                 return true
             }
@@ -253,6 +256,8 @@ private final class FallbackLog: @unchecked Sendable {
         let start = ContinuousClock.now
         let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
 
+        // Without this the test would pass on a cloud that answers before the timer even fires, guarding nothing.
+        #expect(probed.all.count == 1)
         #expect(tokens == ["z chmury"])
         #expect(ContinuousClock.now - start < .milliseconds(500))
     }
