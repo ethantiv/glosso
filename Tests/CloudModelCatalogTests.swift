@@ -3,8 +3,8 @@ import Testing
 @testable import Glosso
 
 @Suite struct CloudModelCatalogTests {
-    @Test func defaultIsTheFlashLiteEntry() {
-        #expect(CloudModelCatalog.default.id == "gemini-3.5-flash-lite")
+    @Test func defaultIsTheAccurateGemmaEntry() {
+        #expect(CloudModelCatalog.default.id == "gemma-4-31b-it")
         // Catches the name lookup falling through to models[0] after a rename.
         #expect(CloudModelCatalog.models.contains(CloudModelCatalog.default))
     }
