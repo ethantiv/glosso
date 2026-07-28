@@ -142,7 +142,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                         identifier: Self.fallbackNotificationID
                     )
                 }
-            }
+            },
+            // Cloud-only installs never download an engine, so there is nothing for the deadline to hand over to.
+            localReady: { [engine] in (try? await engine.activeBaseURL()) != nil }
         )
         let articleReader = ReaderController(llm: llm, settings: settings)
         self.articleReader = articleReader

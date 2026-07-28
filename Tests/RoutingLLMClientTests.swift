@@ -61,7 +61,8 @@ private final class FallbackLog: @unchecked Sendable {
         cloud: StubBackend,
         provider: LLMProvider,
         fallbacks: FallbackLog = FallbackLog(),
-        deadline: TimeInterval = 0.05
+        deadline: TimeInterval = 0.05,
+        localReady: Bool = true
     ) -> RoutingLLMClient {
         RoutingLLMClient(
             local: local,
@@ -69,7 +70,8 @@ private final class FallbackLog: @unchecked Sendable {
             provider: { provider },
             localModel: { "gemma4:26b-mlx" },
             onFallback: { fallbacks.record($0) },
-            deadline: deadline
+            deadline: deadline,
+            localReady: { localReady }
         )
     }
 
@@ -202,6 +204,37 @@ private final class FallbackLog: @unchecked Sendable {
         )
 
         #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma-4-31b-it") == "z chmury")
+    }
+
+    @Test func withNoLocalEngineTheSlowCloudKeepsTheStream() async throws {
+        // The cloud is the no-download path: an install that took it has no Ollama, so handing over would turn a slow answer into none at all.
+        let local = StubBackend(text: "lokalnie")
+        let fallbacks = FallbackLog()
+        let client = makeClient(
+            local: local,
+            cloud: StubBackend(text: "z chmury", delay: 0.3),
+            provider: .cloud,
+            fallbacks: fallbacks,
+            localReady: false
+        )
+
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemini-3.5-flash-lite", primary: .polish, second: .english, formality: .automatic, style: false))
+        #expect(tokens == ["z chmury"])
+        #expect(local.seenModels.all.isEmpty)
+        #expect(fallbacks.all.isEmpty)
+    }
+
+    @Test func withNoLocalEngineTheSlowCloudKeepsAnInteractiveLookup() async throws {
+        let local = StubBackend(text: "lokalnie")
+        let client = makeClient(
+            local: local,
+            cloud: StubBackend(text: "z chmury", delay: 0.3),
+            provider: .cloud,
+            localReady: false
+        )
+
+        #expect(try await client.reply(to: "Hi", model: "gemini-3.5-flash-lite") == ReplyParser.parse("z chmury"))
+        #expect(local.seenModels.all.isEmpty)
     }
 
     @Test func aFinishedCloudStreamDoesNotWaitOutTheDeadline() async throws {
