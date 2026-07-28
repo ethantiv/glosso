@@ -143,8 +143,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                     )
                 }
             },
-            // Cloud-only installs never download an engine, so there is nothing for the deadline to hand over to.
-            localReady: { [engine] in (try? await engine.activeBaseURL()) != nil }
+            // Cloud-only installs never download an engine, so there is nothing for the deadline to hand over to. `status`, not `activeBaseURL`: the latter provisions — it spawns `ollama serve` and waits up to ~2min inside an uncancellable task, which would outlast the very deadline it gates.
+            localReady: { [engine] in await engine.status() == .ready }
         )
         let articleReader = ReaderController(llm: llm, settings: settings)
         self.articleReader = articleReader

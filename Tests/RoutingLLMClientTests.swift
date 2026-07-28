@@ -62,7 +62,7 @@ private final class FallbackLog: @unchecked Sendable {
         provider: LLMProvider,
         fallbacks: FallbackLog = FallbackLog(),
         deadline: TimeInterval = 0.05,
-        localReady: Bool = true
+        localReady: @escaping @Sendable () async -> Bool = { true }
     ) -> RoutingLLMClient {
         RoutingLLMClient(
             local: local,
@@ -71,7 +71,7 @@ private final class FallbackLog: @unchecked Sendable {
             localModel: { "gemma4:26b-mlx" },
             onFallback: { fallbacks.record($0) },
             deadline: deadline,
-            localReady: { localReady }
+            localReady: localReady
         )
     }
 
@@ -215,7 +215,7 @@ private final class FallbackLog: @unchecked Sendable {
             cloud: StubBackend(text: "z chmury", delay: 0.3),
             provider: .cloud,
             fallbacks: fallbacks,
-            localReady: false
+            localReady: { false }
         )
 
         let tokens = try await collect(client.run("Hi", action: .translate, model: "gemini-3.5-flash-lite", primary: .polish, second: .english, formality: .automatic, style: false))
@@ -230,11 +230,31 @@ private final class FallbackLog: @unchecked Sendable {
             local: local,
             cloud: StubBackend(text: "z chmury", delay: 0.3),
             provider: .cloud,
-            localReady: false
+            localReady: { false }
         )
 
         #expect(try await client.reply(to: "Hi", model: "gemini-3.5-flash-lite") == ReplyParser.parse("z chmury"))
         #expect(local.seenModels.all.isEmpty)
+    }
+
+    @Test func aSlowReadinessProbeDoesNotHoldTheCloudAnswer() async throws {
+        // The probe sits in the group the answer has to leave, so it must be cancellable — wiring it to the engine's provisioning path (spawn + up to ~2min wait) would outlast the deadline it gates.
+        let client = makeClient(
+            local: StubBackend(text: "lokalnie"),
+            cloud: StubBackend(text: "z chmury"),
+            provider: .cloud,
+            deadline: 0.05,
+            localReady: {
+                try? await Task.sleep(for: .seconds(5))
+                return true
+            }
+        )
+
+        let start = ContinuousClock.now
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
+
+        #expect(tokens == ["z chmury"])
+        #expect(ContinuousClock.now - start < .milliseconds(500))
     }
 
     @Test func aFinishedCloudStreamDoesNotWaitOutTheDeadline() async throws {
