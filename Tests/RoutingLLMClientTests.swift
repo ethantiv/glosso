@@ -203,4 +203,16 @@ private final class FallbackLog: @unchecked Sendable {
 
         #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma-4-31b-it") == "z chmury")
     }
+
+    @Test func aFinishedCloudStreamDoesNotWaitOutTheDeadline() async throws {
+        // Waiting for the timer too would hold the popup's task open for 6s after the answer is complete, delaying everything the caller does once the stream ends.
+        let client = makeClient(local: StubBackend(text: "lokalnie"), cloud: StubBackend(text: "z chmury"), provider: .cloud, deadline: 2)
+
+        let start = ContinuousClock.now
+        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
+        let elapsed = ContinuousClock.now - start
+
+        #expect(tokens == ["z chmury"])
+        #expect(elapsed < .milliseconds(500), "the stream stayed open for \(elapsed)")
+    }
 }

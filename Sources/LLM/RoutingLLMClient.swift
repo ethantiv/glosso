@@ -1,13 +1,31 @@
 import Foundation
 import Synchronization
 
-/// Shared one-way flag: Mutex is noncopyable, so the deadline and the stream reach it through a reference.
+/// Who owns the popup — decided once, under one lock, so a token and the deadline can never both win. Mutex is noncopyable, so the two racers reach it through a reference.
 private final class StreamProgress: Sendable {
-    private let started = Mutex(false)
+    private enum State { case idle, started, timedOut }
 
-    var hasStarted: Bool { started.withLock { $0 } }
+    private let state = Mutex(State.idle)
 
-    func markStarted() { started.withLock { $0 = true } }
+    var hasStarted: Bool { state.withLock { $0 == .started } }
+
+    /// Claims the stream for the cloud, unless the deadline already gave up on it.
+    func claim() -> Bool {
+        state.withLock {
+            guard $0 != .timedOut else { return false }
+            $0 = .started
+            return true
+        }
+    }
+
+    /// Gives up on the cloud, unless it already spoke.
+    func giveUp() -> Bool {
+        state.withLock {
+            guard $0 != .started else { return false }
+            $0 = .timedOut
+            return true
+        }
+    }
 }
 
 /// Picks the engine per call, falling back to the local one when the cloud can't serve.
@@ -67,19 +85,28 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                 if useCloud {
                     let progress = StreamProgress()
                     do {
-                        try await withThrowingTaskGroup(of: Void.self) { group in
+                        try await withThrowingTaskGroup(of: Bool.self) { group in
                             group.addTask {
                                 for try await event in self.cloud.streamGeneration(prompt: prompt, model: model) {
-                                    progress.markStarted()
+                                    // Losing the claim means the local model has the popup; a late token would land in the middle of its answer.
+                                    guard progress.claim() else { return false }
                                     continuation.yield(event)
                                 }
+                                return true
                             }
                             // Deadline only on the first token: a stream that already speaks may pause as long as it likes.
                             group.addTask {
                                 try await Task.sleep(for: .seconds(self.deadline))
-                                guard progress.hasStarted else { throw TranslationError.cloudUnreachable }
+                                guard !progress.giveUp() else { throw TranslationError.cloudUnreachable }
+                                return false
                             }
-                            for try await _ in group {}
+                            // The timer merely stops mattering once the stream speaks; waiting for it too would hold every finished cloud answer open until the deadline.
+                            while let streamFinished = try await group.next() {
+                                if streamFinished {
+                                    group.cancelAll()
+                                    break
+                                }
+                            }
                         }
                         continuation.finish()
                         return
