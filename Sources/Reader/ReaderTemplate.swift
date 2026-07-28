@@ -157,8 +157,9 @@ enum ReaderTemplate {
       iframe { width: 100%; aspect-ratio: 16 / 9; height: auto; }
       figure { margin: 2.2em 0; }
       figcaption { font-size: .78em; opacity: .8; margin-top: .7em; }
-      blockquote { margin: 1.8em 1.5em; text-align: center; font-size: 1.08em;
-                   font-style: italic; line-height: 1.55; }
+      blockquote { margin: 1.8em 0; padding-left: 1.5em; text-align: left;
+                   border-left: 3px solid color-mix(in srgb, CanvasText 65%, Canvas);
+                   font-size: 1.08em; font-style: italic; line-height: 1.55; }
       pre { overflow-x: auto; background: color-mix(in srgb, CanvasText 7%, Canvas);
             padding: 1em; border-radius: 6px; font-size: .8em; text-align: left; }
       code { font-family: ui-monospace, monospace; }
