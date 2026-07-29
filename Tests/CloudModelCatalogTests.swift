@@ -19,6 +19,21 @@ import Testing
         #expect(CloudModelCatalog.limits(for: "not-a-model") == CloudModelCatalog.default.limits)
     }
 
+    @Test func everyEntryAsksForAtLeastOneBlockPerRequest() {
+        // The packer ramps up to this number and clamps with min(), so a zero or negative would
+        // silently collapse every batch to one block — the reader would still work, just slower
+        // than the measurement says it should, with nothing anywhere reporting the regression.
+        for entry in CloudModelCatalog.models {
+            #expect(entry.batch >= 1, "\(entry.id) asks for \(entry.batch) blocks per request")
+        }
+        #expect(OllamaCloudCatalog.batch >= 1)
+    }
+
+    @Test func unknownModelResolvesToTheDefaultBatch() {
+        // Same reason as the limits lookup: the id comes from settings and the catalog moves under it.
+        #expect(CloudModelCatalog.batch(for: "not-a-model") == CloudModelCatalog.default.batch)
+    }
+
     @Test func modelIDsAreUnique() {
         // The id keys both the limits lookup and the limiter's per-model quota buckets.
         #expect(Set(CloudModelCatalog.models.map(\.id)).count == CloudModelCatalog.models.count)

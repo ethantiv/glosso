@@ -146,6 +146,12 @@ final class ReaderController: ReaderPresenting {
     }
 
     /// Runs alongside the block pass, so it never writes the status line — the block counter owns it.
+    ///
+    /// The two calls stay **sequential on purpose**, and the order is load-bearing on a backend that serves one request
+    /// at a time (Ollama Cloud's free tier). The short title call goes out first, so by the time the slow summary is
+    /// issued the first block request is already queued ahead of it. Issuing both at once would let the summary — 41.7s
+    /// for 91 tokens, measured there — win the single slot and hold up the first paragraph, which is the whole thing
+    /// this concurrency exists to prevent.
     private func translateHead(_ title: String, summarizing text: String, in webView: WKWebView) async -> (title: String, summary: String) {
         let translated = await translateTitle(title, in: webView)
         if Task.isCancelled { return (translated, "") }
