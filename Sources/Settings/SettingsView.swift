@@ -22,8 +22,11 @@ struct SettingsView: View {
         return models.filter { !catalogIDs.contains($0) }.sorted()
     }
 
+    /// The active pick is always in the list, even when the fetch failed or the model was retired — otherwise the picker vanishes and nothing on screen names the model in use.
     private var otherOllamaCloudModels: [String] {
-        ollamaCloudModels.filter { $0 != OllamaCloudCatalog.defaultModel }.sorted()
+        var ids = Set(ollamaCloudModels)
+        ids.insert(store.ollamaCloudModel)
+        return ids.subtracting([OllamaCloudCatalog.defaultModel]).sorted()
     }
 
     var body: some View {

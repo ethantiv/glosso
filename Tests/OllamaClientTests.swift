@@ -332,6 +332,19 @@ import Testing
         }
     }
 
+    @Test func anUnknownModelKeepsTheServersOwnMessage() async {
+        // The default cloud model id is hardcoded and Ollama retires cloud models on a schedule — "HTTP 404" would hide the one sentence that says why.
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+             #"{"error":"model 'gemma4:31b' not found"}"#.data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudError("model 'gemma4:31b' not found")) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "gemma4:31b")
+        }
+    }
+
     @Test func aThrottledCloudIsReportedAsRateLimited() async {
         MockURLProtocol.handler = { request in
             (HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!, Data())
