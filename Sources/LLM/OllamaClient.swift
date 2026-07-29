@@ -30,7 +30,12 @@ final class OllamaClient: LLMClient, GenerationBackend {
         isCloud ? .cloudUnreachable : .ollamaUnreachable
     }
 
-    /// `message` is the server's own `{"error":…}` body — the only thing that names a retired or misspelled model, which is the failure the hardcoded cloud default is most likely to hit.
+    /// A 200 carrying `{"error":…}` is Ollama's shape for a *generation-time* failure: headers are flushed as soon as the request is accepted, so capacity and model-load trouble arrives in the body. The request itself was fine, so on the cloud this has to land on a case `fallsBack` accepts — none of which carry a message, which is why the text is dropped there.
+    private static func bodyError(_ message: String, isCloud: Bool) -> TranslationError {
+        isCloud ? .cloudUnreachable : .ollamaError(message)
+    }
+
+    /// `message` is the server's own `{"error":…}` body — the only thing that names a retired or misspelled model, which is the failure the hardcoded cloud default is most likely to hit. A 4xx says the request is wrong, so it deliberately does **not** fall back: handing over would hide a dead model id forever.
     private static func statusError(_ code: Int, isCloud: Bool, message: String?) -> TranslationError {
         guard isCloud else { return message.map(TranslationError.ollamaError) ?? .httpStatus(code) }
         switch code {
@@ -57,7 +62,7 @@ final class OllamaClient: LLMClient, GenerationBackend {
         let chunk = try? JSONDecoder().decode(GenerateChunk.self, from: data)
         // The status decides first: the cloud's 401 body decodes as an error message too, and `.ollamaError` never falls back.
         guard http.statusCode == 200 else { throw Self.statusError(http.statusCode, isCloud: isCloud, message: chunk?.error) }
-        if let message = chunk?.error { throw TranslationError.ollamaError(message) }
+        if let message = chunk?.error { throw Self.bodyError(message, isCloud: isCloud) }
         guard let body = chunk?.response else { throw TranslationError.malformedStream }
         guard chunk?.doneReason != "length" else { throw TranslationError.malformedStream }
         return body
@@ -100,7 +105,7 @@ final class OllamaClient: LLMClient, GenerationBackend {
                         }
                         guard let chunk = NDJSONStreamParser.parse(line: line) else { continue }
                         if let serverError = chunk.error {
-                            continuation.finish(throwing: TranslationError.ollamaError(serverError))
+                            continuation.finish(throwing: Self.bodyError(serverError, isCloud: isCloud))
                             return
                         }
                         if let response = chunk.response, !response.isEmpty {

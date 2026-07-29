@@ -345,6 +345,37 @@ import Testing
         }
     }
 
+    @Test func anAcceptedRequestThatFailsMidGenerationHandsOver() async {
+        // 200 then {"error":…} is Ollama's shape for a capacity or model-load failure — the request was fine, so the local engine must get its turn. `.ollamaError` would strand it.
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+             #"{"error":"model requires more system memory than is available"}"#.data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudUnreachable) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "gemma4:31b")
+        }
+        #expect(RoutingLLMClient.fallsBack(.cloudUnreachable))
+    }
+
+    @Test func aStreamThatFailsMidGenerationHandsOverToo() async {
+        MockURLProtocol.handler = { request in
+            let lines = [
+                #"{"model":"m","response":"","done":false}"#,
+                #"{"error":"unable to load model"}"#,
+            ]
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    (lines.joined(separator: "\n") + "\n").data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.cloudUnreachable) {
+            for try await _ in client.run("Cześć", action: .translate, model: "gemma4:31b", primary: .polish, second: .english, formality: .automatic, style: false) {}
+        }
+    }
+
     @Test func aThrottledCloudIsReportedAsRateLimited() async {
         MockURLProtocol.handler = { request in
             (HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!, Data())
