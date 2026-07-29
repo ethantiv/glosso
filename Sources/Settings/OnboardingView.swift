@@ -105,11 +105,29 @@ struct OnboardingView: View {
             .pickerStyle(.segmented)
             .accessibilityLabel(loc("Silnik tłumaczenia", "Translation engine"))
 
-            if store.provider == .cloud {
-                cloudModelStep
-            } else {
-                localModelStep
+            switch store.provider {
+            case .cloud: cloudModelStep
+            case .ollamaCloud: ollamaCloudModelStep
+            case .local: localModelStep
             }
+        }
+    }
+
+    private var ollamaCloudModelStep: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            Text(loc("Tłumaczy Gemma działająca w chmurze Ollamy. Nie musisz nic pobierać, ale zaznaczony tekst opuszcza Twój komputer. Darmowy próg wystarcza do lekkiego użycia.",
+                     "A Gemma running in Ollama's cloud does the work. Nothing to download, but the selected text leaves your Mac. The free tier covers light use."))
+                .font(PopupTheme.fontSource)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            SecureField(loc("Wklej klucz API", "Paste your API key"), text: $store.ollamaAPIKey)
+                .textFieldStyle(.roundedBorder)
+                .accessibilityLabel(loc("Klucz API Ollama Cloud", "Ollama Cloud API key"))
+
+            Link(loc("Utwórz klucz na ollama.com", "Create a key on ollama.com"),
+                 destination: URL(string: "https://ollama.com/settings/keys")!)
+                .font(PopupTheme.fontMeta)
         }
     }
 

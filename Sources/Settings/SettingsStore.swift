@@ -8,6 +8,7 @@ final class SettingsStore {
         static let model = "llm.model"
         static let provider = "llm.provider"
         static let cloudModel = "llm.cloudModel"
+        static let ollamaCloudModel = "llm.ollamaCloudModel"
         static let primaryLanguage = "app.primaryLanguage"
         static let secondLanguage = "translation.secondLanguage"
         static let formality = "translation.formality"
@@ -23,6 +24,7 @@ final class SettingsStore {
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let loginItem: any LoginItemManaging
     @ObservationIgnored private let writeAPIKey: (String) -> Void
+    @ObservationIgnored private let writeOllamaAPIKey: (String) -> Void
 
     var modelName: String {
         didSet { defaults.set(modelName, forKey: Key.model) }
@@ -37,9 +39,17 @@ final class SettingsStore {
         didSet { defaults.set(cloudModel, forKey: Key.cloudModel) }
     }
 
-    /// The model every LLM call must use — the two providers name models differently.
+    var ollamaCloudModel: String {
+        didSet { defaults.set(ollamaCloudModel, forKey: Key.ollamaCloudModel) }
+    }
+
+    /// The model every LLM call must use — the three providers name models differently.
     var activeModel: String {
-        provider == .cloud ? cloudModel : modelName
+        switch provider {
+        case .local: modelName
+        case .cloud: cloudModel
+        case .ollamaCloud: ollamaCloudModel
+        }
     }
 
     /// Not UserDefaults-backed: the Keychain is the source of truth, like `launchAtLogin` deferring to SMAppService.
@@ -47,6 +57,13 @@ final class SettingsStore {
         didSet {
             guard apiKey != oldValue else { return }
             writeAPIKey(apiKey)
+        }
+    }
+
+    var ollamaAPIKey: String {
+        didSet {
+            guard ollamaAPIKey != oldValue else { return }
+            writeOllamaAPIKey(ollamaAPIKey)
         }
     }
 
@@ -99,16 +116,21 @@ final class SettingsStore {
         loginItem: any LoginItemManaging = SMAppServiceLoginItem(),
         systemLanguages: [String] = Locale.preferredLanguages,
         readAPIKey: () -> String? = { APIKeyStore.read() },
-        writeAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0) }
+        writeAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0) },
+        readOllamaAPIKey: () -> String? = { APIKeyStore.read(account: APIKeyStore.ollamaAccount) },
+        writeOllamaAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0, account: APIKeyStore.ollamaAccount) }
     ) {
         self.defaults = defaults
         self.loginItem = loginItem
         self.writeAPIKey = writeAPIKey
+        self.writeOllamaAPIKey = writeOllamaAPIKey
         self.modelName = defaults.string(forKey: Key.model) ?? EmbeddedModelCatalog.recommended.id
         self.provider = defaults.string(forKey: Key.provider)
             .flatMap(LLMProvider.init(rawValue:)) ?? .local
         self.cloudModel = defaults.string(forKey: Key.cloudModel) ?? CloudModelCatalog.default.id
+        self.ollamaCloudModel = defaults.string(forKey: Key.ollamaCloudModel) ?? OllamaCloudCatalog.defaultModel
         self.apiKey = readAPIKey() ?? ""
+        self.ollamaAPIKey = readOllamaAPIKey() ?? ""
         let primary = defaults.string(forKey: Key.primaryLanguage)
             .flatMap(PrimaryLanguage.init(rawValue:))
             ?? (defaults.object(forKey: Key.hasCompletedOnboarding) != nil

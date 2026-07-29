@@ -59,6 +59,7 @@ private final class FallbackLog: @unchecked Sendable {
     private func makeClient(
         local: StubBackend,
         cloud: StubBackend,
+        ollamaCloud: StubBackend = StubBackend(text: "ollama-cloud"),
         provider: LLMProvider,
         fallbacks: FallbackLog = FallbackLog(),
         deadline: TimeInterval = 0.05,
@@ -67,6 +68,7 @@ private final class FallbackLog: @unchecked Sendable {
         RoutingLLMClient(
             local: local,
             cloud: cloud,
+            ollamaCloud: ollamaCloud,
             provider: { provider },
             localModel: { "gemma4:26b-mlx" },
             onFallback: { fallbacks.record($0) },
@@ -89,6 +91,43 @@ private final class FallbackLog: @unchecked Sendable {
 
         #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma4:26b-mlx") == "local")
         #expect(cloud.seenModels.all.isEmpty)
+    }
+
+    @Test func ollamaCloudProviderUsesItsOwnBackendNotGoogles() async throws {
+        // Two cloud backends share one router; picking the wrong one would silently send the text to the other vendor.
+        let google = StubBackend(text: "google")
+        let ollama = StubBackend(text: "ollama-cloud")
+        let client = makeClient(local: StubBackend(text: "local"), cloud: google,
+                                ollamaCloud: ollama, provider: .ollamaCloud)
+
+        #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma4:31b") == "ollama-cloud")
+        #expect(google.seenModels.all.isEmpty)
+        #expect(ollama.seenModels.all == ["gemma4:31b"])
+    }
+
+    @Test func aRejectedOllamaCloudKeyFallsBackToTheLocalModelName() async throws {
+        // Callers pass `gemma4:31b`, which the local engine has never pulled — the router must swap in the local model.
+        let local = StubBackend(text: "local")
+        let fallbacks = FallbackLog()
+        let client = makeClient(local: local, cloud: StubBackend(text: "google"),
+                                ollamaCloud: StubBackend(failure: .invalidAPIKey),
+                                provider: .ollamaCloud, fallbacks: fallbacks)
+
+        #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma4:31b") == "local")
+        #expect(local.seenModels.all == ["gemma4:26b-mlx"])
+        #expect(fallbacks.all == [.invalidAPIKey])
+    }
+
+    @Test func aSilentOllamaCloudStreamHandsOverToTheLocalModel() async throws {
+        let fallbacks = FallbackLog()
+        let client = makeClient(local: StubBackend(text: "local"), cloud: StubBackend(text: "google"),
+                                ollamaCloud: StubBackend(text: "ollama-cloud", delay: 5),
+                                provider: .ollamaCloud, fallbacks: fallbacks)
+
+        let tokens = try await collect(client.run("Cześć", action: .translate, model: "gemma4:31b",
+                                                  primary: .polish, second: .english, formality: .automatic, style: false))
+        #expect(tokens == ["local"])
+        #expect(fallbacks.all == [.cloudUnreachable])
     }
 
     @Test func exhaustedQuotaFallsBackToTheLocalModelName() async throws {

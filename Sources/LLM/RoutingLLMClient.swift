@@ -32,6 +32,7 @@ private final class StreamProgress: Sendable {
 final class RoutingLLMClient: LLMClient, GenerationBackend {
     private let local: any GenerationBackend
     private let cloud: any GenerationBackend
+    private let ollamaCloud: any GenerationBackend
     private let provider: @Sendable () async -> LLMProvider
     /// Callers pass the active (possibly cloud) model name, which Ollama wouldn't recognise.
     private let localModel: @Sendable () async -> String
@@ -44,6 +45,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     init(
         local: any GenerationBackend,
         cloud: any GenerationBackend,
+        ollamaCloud: any GenerationBackend,
         provider: @escaping @Sendable () async -> LLMProvider,
         localModel: @escaping @Sendable () async -> String,
         onFallback: @escaping @Sendable (TranslationError) -> Void,
@@ -52,11 +54,21 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     ) {
         self.local = local
         self.cloud = cloud
+        self.ollamaCloud = ollamaCloud
         self.provider = provider
         self.localModel = localModel
         self.onFallback = onFallback
         self.deadline = deadline
         self.localReady = localReady
+    }
+
+    /// The backend serving this provider, or nil when the local engine already is the answer.
+    private func cloudBackend(_ provider: LLMProvider) -> (any GenerationBackend)? {
+        switch provider {
+        case .local: nil
+        case .cloud: cloud
+        case .ollamaCloud: ollamaCloud
+        }
     }
 
     /// Failures the local engine can still answer; anything else is a genuine problem with the request.
@@ -68,13 +80,13 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     }
 
     func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
-        guard await provider() == .cloud else {
+        guard let cloud = cloudBackend(await provider()) else {
             return try await local.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
         }
         do {
             // Long-form reader calls bring their own timeout and legitimately run for minutes; only interactive lookups get the deadline.
             return try await withDeadline(timeout == nil) {
-                try await self.cloud.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
+                try await cloud.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
             }
         } catch let error as TranslationError where Self.fallsBack(error) {
             onFallback(error)
@@ -85,13 +97,13 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     func streamGeneration(prompt: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
         AsyncThrowingStream { continuation in
             let task = Task {
-                let useCloud = await provider() == .cloud
-                if useCloud {
+                let cloud = cloudBackend(await provider())
+                if let cloud {
                     let progress = StreamProgress()
                     do {
                         try await withThrowingTaskGroup(of: Bool.self) { group in
                             group.addTask {
-                                for try await event in self.cloud.streamGeneration(prompt: prompt, model: model) {
+                                for try await event in cloud.streamGeneration(prompt: prompt, model: model) {
                                     // Losing the claim means the local model has the popup; a late token would land in the middle of its answer.
                                     guard progress.claim() else { return false }
                                     continuation.yield(event)
@@ -124,7 +136,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                     }
                 }
                 do {
-                    let fallbackModel = useCloud ? await localModel() : model
+                    let fallbackModel = cloud != nil ? await localModel() : model
                     for try await event in local.streamGeneration(prompt: prompt, model: fallbackModel) {
                         continuation.yield(event)
                     }
@@ -157,10 +169,6 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     }
 
     func prewarm(model: String) async throws {
-        if await provider() == .cloud {
-            try await cloud.prewarm(model: model)
-        } else {
-            try await local.prewarm(model: model)
-        }
+        try await (cloudBackend(await provider()) ?? local).prewarm(model: model)
     }
 }
