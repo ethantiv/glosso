@@ -164,12 +164,13 @@ enum TranslationError: Error, Sendable, Equatable {
         case .cancelled:
             loc("Tłumaczenie przerwane.",
                 "Translation cancelled.")
+        // Neutral wording: both cloud engines throw these three, so neither may name Google.
         case .cloudUnreachable:
-            loc("Nie mogę połączyć się z Google AI. Sprawdź połączenie z internetem.",
-                "Can't connect to Google AI. Check your internet connection.")
+            loc("Nie mogę połączyć się z usługą w chmurze. Sprawdź połączenie z internetem.",
+                "Can't connect to the cloud service. Check your internet connection.")
         case .cloudError(let message):
-            loc("Google AI zgłosiło błąd: \(message)",
-                "Google AI reported an error: \(message)")
+            loc("Usługa w chmurze zgłosiła błąd: \(message)",
+                "The cloud service reported an error: \(message)")
         case .missingAPIKey:
             loc("Brak klucza API. Wpisz go w Ustawieniach Glosso.",
                 "No API key. Enter it in Glosso Settings.")
@@ -177,8 +178,8 @@ enum TranslationError: Error, Sendable, Equatable {
             loc("Klucz API jest nieprawidłowy. Sprawdź go w Ustawieniach Glosso.",
                 "The API key is not valid. Check it in Glosso Settings.")
         case .rateLimited:
-            loc("Przekroczono limit zapytań Google AI. Spróbuj za chwilę.",
-                "Google AI rate limit exceeded. Try again shortly.")
+            loc("Przekroczono limit zapytań usługi w chmurze. Spróbuj za chwilę.",
+                "The cloud service's rate limit was exceeded. Try again shortly.")
         case .quotaExhausted:
             loc("Wyczerpał się dzienny darmowy limit Google AI. Odnowi się jutro.",
                 "The free Google AI daily quota is used up. It resets tomorrow.")
@@ -210,15 +211,17 @@ struct LLMConfig: Sendable {
     )
 }
 
-/// Which engine serves the prompts: the local Ollama or Gemma on the Gemini API.
+/// Which engine serves the prompts: the local Ollama, Gemma on the Gemini API, or Gemma on Ollama Cloud.
 enum LLMProvider: String, CaseIterable, Sendable {
     case local
     case cloud
+    case ollamaCloud
 
     var displayName: String {
         switch self {
         case .local: loc("Lokalnie", "On this Mac")
         case .cloud: loc("Google AI", "Google AI")
+        case .ollamaCloud: "Ollama Cloud"
         }
     }
 }

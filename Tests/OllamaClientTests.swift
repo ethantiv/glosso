@@ -249,3 +249,171 @@ import Testing
         }
     }
 }
+
+/// The same client pointed at Ollama's cloud host. What matters here is that its failures land on the cases `RoutingLLMClient.fallsBack` accepts — otherwise a dead key would strand the user instead of handing over to the local engine.
+@Suite(.serialized) struct OllamaCloudClientTests {
+    private func makeClient(key: String? = "sk-test") -> OllamaClient {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let session = URLSession(configuration: configuration)
+        return OllamaClient(session: session,
+                            endpointProvider: { OllamaCloudCatalog.baseURL },
+                            keyProvider: { key })
+    }
+
+    private func ok(_ request: URLRequest) -> (HTTPURLResponse, Data) {
+        (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+         #"{"model":"m","response":"ok","done":true}"#.data(using: .utf8)!)
+    }
+
+    @Test func signsTheRequestAndSendsItToOllamasHost() async throws {
+        let captured = HeaderBox()
+        MockURLProtocol.handler = { request in
+            captured.store(url: request.url, header: request.value(forHTTPHeaderField: "Authorization"))
+            return self.ok(request)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        #expect(captured.header == "Bearer sk-test")
+        #expect(captured.url?.absoluteString == "https://ollama.com/api/generate")
+    }
+
+    @Test func theLocalEngineIsNeverSignedIn() async throws {
+        let captured = HeaderBox()
+        MockURLProtocol.handler = { request in
+            captured.store(url: request.url, header: request.value(forHTTPHeaderField: "Authorization"))
+            return self.ok(request)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let local = OllamaClient(session: URLSession(configuration: configuration))
+        _ = try await local.translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        #expect(captured.header == nil)
+    }
+
+    @Test func missingKeyFailsWithoutTouchingTheNetwork() async {
+        MockURLProtocol.handler = { _ in
+            Issue.record("a keyless cloud client must not reach the network")
+            throw URLError(.unknown)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.missingAPIKey) {
+            _ = try await makeClient(key: "  ").translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func aRejectedKeyIsReportedAsInvalidNotAsAnOllamaError() async {
+        // The cloud answers 401 with {"error":"Unauthorized"}, which would decode into `.ollamaError` — and that never falls back.
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+             #"{"error":"Unauthorized"}"#.data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.invalidAPIKey) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func aRejectedKeyStopsTheStreamWithInvalidKeyToo() async {
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+             (#"{"error":"Unauthorized"}"# + "\n").data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.invalidAPIKey) {
+            for try await _ in client.run("Cześć", action: .translate, model: "m", primary: .polish, second: .english, formality: .automatic, style: false) {}
+        }
+    }
+
+    @Test func anUnknownModelKeepsTheServersOwnMessage() async {
+        // The default cloud model id is hardcoded and Ollama retires cloud models on a schedule — "HTTP 404" would hide the one sentence that says why.
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
+             #"{"error":"model 'gemma4:31b' not found"}"#.data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudError("model 'gemma4:31b' not found")) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "gemma4:31b")
+        }
+    }
+
+    @Test func anAcceptedRequestThatFailsMidGenerationHandsOver() async {
+        // 200 then {"error":…} is Ollama's shape for a capacity or model-load failure — the request was fine, so the local engine must get its turn. `.ollamaError` would strand it.
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+             #"{"error":"model requires more system memory than is available"}"#.data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudUnreachable) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "gemma4:31b")
+        }
+        #expect(RoutingLLMClient.fallsBack(.cloudUnreachable))
+    }
+
+    @Test func aStreamThatFailsMidGenerationHandsOverToo() async {
+        MockURLProtocol.handler = { request in
+            let lines = [
+                #"{"model":"m","response":"","done":false}"#,
+                #"{"error":"unable to load model"}"#,
+            ]
+            return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
+                    (lines.joined(separator: "\n") + "\n").data(using: .utf8)!)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        let client = makeClient()
+        await #expect(throws: TranslationError.cloudUnreachable) {
+            for try await _ in client.run("Cześć", action: .translate, model: "gemma4:31b", primary: .polish, second: .english, formality: .automatic, style: false) {}
+        }
+    }
+
+    @Test func aThrottledCloudIsReportedAsRateLimited() async {
+        MockURLProtocol.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!, Data())
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.rateLimited(nil)) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func networkFailureIsReportedAsCloudNotOllama() async {
+        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
+        defer { MockURLProtocol.handler = nil }
+
+        await #expect(throws: TranslationError.cloudUnreachable) {
+            _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
+        }
+    }
+
+    @Test func prewarmSendsNothing() async throws {
+        // Nothing is resident to warm, and this runs on every launch — it would only spend GPU time.
+        MockURLProtocol.handler = { _ in
+            Issue.record("prewarm must not spend a request on the cloud")
+            throw URLError(.unknown)
+        }
+        defer { MockURLProtocol.handler = nil }
+
+        try await makeClient().prewarm(model: "m")
+    }
+}
+
+private final class HeaderBox: @unchecked Sendable {
+    private let lock = NSLock()
+    private var storedURL: URL?
+    private var storedHeader: String?
+
+    func store(url: URL?, header: String?) { lock.withLock { storedURL = url; storedHeader = header } }
+    var url: URL? { lock.withLock { storedURL } }
+    var header: String? { lock.withLock { storedHeader } }
+}

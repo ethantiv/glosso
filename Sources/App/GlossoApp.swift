@@ -48,6 +48,7 @@ struct GlossoApp: App {
             SettingsView(
                 store: appDelegate.settings,
                 lister: appDelegate.modelLister,
+                cloudLister: appDelegate.ollamaCloudLister,
                 engine: appDelegate.engine,
                 modelManager: appDelegate.modelManager,
                 limiter: appDelegate.cloudLimiter
@@ -101,6 +102,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     lazy var engine = EngineManager(box: engineBox)
     lazy var modelLister: OllamaModelLister = OllamaModelLister(endpointProvider: Self.endpointProvider(engine))
     lazy var modelManager: OllamaModelManager = OllamaModelManager(endpointProvider: Self.endpointProvider(engine))
+    /// The cloud's own /api/tags answers unauthenticated, so the model list needs no key and stays current as Ollama retires models.
+    let ollamaCloudLister = OllamaModelLister(endpointProvider: { OllamaCloudCatalog.baseURL })
 
     nonisolated static func endpointProvider(_ engine: EngineManager) -> @Sendable () async throws -> URL {
         { try await engine.activeBaseURL() }
@@ -132,6 +135,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         let llm = RoutingLLMClient(
             local: OllamaClient(endpointProvider: Self.endpointProvider(engine)),
             cloud: GeminiClient(limiter: cloudLimiter),
+            // The same client, only pointed at Ollama's host and signed — no limiter, because the cloud meters GPU time, not requests.
+            ollamaCloud: OllamaClient(
+                endpointProvider: { OllamaCloudCatalog.baseURL },
+                keyProvider: { APIKeyStore.read(account: APIKeyStore.ollamaAccount) }
+            ),
             provider: { [settings] in await MainActor.run { settings.provider } },
             localModel: { [settings] in await MainActor.run { settings.modelName } },
             onFallback: { error in

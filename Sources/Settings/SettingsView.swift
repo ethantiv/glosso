@@ -3,11 +3,14 @@ import SwiftUI
 struct SettingsView: View {
     @Bindable var store: SettingsStore
     let lister: any ModelListing
+    /// Ollama's cloud host, listing what it serves — a different lister, not a different protocol.
+    let cloudLister: any ModelListing
     let engine: any EngineProviding
     let modelManager: any ModelManaging
     let limiter: GeminiRateLimiter
 
     @State private var models: [String] = []
+    @State private var ollamaCloudModels: [String] = []
     @State private var loadGeneration = 0
     @State private var pulling: [String: Double] = [:]
     @State private var quota: (used: Int, limit: Int)?
@@ -17,6 +20,13 @@ struct SettingsView: View {
     private var otherInstalledModels: [String] {
         let catalogIDs = Set(EmbeddedModelCatalog.models.map(\.id))
         return models.filter { !catalogIDs.contains($0) }.sorted()
+    }
+
+    /// The active pick is always in the list, even when the fetch failed or the model was retired — otherwise the picker vanishes and nothing on screen names the model in use.
+    private var otherOllamaCloudModels: [String] {
+        var ids = Set(ollamaCloudModels)
+        ids.insert(store.ollamaCloudModel)
+        return ids.subtracting([OllamaCloudCatalog.defaultModel]).sorted()
     }
 
     var body: some View {
@@ -36,6 +46,10 @@ struct SettingsView: View {
         .task {
             store.refreshLaunchAtLogin()
             await loadModels()
+        }
+        .task(id: store.provider) {
+            guard store.provider == .ollamaCloud, ollamaCloudModels.isEmpty else { return }
+            ollamaCloudModels = (try? await cloudLister.availableModels()) ?? []
         }
         .task {
             // The counter is the point of the row — a value frozen at window-open is worse than none.
@@ -72,10 +86,10 @@ struct SettingsView: View {
                     .fixedSize()
                 }
                 rowDivider
-                if store.provider == .cloud {
-                    cloudSection
+                if store.provider != .local {
+                    if store.provider == .cloud { cloudSection } else { ollamaCloudSection }
                     rowDivider
-                    // The cloud falls back to this one on a spent quota or a dead key, so it has to be installable here.
+                    // Either cloud falls back to this one on a spent quota or a dead key, so it has to be installable here.
                     row(loc("Model zapasowy", "Fallback model")) { EmptyView() }
                 }
                 ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
@@ -161,7 +175,8 @@ struct SettingsView: View {
         }
         ForEach(Array(CloudModelCatalog.models.enumerated()), id: \.element.id) { _, entry in
             rowDivider
-            cloudModelRow(entry)
+            cloudModelRow(id: entry.id, displayName: entry.displayName, icon: entry.icon,
+                          isActive: store.cloudModel == entry.id) { store.cloudModel = entry.id }
         }
         rowDivider
         row(loc("Zapytania dzisiaj", "Requests today")) {
@@ -181,27 +196,71 @@ struct SettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func cloudModelRow(_ entry: CloudModelCatalog.Entry) -> some View {
-        let isActive = store.cloudModel == entry.id
-        return HStack(spacing: 12) {
-            Button { store.cloudModel = entry.id } label: {
+    @ViewBuilder private var ollamaCloudSection: some View {
+        row(loc("Klucz API", "API key")) {
+            SecureField("", text: $store.ollamaAPIKey)
+                .textFieldStyle(.roundedBorder)
+                .labelsHidden()
+                .accessibilityLabel(loc("Klucz API Ollama Cloud", "Ollama Cloud API key"))
+                .frame(width: 200)
+        }
+        rowDivider
+        row("") {
+            Link(loc("Utwórz klucz na ollama.com", "Create a key on ollama.com"),
+                 destination: URL(string: "https://ollama.com/settings/keys")!)
+                .font(PopupTheme.fontMeta)
+        }
+        rowDivider
+        cloudModelRow(id: OllamaCloudCatalog.defaultModel, displayName: "Gemma",
+                      icon: "gauge.with.dots.needle.100percent",
+                      isActive: store.ollamaCloudModel == OllamaCloudCatalog.defaultModel) {
+            store.ollamaCloudModel = OllamaCloudCatalog.defaultModel
+        }
+        if !otherOllamaCloudModels.isEmpty {
+            rowDivider
+            row(loc("Inne modele", "Other models")) {
+                Picker("", selection: $store.ollamaCloudModel) {
+                    ForEach(otherOllamaCloudModels, id: \.self) { name in
+                        Text(name).tag(name)
+                    }
+                }
+                .labelsHidden()
+                .accessibilityLabel(loc("Inny model chmurowy", "Other cloud model"))
+                .fixedSize()
+            }
+        }
+        rowDivider
+        Label(loc("W tym trybie zaznaczony tekst jest wysyłany do Ollamy.",
+                  "In this mode the selected text is sent to Ollama."),
+              systemImage: "exclamationmark.triangle.fill")
+            .font(PopupTheme.fontMeta)
+            .foregroundStyle(PopupTheme.warn)
+            .padding(.horizontal, 13)
+            .padding(.vertical, 8)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    private func cloudModelRow(id: String, displayName: String, icon: String, isActive: Bool, select: @escaping () -> Void) -> some View {
+        HStack(spacing: 12) {
+            Button(action: select) {
                 Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
                     .font(.system(size: 16))
                     .foregroundStyle(isActive ? PopupTheme.accent : Color.secondary)
             }
             .buttonStyle(.plain)
             .disabled(isActive)
-            .accessibilityLabel(loc("Użyj modelu \(entry.displayName)", "Use model \(entry.displayName)"))
+            .accessibilityLabel(loc("Użyj modelu \(displayName)", "Use model \(displayName)"))
             .accessibilityAddTraits(isActive ? .isSelected : [])
 
-            Image(systemName: entry.icon)
+            Image(systemName: icon)
                 .font(.system(size: 16))
                 .foregroundStyle(.secondary)
                 .frame(width: 22)
 
-            Text(entry.displayName).font(PopupTheme.fontSource)
+            Text(displayName).font(PopupTheme.fontSource)
             Spacer(minLength: 8)
-            Text(entry.id)
+            Text(id)
                 .font(PopupTheme.fontMeta)
                 .foregroundStyle(.secondary)
         }

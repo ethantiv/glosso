@@ -54,6 +54,27 @@ private final class URLRecorder: @unchecked Sendable {
         #expect(recorder.url?.path == "/api/tags")
     }
 
+    @Test func theCloudListerAsksOllamasOwnHost() async throws {
+        // The cloud catalog is not hardcoded — it is whatever ollama.com serves today, and that endpoint needs no key.
+        let recorder = URLRecorder()
+        MockTagsURLProtocol.handler = { request in
+            recorder.url = request.url
+            let body = #"{"models":[{"name":"gemma4:31b"},{"name":"gpt-oss:120b"}]}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockTagsURLProtocol.handler = nil }
+
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockTagsURLProtocol.self]
+        let lister = OllamaModelLister(session: URLSession(configuration: configuration),
+                                       endpointProvider: { OllamaCloudCatalog.baseURL })
+        let models = try await lister.availableModels()
+
+        #expect(models == ["gemma4:31b", "gpt-oss:120b"])
+        #expect(recorder.url?.absoluteString == "https://ollama.com/api/tags")
+    }
+
     @Test func nonOKStatusThrowsUnreachable() async {
         MockTagsURLProtocol.handler = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!

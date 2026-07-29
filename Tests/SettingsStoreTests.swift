@@ -175,6 +175,54 @@ import Testing
         #expect(defaults.dictionaryRepresentation().values.allSatisfy { ($0 as? String) != "AIza-secret" })
     }
 
+    @Test func activeModelFollowsTheOllamaCloudProvider() {
+        // Three engines, three naming schemes: `gemma4:31b` means nothing to Gemini and `gemma-4-31b-it` means nothing to Ollama.
+        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in },
+                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { _ in })
+        store.modelName = "gemma4:26b-mlx"
+        store.cloudModel = "gemma-4-31b-it"
+
+        store.provider = .ollamaCloud
+        #expect(store.activeModel == OllamaCloudCatalog.defaultModel)
+        store.ollamaCloudModel = "gpt-oss:120b"
+        #expect(store.activeModel == "gpt-oss:120b")
+    }
+
+    @Test func aFreshInstallDoesNotPersistTheOllamaCloudModel() {
+        // Same reason as the Gemini catalog: Ollama retires cloud models, and an unwritten key lets a new default reach everyone who never picked one.
+        let defaults = transientDefaults()
+        _ = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in },
+                          readOllamaAPIKey: { nil }, writeOllamaAPIKey: { _ in })
+        #expect(defaults.object(forKey: "llm.ollamaCloudModel") == nil)
+    }
+
+    @Test func theOllamaKeyIsWrittenToTheKeychainNotToDefaults() {
+        let defaults = transientDefaults()
+        let written = KeyBox()
+        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in },
+                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { written.value = $0 })
+
+        store.ollamaAPIKey = "ollama-secret"
+
+        #expect(written.value == "ollama-secret")
+        #expect(defaults.dictionaryRepresentation().values.allSatisfy { ($0 as? String) != "ollama-secret" })
+    }
+
+    @Test func theTwoCloudKeysDoNotOverwriteEachOther() {
+        // One Keychain service, two accounts — a shared slot would make picking a provider wipe the other's key.
+        let google = KeyBox()
+        let ollama = KeyBox()
+        let store = SettingsStore(defaults: transientDefaults(),
+                                  readAPIKey: { nil }, writeAPIKey: { google.value = $0 },
+                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { ollama.value = $0 })
+
+        store.apiKey = "AIza-secret"
+        store.ollamaAPIKey = "ollama-secret"
+
+        #expect(google.value == "AIza-secret")
+        #expect(ollama.value == "ollama-secret")
+    }
+
     @Test func unknownPersistedLanguageFallsBackToEnglish() {
         let defaults = transientDefaults()
         defaults.set("xx", forKey: "translation.secondLanguage")
