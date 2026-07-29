@@ -83,16 +83,21 @@ import Testing
         ReaderTemplate.Block(id: id, html: String(repeating: "a", count: bytes), translate: true)
     }
 
-    @Test func batchesRespectTheBlockCountCap() {
-        let packed = ReaderTemplate.batches((0..<7).map { block($0, bytes: 10) }, maxCount: 5)
-        #expect(packed.map(\.count) == [5, 2])
-        #expect(packed.flatMap { $0 }.map(\.id) == Array(0..<7))
+    @Test func batchesRampUpToTheCountCapAndStayThere() {
+        // The first request is one block so a paragraph paints without waiting for a full batch;
+        // the ramp is a geometric prefix, so the extra requests it costs are a one-off, not a share.
+        let packed = ReaderTemplate.batches((0..<20).map { block($0, bytes: 10) }, maxCount: 5)
+        #expect(packed.map(\.count) == [1, 2, 4, 5, 5, 3])
+        #expect(packed.flatMap { $0 }.map(\.id) == Array(0..<20))
     }
 
     @Test func batchesCloseEarlyOnTheByteBudget() {
-        // Two 2500-byte blocks exceed the budget together, so the batch closes before the count cap.
-        let packed = ReaderTemplate.batches((0..<2).map { block($0, bytes: 2500) }, maxCount: 5)
-        #expect(packed.map(\.count) == [1, 1])
+        // Blocks that overflow the budget close the batch even once the ramp has climbed past their count:
+        // the first four are the ramp's 1+2, then two 2500-byte blocks can't share a batch.
+        let packed = ReaderTemplate.batches(
+            [block(0, bytes: 10), block(1, bytes: 10), block(2, bytes: 10),
+             block(3, bytes: 2500), block(4, bytes: 2500)], maxCount: 8)
+        #expect(packed.map(\.count) == [1, 2, 1, 1])
     }
 
     @Test func batchesNeverSplitAnOversizedBlock() {
@@ -103,9 +108,18 @@ import Testing
     }
 
     @Test func batchesOfOneAreEveryBlockSeparately() {
-        // The local provider's setting — it must reproduce today's per-block behaviour exactly.
+        // The local provider's setting. The ramp starts at 1 and doubles only up to maxCount, so at a
+        // cap of 1 it must degenerate to today's per-block behaviour rather than climbing past it.
         let packed = ReaderTemplate.batches((0..<3).map { block($0, bytes: 10) }, maxCount: 1)
         #expect(packed.map(\.count) == [1, 1, 1])
+    }
+
+    @Test func theRampCostsAFixedNumberOfExtraRequestsNotAShareOfTheArticle() {
+        // The whole safety argument for ramping every engine: the overhead is a geometric prefix, so a
+        // longer article dilutes it instead of paying more. If this ever grows with length, the ramp is wrong.
+        let short = ReaderTemplate.batches((0..<50).map { block($0, bytes: 10) }, maxCount: 10)
+        let long = ReaderTemplate.batches((0..<400).map { block($0, bytes: 10) }, maxCount: 10)
+        #expect(short.count - 50 / 10 == long.count - 400 / 10)
     }
 
     @Test func decodesBlockListReturnedByGlossoSetArticle() throws {

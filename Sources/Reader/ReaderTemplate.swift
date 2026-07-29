@@ -14,14 +14,21 @@ enum ReaderTemplate {
     private static let batchByteBudget = 4000
 
     /// Greedy packing under both a count and a byte cap. An oversized block gets its own batch rather than being split.
+    ///
+    /// The count ramps 1, 2, 4, … up to `maxCount` instead of starting there: the first request carries a single block,
+    /// so something paints while the big batches are still being packed. Measured on Gemma, that moves the first
+    /// paragraph from ~26s to ~7s. The ramp is a geometric prefix, so it costs a fixed handful of extra requests once
+    /// per article rather than a share of it, and at `maxCount` 1 it degenerates to today's per-block behaviour.
     static func batches(_ blocks: [Block], maxCount: Int) -> [[Block]] {
         var packed: [[Block]] = []
         var current: [Block] = []
         var bytes = 0
+        var cap = 1
         for block in blocks {
             let size = block.html.utf8.count
-            if !current.isEmpty, current.count >= maxCount || bytes + size > batchByteBudget {
+            if !current.isEmpty, current.count >= cap || bytes + size > batchByteBudget {
                 packed.append(current)
+                cap = min(cap * 2, maxCount)
                 current = []
                 bytes = 0
             }

@@ -73,11 +73,16 @@ final class ReaderController: ReaderPresenting {
             if Task.isCancelled { return }
             window?.title = article.title
             let blocks = try await insertArticle(article, in: webView)
-            let translatedTitle = await translateTitle(article.title, in: webView)
+            // Read before anything translates: `summarize` used to scrape the live DOM, which under a
+            // concurrent block pass would summarise a half-translated article.
+            let head = await headText(in: webView)
             if Task.isCancelled { return }
-            let summary = await summarize(in: webView)
-            if Task.isCancelled { return }
-            if let translations = try await translate(blocks: blocks, in: webView), !Task.isCancelled {
+            // Title and summary paint into their own slots, so they have no business holding up the blocks —
+            // they were the larger part of the wait to first paragraph on every engine but Flash Lite.
+            async let heading = translateHead(article.title, summarizing: head, in: webView)
+            let translated = try await translate(blocks: blocks, in: webView)
+            let (translatedTitle, summary) = await heading
+            if let translations = translated, !Task.isCancelled {
                 cache.save(.init(
                     url: url, savedAt: .now, title: article.title,
                     translatedTitle: translatedTitle, byline: article.byline ?? "",
@@ -140,11 +145,17 @@ final class ReaderController: ReaderPresenting {
         return (code(primary.nl), code(source))
     }
 
+    /// Runs alongside the block pass, so it never writes the status line — the block counter owns it.
+    private func translateHead(_ title: String, summarizing text: String, in webView: WKWebView) async -> (title: String, summary: String) {
+        let translated = await translateTitle(title, in: webView)
+        if Task.isCancelled { return (translated, "") }
+        return (translated, await summarize(text, in: webView))
+    }
+
     private func translateTitle(_ title: String, in webView: WKWebView) async -> String {
         var final = title
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
-            setStatus(loc("Tłumaczę tytuł…", "Translating title…"), in: webView)
             let translated = ReaderTemplate.unwrap(
                 (try? await llm.translateBlock(html: title, into: settings.primaryLanguage, model: settings.activeModel)) ?? "")
             if Task.isCancelled { return final }
@@ -159,15 +170,16 @@ final class ReaderController: ReaderPresenting {
         window?.title = title
     }
 
-    private func summarize(in webView: WKWebView) async -> String {
-        // ponytail: 6000-char cap — the summary reads the article's head; raise
-        // it if long-article summaries come out thin. Sliced in JS so a long
-        // article isn't bridged out of the web process just to be truncated.
-        guard let text = try? await webView.evaluateStringResult(
-                "document.getElementById('glosso-content').textContent.slice(0, 6000)"),
-              !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        else { return "" }
-        setStatus(loc("Streszczam…", "Summarizing…"), in: webView)
+    // ponytail: 6000-char cap — the summary reads the article's head; raise
+    // it if long-article summaries come out thin. Sliced in JS so a long
+    // article isn't bridged out of the web process just to be truncated.
+    private func headText(in webView: WKWebView) async -> String {
+        (try? await webView.evaluateStringResult(
+            "document.getElementById('glosso-content').textContent.slice(0, 6000)")) ?? ""
+    }
+
+    private func summarize(_ text: String, in webView: WKWebView) async -> String {
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
         guard let summary = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
         if Task.isCancelled { return "" }
         let cleaned = ReaderTemplate.unwrap(summary)
