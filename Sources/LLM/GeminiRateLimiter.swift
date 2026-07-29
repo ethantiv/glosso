@@ -60,7 +60,10 @@ actor GeminiRateLimiter {
         self.sleep = sleep
     }
 
-    /// Rough input-token count. Overshoots for Polish, which is the safe direction.
+    // ponytail: measured 2.39–3.90 bytes per token over 86 live reader prompts (median 2.88), so /4 under-reserves by
+    // ~28% at the median and ~40% at the worst — the opposite of safe. It holds only because Google's own 429 backstops
+    // it and the reader never approaches the window. Tighten the divisor if the popup path ever starts tripping 429s.
+    /// Rough input-token count.
     static func estimateTokens(_ prompt: String) -> Int {
         max(1, prompt.utf8.count / 4)
     }

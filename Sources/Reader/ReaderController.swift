@@ -22,8 +22,6 @@ final class ReaderController: ReaderPresenting {
     private var chatFrameTarget: NSRect?
     private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
-    // Blocks per cloud request — see `batchSize(for:)` for why both clouds use it.
-    private nonisolated static let cloudBatchSize = 5
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
     // True only while the pipeline is issuing model calls, so a popup's rate-limit wait can't paint over an idle reader.
@@ -187,9 +185,17 @@ final class ReaderController: ReaderPresenting {
         return true
     }
 
-    /// Both clouds batch, for different reasons: Gemini to stay under a per-minute request cap, Ollama Cloud to stop re-processing the instruction preamble once per block — it meters GPU time, so a landed batch lowers the bill rather than merely the wall clock. Same 5 as Gemini because it is the same model (`gemma-4-31b-it` there, `gemma4:31b` here), so the proven number carries over. Locally there is no cap to duck and a 26B quant holds the format worse.
-    nonisolated static func batchSize(for provider: LLMProvider) -> Int {
-        provider == .local ? 1 : cloudBatchSize
+    /// Per model, not per provider — a live sweep over the real reader corpus showed the two Gemini models are bound by
+    /// opposite things, so one number cannot serve both. The per-model values and their reasons live in the catalogs.
+    /// Local stays at 1: measured per-block wall clock is flat (2.95s at one block, 2.28s at ten, 2.87s at twenty), and
+    /// that best point sits inside a noise band the sweep itself measured, so batching buys nothing here while
+    /// multiplying the blast radius of a discarded batch.
+    nonisolated static func batchSize(provider: LLMProvider, model: String) -> Int {
+        switch provider {
+        case .local: 1
+        case .cloud: CloudModelCatalog.batch(for: model)
+        case .ollamaCloud: OllamaCloudCatalog.batch
+        }
     }
 
     /// The limiter blocks rather than failing, so without this the status bar would simply stop moving mid-article.
@@ -230,7 +236,7 @@ final class ReaderController: ReaderPresenting {
         // The setting says cloud, but RoutingLLMClient may be quietly serving from Ollama, which holds the format far worse.
         var consecutiveBatchFailures = 0
         var done = translatable.count - pending.count
-        let batchSize = Self.batchSize(for: settings.provider)
+        let batchSize = Self.batchSize(provider: settings.provider, model: settings.activeModel)
         for batch in ReaderTemplate.batches(pending, maxCount: batchSize) {
             if Task.isCancelled { return nil }
             setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",

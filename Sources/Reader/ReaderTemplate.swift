@@ -7,7 +7,10 @@ enum ReaderTemplate {
         let translate: Bool
     }
 
-    /// Kept under GeminiClient.outputTokenLimit so a batch's numPredict can never hit the clamp and truncate.
+    /// Kept under GeminiClient.outputTokenLimit so a batch's numPredict can never hit the clamp and truncate — at the
+    /// largest batch any catalog asks for (20) that is min(4640, 8192), structurally unreachable. It is also the second
+    /// throttle on every batch: at the measured corpus mean of 192 bytes per block it fits ~20 blocks, so it stops
+    /// binding right where the largest batch size sits and quietly shrinks batches on above-average articles instead.
     private static let batchByteBudget = 4000
 
     /// Greedy packing under both a count and a byte cap. An oversized block gets its own batch rather than being split.
