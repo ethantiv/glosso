@@ -19,4 +19,12 @@ import Testing
         #expect(ReaderController.countsTowardAbort(TranslationError.malformedStream))
         #expect(ReaderController.countsTowardAbort(URLError(.timedOut)))
     }
+
+    @Test func bothCloudsBatchAndOnlyTheLocalEngineDoesNot() {
+        // Ollama Cloud meters GPU time, and one request per block re-processes the
+        // instruction preamble every time — falling to 1 there spends more, not less.
+        #expect(ReaderController.batchSize(for: .cloud) > 1)
+        #expect(ReaderController.batchSize(for: .ollamaCloud) == ReaderController.batchSize(for: .cloud))
+        #expect(ReaderController.batchSize(for: .local) == 1)
+    }
 }
