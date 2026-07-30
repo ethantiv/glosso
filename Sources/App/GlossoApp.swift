@@ -148,9 +148,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             ),
             provider: { [settings] in await MainActor.run { settings.provider } },
             localModel: { [settings] in await MainActor.run { settings.modelName } },
-            onFallback: { [weak self] error in
+            onFallback: { [weak self] error, longForm in
                 Task { @MainActor in
-                    self?.articleReader?.engineFallback()
+                    // Only the reader's own long-form calls may relabel its footer; a popup capture's hand-over says
+                    // nothing about the engine still translating the article.
+                    if longForm { self?.articleReader?.engineFallback() }
                     SystemUserNotifier.post(
                         error.userMessage + " " + loc("Przełączam na model lokalny.",
                                                       "Switching to the local model."),

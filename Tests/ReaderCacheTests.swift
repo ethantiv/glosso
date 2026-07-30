@@ -20,7 +20,8 @@ import Testing
             byline: "Jane Doe",
             content: "<p>Original</p><p>Second</p>",
             summary: "Krótkie streszczenie.",
-            translations: [0: "<p>Oryginał</p>", 2: "<p>Drugi</p>"]
+            translations: [0: "<p>Oryginał</p>", 2: "<p>Drugi</p>"],
+            engine: "Google AI · gemma-4-31b-it"
         )
     }
 
@@ -36,6 +37,19 @@ import Testing
         #expect(loaded?.content == "<p>Original</p><p>Second</p>")
         #expect(loaded?.summary == "Krótkie streszczenie.")
         #expect(loaded?.translations == [0: "<p>Oryginał</p>", 2: "<p>Drugi</p>"])
+        // The engine that produced the stored text, not the one selected when it is replayed days later.
+        #expect(loaded?.engine == "Google AI · gemma-4-31b-it")
+    }
+
+    // Entries written before the label existed must still load; the replay then falls back to the current engine.
+    @Test func loadsAnEntryWithoutAnEngineLabel() throws {
+        var entry = makeEntry()
+        entry.engine = nil
+        cache.save(entry, primary: .polish)
+
+        let loaded = try #require(cache.load(entry.url, primary: .polish))
+        #expect(loaded.engine == nil)
+        #expect(loaded.translations == entry.translations)
     }
 
     @Test func loadMissesForUnknownURL() {

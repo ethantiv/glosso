@@ -36,7 +36,9 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     private let provider: @Sendable () async -> LLMProvider
     /// Callers pass the active (possibly cloud) model name, which Ollama wouldn't recognise.
     private let localModel: @Sendable () async -> String
-    private let onFallback: @Sendable (TranslationError) -> Void
+    /// `longForm` tells the reader's own calls (they carry a timeout) from interactive lookups, so a popup capture's
+    /// hand-over can't relabel the engine of an article the cloud is still translating.
+    private let onFallback: @Sendable (TranslationError, _ longForm: Bool) -> Void
     /// A cloud model that says nothing for this long is worse than the local one: gemini-3.5-flash-lite answers a 43-token prompt in ~30s and delivers its whole stream in one shot, so nothing errors and the popup just sits there.
     private let deadline: TimeInterval
     /// Asked only when the deadline is about to fire, since resolving the engine can start it. The cloud is sold as the no-download path, so a hand-over on those installs would turn a slow answer into no answer at all.
@@ -48,7 +50,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
         ollamaCloud: any GenerationBackend,
         provider: @escaping @Sendable () async -> LLMProvider,
         localModel: @escaping @Sendable () async -> String,
-        onFallback: @escaping @Sendable (TranslationError) -> Void,
+        onFallback: @escaping @Sendable (TranslationError, Bool) -> Void,
         deadline: TimeInterval = 6,
         localReady: @escaping @Sendable () async -> Bool = { true }
     ) {
@@ -89,7 +91,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                 try await cloud.generate(prompt: prompt, model: model, timeout: timeout, numPredict: numPredict)
             }
         } catch let error as TranslationError where Self.fallsBack(error) {
-            onFallback(error)
+            onFallback(error, timeout != nil)
             return try await local.generate(prompt: prompt, model: await localModel(), timeout: timeout, numPredict: numPredict)
         }
     }
@@ -129,7 +131,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                         return
                     } catch let error as TranslationError where Self.fallsBack(error) && !progress.hasStarted {
                         // Restarting mid-stream would duplicate what the popup already shows.
-                        onFallback(error)
+                        onFallback(error, false)
                     } catch {
                         continuation.finish(throwing: error)
                         return
