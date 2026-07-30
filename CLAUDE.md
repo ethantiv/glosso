@@ -6,7 +6,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 A macOS menu-bar agent (`LSUIElement`, no Dock icon) that translates the current selection on **double Cmd+C** using a local LLM (Gemma via Ollama on `localhost:11434`) and streams the result into a floating panel near the cursor. Two empirical decisions are load-bearing and must not be changed lightly: `think:false` is mandatory (Gemma 4 otherwise burns 10–26s on reasoning tokens for an identical translation), and the native REST `/api/generate` is used over the OpenAI-compatible `/v1` layer (which doesn't expose `keep_alive`).
 
-The sibling docs each own something this file doesn't: `README.md` is the user-facing install/usage text, `PRODUCT.md` + `DESIGN.md` are the landing page's brand contract (Polish, with the indigo/coral tokens and type scale — change the landing only through them), `docs/ROADMAP.md` tracks planned work and `docs/DISTRIBUTION.md` the release/signing details.
+The sibling docs each own something this file doesn't: `README.md` is the user-facing install/usage text, `PRODUCT.md` + `DESIGN.md` are the landing page's brand contract (Polish, with the indigo/coral tokens and type scale — change the landing only through them), GitHub issues track planned work and `docs/DISTRIBUTION.md` the release/signing details.
 
 ## Build & test
 
