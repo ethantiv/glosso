@@ -230,14 +230,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
 
     /// `announce` is the manual path: the menu closes on click, so the only visible answer is a modal.
+    ///
+    /// Only that path raises the flag. A double alert is the thing worth guarding, and the launch check is silent —
+    /// sharing the flag with it would grey the menu item out for the whole of URLSession's 60s timeout behind a
+    /// captive portal, exactly when the user reaches for it.
     func checkForUpdates(announce: Bool) {
-        guard !appState.checkingForUpdates else { return }
-        appState.checkingForUpdates = true
+        guard !(announce && appState.checkingForUpdates) else { return }
+        if announce { appState.checkingForUpdates = true }
         let current = Self.currentVersion
         Task { [appState, settings] in
             do {
                 let update = try await GitHubUpdateChecker().check(currentVersion: current)
-                appState.checkingForUpdates = false
+                if announce { appState.checkingForUpdates = false }
                 appState.updateAvailable = update
                 if let update, update.version != settings.lastNotifiedVersion {
                     settings.lastNotifiedVersion = update.version
@@ -250,8 +254,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
                 if announce { showUpdateAlert(update: update, failed: false, current: current) }
             } catch {
                 // A failed check leaves `updateAvailable` alone: it must not retract a version the launch check found.
-                appState.checkingForUpdates = false
-                if announce { showUpdateAlert(update: nil, failed: true, current: current) }
+                if announce {
+                    appState.checkingForUpdates = false
+                    showUpdateAlert(update: nil, failed: true, current: current)
+                }
             }
         }
     }
@@ -269,7 +275,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             alert.informativeText = loc("Masz \(current). Pobrać nową wersję do folderu Pobrane?",
                                         "You have \(current). Download the new version to Downloads?")
             alert.addButton(withTitle: loc("Pobierz", "Download"))
-            alert.addButton(withTitle: loc("Nie teraz", "Not now"))
+            // AppKit maps Escape only onto a button titled "Cancel", so a custom title has to claim it by hand.
+            alert.addButton(withTitle: loc("Nie teraz", "Not now")).keyEquivalent = "\u{1b}"
         } else {
             alert.messageText = loc("Masz najnowszą wersję", "You're up to date")
             alert.informativeText = loc("Glosso \(current) jest aktualna.",

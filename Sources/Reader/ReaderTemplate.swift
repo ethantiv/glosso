@@ -257,7 +257,9 @@ enum ReaderTemplate {
                        display: none; gap: 1em; align-items: baseline;
                        transition: right .25s ease-in-out; }
       body.glosso-chat-open #glosso-footer { right: 340px; }
-      #glosso-status { flex: 1; text-align: left; }
+      /* min-width: 0 or the status' longest word wins the row and pushes the model name out of the bar. */
+      #glosso-status { flex: 1; min-width: 0; text-align: left;
+                       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
       #glosso-engine { white-space: nowrap; }
     </style>
     </head>

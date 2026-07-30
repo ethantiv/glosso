@@ -18,10 +18,6 @@ struct GitHubUpdateChecker: Sendable {
         return Self.isNewer(release.version, than: currentVersion) ? release : nil
     }
 
-    func availableUpdate(currentVersion: String) async -> (version: String, asset: URL)? {
-        try? await check(currentVersion: currentVersion)
-    }
-
     private func fetchLatest() async throws -> (version: String, asset: URL) {
         var request = URLRequest(url: releasesURL, cachePolicy: .reloadIgnoringLocalCacheData)
         request.setValue("application/vnd.github+json", forHTTPHeaderField: "Accept")
