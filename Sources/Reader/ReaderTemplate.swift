@@ -249,12 +249,16 @@ enum ReaderTemplate {
                      border: 2px solid color-mix(in srgb, CanvasText 25%, Canvas);
                      border-top-color: transparent; animation: glosso-spin 1s linear infinite; }
       @keyframes glosso-spin { to { transform: rotate(360deg); } }
-      #glosso-status { position: fixed; bottom: 0; left: 0; right: 0;
+      #glosso-footer { position: fixed; bottom: 0; left: 0; right: 0;
                        font-family: var(--ui-font); font-size: .76rem;
-                       letter-spacing: .06em; text-align: center;
+                       letter-spacing: .06em;
                        padding: .55em 1em; background: Canvas; color: var(--ink-soft);
                        border-top: 1px solid var(--hairline);
-                       display: none; }
+                       display: none; gap: 1em; align-items: baseline;
+                       transition: right .25s ease-in-out; }
+      body.glosso-chat-open #glosso-footer { right: 340px; }
+      #glosso-status { flex: 1; text-align: left; }
+      #glosso-engine { white-space: nowrap; }
     </style>
     </head>
     <body>
@@ -291,7 +295,10 @@ enum ReaderTemplate {
         <button type="submit" class="glosso-pill">\(loc("Wyślij", "Send"))</button>
       </form>
     </div>
-    <div id="glosso-status"></div>
+    <div id="glosso-footer">
+      <span id="glosso-status"></span>
+      <span id="glosso-engine"></span>
+    </div>
     <script>
     function glossoSanitize(root) {
       for (const el of root.querySelectorAll('*')) {
@@ -313,6 +320,7 @@ enum ReaderTemplate {
       originalTitle: '',
       translatedTitle: '',
       summary: '',
+      engine: '',               // provider · model label, right side of the footer
       chatBusy: false,          // one question in flight at a time
       questionsRequested: false, // suggestions are generated once, lazily
       asked: []                 // questions already asked — their chips stay gone
@@ -431,9 +439,19 @@ enum ReaderTemplate {
       }
     }
     function glossoStatus(msg) {
-      const status = document.getElementById('glosso-status');
-      status.textContent = msg;
-      status.style.display = msg ? 'block' : 'none';
+      document.getElementById('glosso-status').textContent = msg;
+      glossoFooter();
+    }
+    function glossoSetEngine(label) {
+      glosso.engine = label;
+      document.getElementById('glosso-engine').textContent = label;
+      glossoFooter();
+    }
+    // The bar outlives the status text now, so visibility follows either half.
+    function glossoFooter() {
+      const footer = document.getElementById('glosso-footer');
+      const filled = glosso.engine || document.getElementById('glosso-status').textContent;
+      footer.style.display = filled ? 'flex' : 'none';
     }
     function glossoToggleChat() {
       const open = !document.body.classList.contains('glosso-chat-open');

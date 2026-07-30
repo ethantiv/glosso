@@ -28,6 +28,8 @@ final class ReaderController: ReaderPresenting {
     private var translating = false
     // Guards the flag against a superseded run's unwind clearing it out from under the live one.
     private var runSeq = 0
+    // Set when RoutingLLMClient hands this article's calls to the local engine, so the footer stops claiming the cloud.
+    private var localFallback = false
 
     init(llm: any LLMClient, settings: SettingsStore) {
         self.llm = llm
@@ -40,6 +42,7 @@ final class ReaderController: ReaderPresenting {
         suggestTask?.cancel()
         askTask?.cancel()
         chatHistory = []
+        localFallback = false
         setChatPanel(open: false)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
@@ -122,7 +125,20 @@ final class ReaderController: ReaderPresenting {
             _ = try? await webView.evaluateStringResult(
                 ReaderTemplate.call("glossoSetLanguages", labels.translated, labels.original))
         }
+        await setEngine(in: webView)
         return blocks
+    }
+
+    /// Reads the settings, not the served request: a cached article makes no model call at all.
+    private func setEngine(in webView: WKWebView) async {
+        let provider: LLMProvider = localFallback ? .local : settings.provider
+        let model = localFallback ? settings.modelName : settings.activeModel
+        _ = try? await webView.evaluateStringResult(
+            ReaderTemplate.call("glossoSetEngine", Self.engineLabel(provider: provider, model: model)))
+    }
+
+    nonisolated static func engineLabel(provider: LLMProvider, model: String) -> String {
+        "\(provider.displayName) · \(model)"
     }
 
     nonisolated static func languageLabels(
@@ -214,6 +230,14 @@ final class ReaderController: ReaderPresenting {
         case .cloud: CloudModelCatalog.batch(for: model)
         case .ollamaCloud: OllamaCloudCatalog.batch
         }
+    }
+
+    /// Gated on `translating` like `cloudWait`: the same closure fires for popup captures, and only a running
+    /// pipeline means the article itself is being served locally.
+    func engineFallback() {
+        guard translating, let webView else { return }
+        localFallback = true
+        Task { await setEngine(in: webView) }
     }
 
     /// The limiter blocks rather than failing, so without this the status bar would simply stop moving mid-article.

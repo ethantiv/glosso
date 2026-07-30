@@ -36,6 +36,12 @@ struct GlossoApp: App {
                     appDelegate.downloadUpdate()
                 }
             }
+            Button(appDelegate.appState.checkingForUpdates
+                   ? loc("Sprawdzam aktualizacje…", "Checking for updates…")
+                   : loc("Sprawdź aktualizacje…", "Check for Updates…")) {
+                appDelegate.checkForUpdates(announce: true)
+            }
+            .disabled(appDelegate.appState.checkingForUpdates)
             OpenSettingsButton()
             Button(loc("O aplikacji…", "About…")) { appDelegate.showAbout() }
             Button(loc("Zakończ", "Quit")) { NSApplication.shared.terminate(nil) }
@@ -142,8 +148,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             ),
             provider: { [settings] in await MainActor.run { settings.provider } },
             localModel: { [settings] in await MainActor.run { settings.modelName } },
-            onFallback: { error in
+            onFallback: { [weak self] error in
                 Task { @MainActor in
+                    self?.articleReader?.engineFallback()
                     SystemUserNotifier.post(
                         error.userMessage + " " + loc("Przełączam na model lokalny.",
                                                       "Switching to the local model."),
@@ -172,20 +179,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         self.coordinator = coordinator
 
         UNUserNotificationCenter.current().delegate = self
-        let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
-        Task { [appState, settings] in
-            if let update = await GitHubUpdateChecker().availableUpdate(currentVersion: currentVersion) {
-                appState.updateAvailable = update
-                if update.version != settings.lastNotifiedVersion {
-                    settings.lastNotifiedVersion = update.version
-                    SystemUserNotifier.post(
-                        loc("Dostępna nowa wersja \(update.version) — kliknij, aby pobrać.",
-                            "New version \(update.version) available — click to download."),
-                        identifier: Self.updateNotificationID
-                    )
-                }
-            }
-        }
+        checkForUpdates(announce: false)
 
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
@@ -229,6 +223,60 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     func downloadUpdate() {
         guard let asset = appState.updateAvailable?.asset else { return }
         Task { await UpdateDownloader.download(asset) }
+    }
+
+    nonisolated static var currentVersion: String {
+        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+    }
+
+    /// `announce` is the manual path: the menu closes on click, so the only visible answer is a modal.
+    func checkForUpdates(announce: Bool) {
+        guard !appState.checkingForUpdates else { return }
+        appState.checkingForUpdates = true
+        let current = Self.currentVersion
+        Task { [appState, settings] in
+            do {
+                let update = try await GitHubUpdateChecker().check(currentVersion: current)
+                appState.checkingForUpdates = false
+                appState.updateAvailable = update
+                if let update, update.version != settings.lastNotifiedVersion {
+                    settings.lastNotifiedVersion = update.version
+                    SystemUserNotifier.post(
+                        loc("Dostępna nowa wersja \(update.version) — kliknij, aby pobrać.",
+                            "New version \(update.version) available — click to download."),
+                        identifier: Self.updateNotificationID
+                    )
+                }
+                if announce { showUpdateAlert(update: update, failed: false, current: current) }
+            } catch {
+                // A failed check leaves `updateAvailable` alone: it must not retract a version the launch check found.
+                appState.checkingForUpdates = false
+                if announce { showUpdateAlert(update: nil, failed: true, current: current) }
+            }
+        }
+    }
+
+    private func showUpdateAlert(update: (version: String, asset: URL)?, failed: Bool, current: String) {
+        let alert = NSAlert()
+        if failed {
+            alert.messageText = loc("Nie udało się sprawdzić aktualizacji",
+                                    "Couldn't check for updates")
+            alert.informativeText = loc("Sprawdź połączenie z internetem i spróbuj ponownie.",
+                                        "Check your internet connection and try again.")
+        } else if let update {
+            alert.messageText = loc("Dostępna nowa wersja \(update.version)",
+                                    "New version \(update.version) available")
+            alert.informativeText = loc("Masz \(current). Pobrać nową wersję do folderu Pobrane?",
+                                        "You have \(current). Download the new version to Downloads?")
+            alert.addButton(withTitle: loc("Pobierz", "Download"))
+            alert.addButton(withTitle: loc("Nie teraz", "Not now"))
+        } else {
+            alert.messageText = loc("Masz najnowszą wersję", "You're up to date")
+            alert.informativeText = loc("Glosso \(current) jest aktualna.",
+                                        "Glosso \(current) is the latest version.")
+        }
+        NSApp.activate(ignoringOtherApps: true)
+        if alert.runModal() == .alertFirstButtonReturn, update != nil { downloadUpdate() }
     }
 
     nonisolated func userNotificationCenter(

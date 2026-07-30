@@ -49,6 +49,20 @@ import Testing
         #expect(await makeChecker().availableUpdate(currentVersion: "0.1.0") == nil)
     }
 
+    // The manual check reports "up to date" and "couldn't check" differently, so nil must mean only the former.
+    @Test func checkThrowsOnHTTPErrorButReturnsNilWhenCurrent() async throws {
+        MockURLProtocol.handler = { request in
+            let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!
+            return (response, Data())
+        }
+        await #expect(throws: (any Error).self) {
+            try await makeChecker().check(currentVersion: "0.1.0")
+        }
+
+        respond(tag: "v0.1.0")
+        #expect(try await makeChecker().check(currentVersion: "0.1.0") == nil)
+    }
+
     @Test func numericVersionOrdering() {
         #expect(GitHubUpdateChecker.isNewer("1.10", than: "1.9"))
         #expect(GitHubUpdateChecker.isNewer("v0.2.0", than: "0.1.9"))
