@@ -13,6 +13,9 @@ struct ReaderCache: Sendable {
         var content: String
         var summary: String
         var translations: [Int: String]
+        /// The footer label of the engine that actually translated this, so a replay two days later doesn't credit
+        /// whatever provider is selected by then. nil on entries written before the label existed.
+        var engine: String? = nil
     }
 
     static let ttl: TimeInterval = 7 * 24 * 3600

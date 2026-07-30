@@ -12,10 +12,10 @@ struct GitHubUpdateChecker: Sendable {
         self.releasesURL = releasesURL
     }
 
-    func availableUpdate(currentVersion: String) async -> (version: String, asset: URL)? {
-        guard let release = try? await fetchLatest(),
-              Self.isNewer(release.version, than: currentVersion) else { return nil }
-        return release
+    /// nil means "up to date"; a throw means the check itself failed — the manual path must not report the two alike.
+    func check(currentVersion: String) async throws -> (version: String, asset: URL)? {
+        let release = try await fetchLatest()
+        return Self.isNewer(release.version, than: currentVersion) ? release : nil
     }
 
     private func fetchLatest() async throws -> (version: String, asset: URL) {

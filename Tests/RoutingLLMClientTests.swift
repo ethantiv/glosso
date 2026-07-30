@@ -49,10 +49,13 @@ private final class ModelLog: @unchecked Sendable {
 
 private final class FallbackLog: @unchecked Sendable {
     private let lock = NSLock()
-    private var errors: [TranslationError] = []
+    private var reported: [(error: TranslationError, longForm: Bool)] = []
 
-    func record(_ error: TranslationError) { lock.withLock { errors.append(error) } }
-    var all: [TranslationError] { lock.withLock { errors } }
+    func record(_ error: TranslationError, longForm: Bool) {
+        lock.withLock { reported.append((error, longForm)) }
+    }
+    var all: [TranslationError] { lock.withLock { reported.map(\.error) } }
+    var longFormFlags: [Bool] { lock.withLock { reported.map(\.longForm) } }
 }
 
 @Suite struct RoutingLLMClientTests {
@@ -71,7 +74,7 @@ private final class FallbackLog: @unchecked Sendable {
             ollamaCloud: ollamaCloud,
             provider: { provider },
             localModel: { "gemma4:26b-mlx" },
-            onFallback: { fallbacks.record($0) },
+            onFallback: { fallbacks.record($0, longForm: $1) },
             deadline: deadline,
             localReady: localReady
         )
@@ -144,6 +147,23 @@ private final class FallbackLog: @unchecked Sendable {
         #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma-4-31b-it") == "local")
         #expect(local.seenModels.all == ["gemma4:26b-mlx"])
         #expect(fallbacks.all == [.quotaExhausted])
+    }
+
+    // The reader repaints its footer as "local" on a fallback, so it must hear only about its own calls: a popup
+    // lookup handing over says nothing about the engine still translating the open article.
+    @Test func onlyLongFormCallsReportThemselvesAsSuch() async throws {
+        let fallbacks = FallbackLog()
+        let client = makeClient(
+            local: StubBackend(text: "local"),
+            cloud: StubBackend(failure: .quotaExhausted),
+            provider: .cloud,
+            fallbacks: fallbacks
+        )
+
+        _ = try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma-4-31b-it")
+        _ = try await client.alternatives(for: "dom", in: "Ten dom", source: "This house",
+                                          primary: .polish, second: .english, model: "gemma-4-31b-it")
+        #expect(fallbacks.longFormFlags == [true, false])
     }
 
     @Test func aBadRequestIsNotMaskedByTheFallback() async {
@@ -286,7 +306,7 @@ private final class FallbackLog: @unchecked Sendable {
             provider: .cloud,
             deadline: 0.05,
             localReady: {
-                probed.record(.cloudUnreachable)
+                probed.record(.cloudUnreachable, longForm: false)
                 try? await Task.sleep(for: .seconds(5))
                 return true
             }

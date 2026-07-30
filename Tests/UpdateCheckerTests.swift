@@ -21,32 +21,39 @@ import Testing
         }
     }
 
-    @Test func detectsNewerRelease() async {
+    @Test func detectsNewerRelease() async throws {
         respond(tag: "v0.2.0", asset: "https://example.invalid/Glosso-0.2.0.zip")
-        let update = await makeChecker().availableUpdate(currentVersion: "0.1.0")
+        let update = try await makeChecker().check(currentVersion: "0.1.0")
         #expect(update?.version == "0.2.0")
         #expect(update?.asset.absoluteString == "https://example.invalid/Glosso-0.2.0.zip")
     }
 
-    @Test func ignoresReleaseWithoutZipAsset() async {
+    // A release whose .zip isn't there yet is an inconclusive check, not "you're up to date" — nil is reserved
+    // for the latter, because the manual check's alert reads the two differently.
+    @Test func failsOnReleaseWithoutZipAsset() async {
         respond(tag: "v0.2.0", asset: "https://example.invalid/notes.txt", assetName: "notes.txt")
-        #expect(await makeChecker().availableUpdate(currentVersion: "0.1.0") == nil)
+        await #expect(throws: (any Error).self) {
+            try await makeChecker().check(currentVersion: "0.1.0")
+        }
     }
 
-    @Test func ignoresSameOrOlderRelease() async {
+    @Test func ignoresSameOrOlderRelease() async throws {
         respond(tag: "v0.1.0")
-        #expect(await makeChecker().availableUpdate(currentVersion: "0.1.0") == nil)
+        #expect(try await makeChecker().check(currentVersion: "0.1.0") == nil)
 
         respond(tag: "v1.9")
-        #expect(await makeChecker().availableUpdate(currentVersion: "1.10") == nil)
+        #expect(try await makeChecker().check(currentVersion: "1.10") == nil)
     }
 
-    @Test func failsSilentlyOnHTTPError() async {
+    // The alert must not claim "you're up to date" when GitHub was simply unreachable.
+    @Test func throwsOnHTTPError() async {
         MockURLProtocol.handler = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
-        #expect(await makeChecker().availableUpdate(currentVersion: "0.1.0") == nil)
+        await #expect(throws: (any Error).self) {
+            try await makeChecker().check(currentVersion: "0.1.0")
+        }
     }
 
     @Test func numericVersionOrdering() {
