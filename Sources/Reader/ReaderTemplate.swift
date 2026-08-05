@@ -387,6 +387,8 @@ enum ReaderTemplate {
     }
     // Swift owns whether the panel is open — it animates the window's width to match, so the page only applies it.
     function glossoSetChat(open) {
+      // Swift passes "1"/"" — `call` JSON-encodes every argument as a string, so coerce before comparing.
+      open = !!open;
       if (open === document.body.classList.contains('glosso-chat-open')) { return; }
       const cs = getComputedStyle(document.body);
       document.body.style.width = cs.width;
