@@ -22,3 +22,17 @@ enum FixReasonLayout {
         header + reasonPaneHeight(content: content)
     }
 }
+
+/// The alternatives dropdown's rendered height, which `PopupView` reserves below the panel before the view exists.
+/// Measured against `NSHostingView.fittingSize` in `PopupLayoutTests` — these are not guesses to be nudged by eye.
+enum AlternativesLayout {
+    /// The "Dlaczego tak?" header row plus the divider and the list's own padding.
+    static let base: CGFloat = 33
+    static let row: CGFloat = 31
+    /// The spinner row, and the "no alternatives" row that replaces it.
+    static let placeholder: CGFloat = 34
+
+    static func estimatedHeight(count: Int, loading: Bool) -> CGFloat {
+        loading || count == 0 ? base + placeholder : base + CGFloat(count) * row
+    }
+}

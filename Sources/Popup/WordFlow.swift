@@ -168,11 +168,13 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        .background(PopupTheme.menuSurface)
+        // Opaque, not glass: this overlay protrudes past the panel, so half of it would sample the glass card and half
+        // the desktop — one popover, two materials, split by a line. A menu is opaque on macOS anyway.
+        .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
         .overlay(
             RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
         )
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
@@ -186,7 +188,7 @@ struct AlternativesDropdown: View {
                 .font(PopupTheme.fontControl)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(PopupTheme.accent)
+        .foregroundStyle(.tint)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         Divider()
@@ -224,7 +226,7 @@ struct AlternativesDropdown: View {
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -261,7 +263,7 @@ struct AlternativesDropdown: View {
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -304,7 +306,7 @@ private struct AlternativeRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(hovering ? PopupTheme.accentTintStrong : .clear)
+                .background(hovering ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)

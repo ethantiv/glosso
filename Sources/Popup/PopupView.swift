@@ -50,7 +50,6 @@ struct PopupView: View {
         !model.sourceText.isEmpty && model.sourceText != model.capturedSource
     }
     private var showLiveDot: Bool { model.phase == .capturing || model.phase == .streaming }
-    private var showAccentEdge: Bool { model.phase == .streaming || model.phase == .done }
 
     var body: some View {
         panelBox
@@ -74,7 +73,7 @@ struct PopupView: View {
                 if reduceMotion {
                     appeared = true
                 } else {
-                    withAnimation(PopupTheme.enterCurve) { appeared = true }
+                    withAnimation(.snappy(duration: 0.2)) { appeared = true }
                 }
             }
     }
@@ -83,22 +82,21 @@ struct PopupView: View {
         VStack(spacing: 0) {
             header
             if model.action == .translate { translateControls }
-            if model.toneNoteVisible { toneNoteRow }
+            if model.toneNoteVisible { toneNoteRow.transition(.opacity) }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
                 Divider()
                 translationPane
             }
             if model.phase == .done && model.truncated {
-                truncatedFooter
+                truncatedFooter.transition(.opacity)
             }
         }
-        .background(PopupTheme.surface)
+        // The one Liquid Glass surface in the app: a floating panel over another app's content is the functional layer,
+        // and the regular variant is what Apple prescribes for text-heavy floating surfaces. Everything inside it stays
+        // a standard control on plain backgrounds — glass on glass is not allowed.
+        .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rWindow))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rWindow))
-        .overlay(
-            RoundedRectangle(cornerRadius: PopupTheme.rWindow)
-                .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
-        )
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents()
     }
@@ -133,10 +131,8 @@ struct PopupView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 6) {
-            ForEach(Action.allCases, id: \.self) { action in
-                verbPill(action)
-            }
+        HStack(spacing: 8) {
+            verbPicker
             Spacer(minLength: 0)
             headerButtons
         }
@@ -145,45 +141,40 @@ struct PopupView: View {
         .padding(.vertical, PopupTheme.padWindow)
     }
 
-    // Second row, Translate-only: the language pair and tone pill.
+    // Second row, Translate-only: the language pair and the tone picker.
     private var translateControls: some View {
         HStack(spacing: 10) {
             languagePair
-            tonePill
-            if model.phase == .done && model.toneChange != nil { toneNotePill }
+            tonePicker
+            if model.phase == .done && model.toneChange != nil { toneNoteButton }
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 13)
         .padding(.bottom, PopupTheme.padWindow)
     }
 
-    private func verbPill(_ action: Action) -> some View {
-        let active = model.action == action
-        return Button {
-            guard model.action != action else { return }
-            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
-                model.action = action
+    /// Four mutually exclusive verbs are a segmented control; the case order is load-bearing (it drives prefetch too).
+    private var verbPicker: some View {
+        Picker(loc("Co zrobić z zaznaczeniem", "What to do with the selection"), selection: verbSelection) {
+            ForEach(Action.allCases, id: \.self) { action in
+                Label(action.displayName, systemImage: action.systemImage).tag(action)
             }
+        }
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
+    }
+
+    private var verbSelection: Binding<Action> {
+        Binding {
+            model.action
+        } set: { action in
+            guard model.action != action else { return }
+            model.action = action
             model.clearUndo()
             model.clearToneNote()
             selectAction(action)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: action.systemImage)
-                    .font(.system(size: 11.5, weight: .semibold))
-                Text(action.displayName)
-                    .font(PopupTheme.fontControl)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
-            .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
-            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
         }
-        .buttonStyle(.plain)
-        .help(loc("\(action.displayName) zaznaczenie", "\(action.displayName) the selection"))
-        .accessibilityLabel(loc("\(action.displayName) zaznaczenie", "\(action.displayName) the selection"))
-        .accessibilityAddTraits(active ? .isSelected : [])
     }
 
     @ViewBuilder
@@ -206,59 +197,42 @@ struct PopupView: View {
         }
     }
 
-    private var tonePill: some View {
-        let active = model.formality != .automatic
-        return Button {
-            let nextF = model.formality.next
-            model.noteToneChange(from: model.formality, to: nextF)
-            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
-                model.formality = nextF
+    /// A menu, not a click-to-cycle pill: cycling through N states hides the options a person is choosing between.
+    private var tonePicker: some View {
+        Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
+            ForEach(Formality.allCases, id: \.self) { formality in
+                Text(formality.displayName).tag(formality)
             }
-            model.clearUndo()
-            selectFormality(nextF)
-        } label: {
-            HStack(spacing: 4) {
-                Image(systemName: "person.bubble")
-                    .font(.system(size: 11.5, weight: .semibold))
-                Text(model.formality.displayName)
-                    .font(PopupTheme.fontControl)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(active ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
-            .foregroundStyle(active ? PopupTheme.accent : Color.secondary)
-            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
         }
-        .buttonStyle(.plain)
-        .help(loc("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.", "Tone: \(model.formality.displayName). Click to change."))
-        .accessibilityLabel(loc("Ton wypowiedzi: \(model.formality.displayName). Kliknij, aby zmienić.", "Tone: \(model.formality.displayName). Click to change."))
+        .labelsHidden()
+        .fixedSize()
+        .accessibilityLabel(loc("Ton wypowiedzi", "Tone"))
     }
 
-    private var toneNotePill: some View {
-        Button(action: toggleToneNote) {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.left.arrow.right")
-                    .font(.system(size: 11.5, weight: .semibold))
-                Text(loc("Co się zmieniło?", "What changed?"))
-                    .font(PopupTheme.fontControl)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(model.toneNoteVisible ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
-            .foregroundStyle(model.toneNoteVisible ? PopupTheme.accent : Color.secondary)
-            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
+    private var toneSelection: Binding<Formality> {
+        Binding {
+            model.formality
+        } set: { next in
+            guard model.formality != next else { return }
+            model.noteToneChange(from: model.formality, to: next)
+            model.formality = next
+            model.clearUndo()
+            selectFormality(next)
         }
-        .buttonStyle(.plain)
-        .help(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
-        .accessibilityLabel(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
-        .accessibilityAddTraits(model.toneNoteVisible ? .isSelected : [])
+    }
+
+    private var toneNoteButton: some View {
+        Button(loc("Co się zmieniło?", "What changed?"), systemImage: "arrow.left.arrow.right", action: toggleToneNote)
+            .buttonStyle(.borderless)
+            .help(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
+            .accessibilityAddTraits(model.toneNoteVisible ? .isSelected : [])
     }
 
     private var toneNoteRow: some View {
         HStack(alignment: .top, spacing: 7) {
             Image(systemName: "info.circle")
                 .font(.system(size: 11.5, weight: .semibold))
-                .foregroundStyle(PopupTheme.accent)
+                .foregroundStyle(.secondary)
             if model.toneNoteLoading {
                 ProgressView().controlSize(.small)
                 Text(loc("Analizuję zmianę tonu…", "Analyzing the tone change…"))
@@ -304,20 +278,18 @@ struct PopupView: View {
         }
     }
 
+    /// The direction is a readout, not a control — it says which way the model translated, and nothing here is clickable.
     private func pill(_ code: String, accent: Bool) -> some View {
         Text(code)
             .font(PopupTheme.fontControl)
             .tracking(0.2)
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(accent ? PopupTheme.accentTintStrong : PopupTheme.chipNeutralBg, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
-            .foregroundStyle(accent ? PopupTheme.accent : Color.secondary)
+            .foregroundStyle(accent ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
     }
 
     private func directionArrow(reversed: Bool) -> some View {
         Image(systemName: "arrow.right")
             .font(.system(size: 11, weight: .semibold))
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.secondary)
             .scaleEffect(x: reversed ? -1 : 1, anchor: .center)
     }
 
@@ -325,47 +297,35 @@ struct PopupView: View {
         HStack(spacing: 2) {
             if canReplace {
                 Button(action: { replace(model.text) }) {
-                    iconLabel("text.insert")
-                        .foregroundStyle(Color.secondary)
+                    Image(systemName: "text.insert")
                 }
-                .buttonStyle(IconButtonStyle())
                 .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
                 .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
             }
             if canCopy {
                 Button(action: copy) {
-                    iconLabel(copied ? "checkmark" : "doc.on.doc")
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
                         .contentTransition(.symbolEffect(.replace))
-                        .foregroundStyle(copied ? PopupTheme.copied : Color.secondary)
+                        .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
                 }
-                .buttonStyle(IconButtonStyle())
                 .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
                 .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
-                .animation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast), value: copied)
             }
             if canUndo {
                 Button(action: undo) {
-                    iconLabel("arrow.uturn.backward")
-                        .foregroundStyle(Color.secondary)
+                    Image(systemName: "arrow.uturn.backward")
                 }
-                .buttonStyle(IconButtonStyle())
                 .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
                 .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
             }
             Button(action: close) {
-                iconLabel("xmark")
-                    .foregroundStyle(.secondary)
+                Image(systemName: "xmark")
             }
-            .buttonStyle(IconButtonStyle())
             .help(loc("Zamknij", "Close"))
             .accessibilityLabel(loc("Zamknij", "Close"))
         }
-    }
-
-    private func iconLabel(_ name: String) -> some View {
-        Image(systemName: name)
-            .font(.system(size: 12.5, weight: .medium))
-            .frame(width: 24, height: 24)
+        .buttonStyle(.borderless)
+        .controlSize(.large)
     }
 
     private func copy() {
@@ -392,7 +352,7 @@ struct PopupView: View {
                 ScrollView {
                     TextField("", text: $model.sourceText, axis: .vertical)
                         .textFieldStyle(.plain)
-                        .font(PopupTheme.fontSourceText)
+                        .font(PopupTheme.fontLead)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
@@ -406,39 +366,21 @@ struct PopupView: View {
                 }
                 .frame(maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
+                .scrollEdgeEffectStyle(.soft, for: .all)
             } else if model.phase == .capturing {
                 SkeletonView()
             }
         }
         .padding(PopupTheme.padPane)
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
-        .overlay(alignment: .top) {
-            Rectangle()
-                .fill(LinearGradient(
-                    colors: [Color.primary.opacity(0.18), .clear],
-                    startPoint: .leading, endPoint: .trailing))
-                .frame(height: 1)
-                .opacity(0.7)
-        }
     }
 
     private var retranslateButton: some View {
-        Button(action: runRetranslate) {
-            HStack(spacing: 4) {
-                Image(systemName: "arrow.trianglehead.clockwise")
-                    .font(.system(size: 10.5, weight: .semibold))
-                Text(model.action.displayName)
-                    .font(PopupTheme.fontControl)
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 3)
-            .background(PopupTheme.accentTintStrong, in: RoundedRectangle(cornerRadius: PopupTheme.rPill))
-            .foregroundStyle(PopupTheme.accent)
-            .contentShape(RoundedRectangle(cornerRadius: PopupTheme.rPill))
-        }
-        .buttonStyle(.plain)
-        .disabled(!canRetranslate)
-        .opacity(canRetranslate ? 1 : 0)
+        Button(model.action.displayName, systemImage: "arrow.trianglehead.clockwise", action: runRetranslate)
+            .buttonStyle(.bordered)
+            .controlSize(.small)
+            .disabled(!canRetranslate)
+            .opacity(canRetranslate ? 1 : 0)
         .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
         .accessibilityLabel(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"))
     }
@@ -457,23 +399,17 @@ struct PopupView: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
                 label(resultLabel)
-                if showLiveDot { LiveDot() }
+                if showLiveDot {
+                    ProgressView()
+                        .controlSize(.small)
+                        .accessibilityLabel(loc("Trwa tłumaczenie", "Translating"))
+                }
                 Spacer(minLength: 0)
             }
             content
         }
         .padding(PopupTheme.padPane)
         .frame(width: Self.translationWidth + paneWidthDelta, alignment: .leading)
-        .overlay(alignment: .top) {
-            if showAccentEdge {
-                Rectangle()
-                    .fill(LinearGradient(
-                        colors: [PopupTheme.accent, .clear],
-                        startPoint: .leading, endPoint: .trailing))
-                    .frame(height: 2)
-                    .opacity(0.7)
-            }
-        }
     }
 
     @ViewBuilder
@@ -484,7 +420,7 @@ struct PopupView: View {
         case .error:
             HStack(alignment: .firstTextBaseline, spacing: 8) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                    .foregroundStyle(PopupTheme.warn)
+                    .symbolRenderingMode(.multicolor)
                 Text(model.errorMessage ?? "Translation failed")
                     .font(PopupTheme.fontLead)
                     .foregroundStyle(.primary)
@@ -503,19 +439,23 @@ struct PopupView: View {
             }
             .frame(maxHeight: paneMaxHeight)
             .scrollBounceBehavior(.basedOnSize)
+            .scrollEdgeEffectStyle(.soft, for: .all)
         }
     }
 
     private var replyDrafts: some View {
-        VStack(spacing: 6) {
+        Picker(loc("Wybierz odpowiedź", "Pick a reply"), selection: draftSelection) {
             ForEach(Array(model.replyDrafts.enumerated()), id: \.offset) { index, draft in
-                ReplyDraftCard(
-                    text: draft,
-                    selected: model.selectedDraftIndex == index
-                ) { model.selectDraft(index) }
+                Text(draft).tag(index)
             }
         }
+        .pickerStyle(.radioGroup)
+        .labelsHidden()
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private var draftSelection: Binding<Int> {
+        Binding { model.selectedDraftIndex ?? -1 } set: { model.selectDraft($0) }
     }
 
     private var wordFlow: some View {
@@ -548,15 +488,17 @@ struct PopupView: View {
 
     private func wordView(_ segment: TextSegment) -> some View {
         let selected = model.dropdownVisible && model.selectedWordID == segment.id
+        // The highlight is inset outward instead of padding the text: horizontal padding here widened every word and
+        // showed up as a double space between words and a gap before punctuation.
         return Text(segment.text)
             .font(PopupTheme.fontLead)
             .foregroundStyle(.primary)
-            .padding(.horizontal, 2)
-            .background(
+            .background {
                 RoundedRectangle(cornerRadius: 4)
-                    .fill(selected ? PopupTheme.accentTintStrong
-                          : (hoverWordID == segment.id ? PopupTheme.chipNeutralBg : .clear))
-            )
+                    .fill(selected ? AnyShapeStyle(.selection)
+                          : (hoverWordID == segment.id ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear)))
+                    .padding(.horizontal, -2)
+            }
             .contentShape(Rectangle())
             .layoutValue(key: FlowItemKindKey.self, value: .word)
             .anchorPreference(key: WordAnchorKey.self, value: .bounds) { [segment.id: $0] }
@@ -633,7 +575,7 @@ struct PopupView: View {
 
     private var diffEyeButton: some View {
         Button {
-            withAnimation(reduceMotion ? nil : .easeOut(duration: PopupTheme.durFast)) {
+            withAnimation(reduceMotion ? nil : .snappy(duration: 0.15)) {
                 model.toggleDiffHidden()
             }
         } label: {
@@ -680,21 +622,23 @@ struct PopupView: View {
         return HStack(spacing: hasBoth ? 3 : 0) {
             if !removed.isEmpty {
                 Text(removed)
-                    .strikethrough(true, color: PopupTheme.diffDel)
-                    .foregroundStyle(PopupTheme.diffDel)
+                    .strikethrough(true, color: .red)
+                    .foregroundStyle(.red)
             }
             if !added.isEmpty {
+                // Bold as well as green: colour alone must never be the only channel carrying the change.
                 Text(added)
-                    .foregroundStyle(PopupTheme.accent)
+                    .fontWeight(.semibold)
+                    .foregroundStyle(.green)
             }
         }
         .font(PopupTheme.fontLead)
-        .padding(.horizontal, 2)
-        .background(
+        .background {
             RoundedRectangle(cornerRadius: 4)
-                .fill(selected ? PopupTheme.accentTintStrong
-                      : (hoverWordID == id ? PopupTheme.chipNeutralBg : .clear))
-        )
+                .fill(selected ? AnyShapeStyle(.selection)
+                      : (hoverWordID == id ? AnyShapeStyle(.quaternary) : AnyShapeStyle(.clear)))
+                .padding(.horizontal, -2)
+        }
         .contentShape(Rectangle())
         .layoutValue(key: FlowItemKindKey.self, value: .word)
         .anchorPreference(key: WordAnchorKey.self, value: .bounds) { [id: $0] }
@@ -758,17 +702,15 @@ struct PopupView: View {
 
     private var estimatedDropdownHeight: CGFloat {
         // The "Dlaczego tak?" header row (issue #39) adds one row above either view.
-        let explainRow: CGFloat = 36
         if model.fixReasonMode {
             return FixReasonLayout.estimatedDropdownHeight(
                 content: model.fixReasonContentHeight, loading: model.explanationLoading)
         }
         if model.showingExplanation {
-            return explainRow + (model.explanationLoading ? 40 : 132)
+            return FixReasonLayout.header + (model.explanationLoading ? 40 : 132)
         }
-        let list = model.altsLoading || model.alternatives.isEmpty
-            ? 40 : CGFloat(model.alternatives.count) * 32 + 8
-        return explainRow + list
+        return AlternativesLayout.estimatedHeight(
+            count: model.alternatives.count, loading: model.altsLoading)
     }
 
     private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
@@ -785,134 +727,40 @@ struct PopupView: View {
             Image(systemName: "exclamationmark.triangle.fill")
             Text(loc("Tłumaczenie obcięte (limit modelu). Skróć zaznaczenie.", "Translation truncated (model limit). Shorten the selection."))
         }
+        .symbolRenderingMode(.multicolor)
         .font(PopupTheme.fontControl)
-        .foregroundStyle(PopupTheme.warn)
+        .foregroundStyle(.secondary)
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, PopupTheme.padPane)
         .padding(.vertical, 8)
-        .background(PopupTheme.warnBg)
     }
 
     private func label(_ text: String) -> some View {
         Text(text)
-            .font(PopupTheme.fontSectionLabel)
+            .font(PopupTheme.fontLabel)
             .tracking(1.0)
             .textCase(.uppercase)
             .foregroundStyle(.secondary)
     }
 }
 
-private struct ReplyDraftCard: View {
-    let text: String
-    let selected: Bool
-    let action: () -> Void
-    @State private var hovering = false
-
-    var body: some View {
-        Button(action: action) {
-            HStack(alignment: .firstTextBaseline, spacing: 8) {
-                Image(systemName: selected ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 13))
-                    .foregroundStyle(selected ? PopupTheme.accent : Color.secondary)
-                Text(text)
-                    .font(PopupTheme.fontLead)
-                    .foregroundStyle(.primary)
-                    .multilineTextAlignment(.leading)
-                    .fixedSize(horizontal: false, vertical: true)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                    .fill(selected ? PopupTheme.accentTintStrong : (hovering ? PopupTheme.chipNeutralBg : .clear))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                    .strokeBorder(selected ? PopupTheme.accent.opacity(0.5) : Color.primary.opacity(0.10))
-            )
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-        .onHover { hovering = $0 }
-    }
-}
-
-private struct IconButtonStyle: ButtonStyle {
-    func makeBody(configuration: Configuration) -> some View {
-        Hoverable(configuration: configuration)
-    }
-
-    private struct Hoverable: View {
-        let configuration: ButtonStyleConfiguration
-        @State private var hovering = false
-
-        var body: some View {
-            configuration.label
-                .background(
-                    RoundedRectangle(cornerRadius: PopupTheme.rControl)
-                        .fill(Color.primary.opacity(hovering ? 0.09 : 0))
-                )
-                .opacity(configuration.isPressed ? 0.55 : 1)
-                .onHover { hovering = $0 }
-        }
-    }
-}
-
-private struct LiveDot: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var pulsing = false
-
-    var body: some View {
-        Circle()
-            .fill(PopupTheme.accent)
-            .frame(width: 6, height: 6)
-            .scaleEffect(pulsing ? 1.0 : 0.55)
-            .opacity(pulsing ? 1.0 : 0.45)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.easeInOut(duration: 0.7).repeatForever(autoreverses: true)) {
-                    pulsing = true
-                }
-            }
-    }
-}
-
+/// Placeholder bars while the model works. The system's own placeholder redaction replaced a hand-rolled shimmer whose
+/// additive white sweep only read correctly in light mode and never followed the panel's resizable width.
 private struct SkeletonView: View {
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sweep = false
-
-    private let trailingInsets: [CGFloat] = [0, 40, 16, 96]
+    private let widths: [CGFloat] = [1.0, 0.85, 0.94, 0.62]
 
     var body: some View {
-        let bars = VStack(alignment: .leading, spacing: 10) {
-            ForEach(trailingInsets.indices, id: \.self) { index in
-                RoundedRectangle(cornerRadius: PopupTheme.rControl)
-                    .fill(PopupTheme.chipNeutralBg)
+        VStack(alignment: .leading, spacing: 10) {
+            ForEach(widths.indices, id: \.self) { index in
+                Text(" ")
+                    .font(PopupTheme.fontLead)
+                    .frame(maxWidth: .infinity, alignment: .leading)
                     .frame(height: 11)
-                    .padding(.trailing, trailingInsets[index])
+                    .background(.quaternary, in: RoundedRectangle(cornerRadius: PopupTheme.rControl))
+                    .scaleEffect(x: widths[index], anchor: .leading)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
-
-        bars
-            .overlay {
-                if !reduceMotion {
-                    LinearGradient(
-                        colors: [.clear, Color.white.opacity(0.45), .clear],
-                        startPoint: .leading, endPoint: .trailing)
-                        .frame(width: 90)
-                        .offset(x: sweep ? 260 : -90)
-                        .mask(bars)
-                        .blendMode(.plusLighter)
-                }
-            }
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .onAppear {
-                guard !reduceMotion else { return }
-                withAnimation(.linear(duration: 1.3).repeatForever(autoreverses: false)) {
-                    sweep = true
-                }
-            }
+        .accessibilityLabel(loc("Trwa tłumaczenie", "Translating"))
     }
 }

@@ -22,10 +22,18 @@ final class ReaderController: ReaderPresenting {
     private var chatFrameTarget: NSRect?
     private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
+    private var toolbarProxy: ReaderToolbarProxy?
+    private var mode: ReaderMode = .translated
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
+    private var statusText = ""
+    private var engineLabelText = ""
+    // Suggested questions are generated once per article, on first chat open.
+    private var questionsRequested = false
     // True only while the pipeline is issuing model calls, so a popup's rate-limit wait can't paint over an idle reader.
-    private var translating = false
+    private var translating = false {
+        didSet { toolbarProxy?.refreshItem?.isEnabled = !translating }
+    }
     // Guards the flag against a superseded run's unwind clearing it out from under the live one.
     private var runSeq = 0
     // Set when RoutingLLMClient hands this article's calls to the local engine, so the footer stops claiming the cloud.
@@ -43,6 +51,10 @@ final class ReaderController: ReaderPresenting {
         askTask?.cancel()
         chatHistory = []
         localFallback = false
+        questionsRequested = false
+        statusText = ""
+        mode = .translated
+        toolbarProxy?.modeControl?.selectedSegment = ReaderMode.translated.rawValue
         setChatPanel(open: false)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
@@ -50,7 +62,7 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
-    fileprivate func refreshCurrentArticle() {
+    func refreshCurrentArticle() {
         guard let currentURL else { return }
         cache.remove(currentURL, primary: settings.primaryLanguage)
         show(currentURL)
@@ -126,15 +138,17 @@ final class ReaderController: ReaderPresenting {
               let blocks = try? JSONDecoder().decode([ReaderTemplate.Block].self, from: Data(json.utf8))
         else { throw ReaderError.extractionFailed }
         if let labels = Self.languageLabels(primary: settings.primaryLanguage, content: article.content) {
-            _ = try? await webView.evaluateStringResult(
-                ReaderTemplate.call("glossoSetLanguages", labels.translated, labels.original))
+            toolbarProxy?.modeControl?.setLabel(labels.translated, forSegment: ReaderMode.translated.rawValue)
+            toolbarProxy?.modeControl?.setLabel(labels.original, forSegment: ReaderMode.original.rawValue)
         }
-        await setEngine(engine ?? currentEngineLabel, in: webView)
+        setEngine(engine ?? currentEngineLabel)
         return blocks
     }
 
-    private func setEngine(_ label: String, in webView: WKWebView) async {
-        _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetEngine", label))
+    /// Who translated *this* text, kept in the window's subtitle — a cached replay can outlive a provider switch.
+    private func setEngine(_ label: String) {
+        engineLabelText = label
+        refreshSubtitle()
     }
 
     /// What is serving this run — the local engine once `RoutingLLMClient` has handed the article over.
@@ -241,9 +255,9 @@ final class ReaderController: ReaderPresenting {
     /// Gated on `translating` like `cloudWait`: the same closure fires for popup captures, and only a running
     /// pipeline means the article itself is being served locally.
     func engineFallback() {
-        guard translating, let webView else { return }
+        guard translating else { return }
         localFallback = true
-        Task { await setEngine(currentEngineLabel, in: webView) }
+        setEngine(currentEngineLabel)
     }
 
     /// The limiter blocks rather than failing, so without this the status bar would simply stop moving mid-article.
@@ -378,7 +392,7 @@ final class ReaderController: ReaderPresenting {
             frame.size.width -= chatWidthDelta
             chatWidthDelta = 0
         }
-        if animated {
+        if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             let target = frame
             chatAnimSeq += 1
             let seq = chatAnimSeq
@@ -447,8 +461,38 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
+    /// The status and the engine label share the window's subtitle: two slots in a bar the page had to lay out itself,
+    /// and one line the system already draws under the title.
     private func setStatus(_ message: String, in webView: WKWebView) {
-        webView.evaluateJavaScript(ReaderTemplate.call("glossoStatus", message), completionHandler: nil)
+        statusText = message
+        refreshSubtitle()
+    }
+
+    private func refreshSubtitle() {
+        window?.subtitle = [statusText, engineLabelText]
+            .filter { !$0.isEmpty }
+            .joined(separator: " · ")
+    }
+
+    func setMode(_ newMode: ReaderMode) {
+        guard mode != newMode, let webView else { return }
+        mode = newMode
+        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetMode", newMode.jsValue), completionHandler: nil)
+    }
+
+    func toggleChatPanel() {
+        guard let webView else { return }
+        let open = !chatPanelOpen
+        setChatPanel(open: open)
+        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : ""), completionHandler: nil)
+        toolbarProxy?.chatItem?.image = NSImage(
+            systemSymbolName: open ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right",
+            accessibilityDescription: loc("Zapytaj artykuł", "Ask the article"))
+        if open, !questionsRequested {
+            questionsRequested = true
+            webView.evaluateJavaScript(ReaderTemplate.call("glossoSuggesting"), completionHandler: nil)
+            suggestQuestions()
+        }
     }
 
     private func ensureWindow(titled title: String) -> WKWebView {
@@ -472,6 +516,15 @@ final class ReaderController: ReaderPresenting {
         )
         window.contentView = webView
         window.isReleasedWhenClosed = false
+        let proxy = ReaderToolbarProxy(controller: self)
+        let toolbar = NSToolbar(identifier: "GlossoReader")
+        toolbar.delegate = proxy
+        toolbar.allowsUserCustomization = false
+        toolbar.displayMode = .iconOnly
+        window.toolbar = toolbar
+        window.toolbarStyle = .unified
+        window.subtitle = ""
+        toolbarProxy = proxy
         window.center()
         window.setFrameAutosaveName("GlossoReader")
         closeObserver = NotificationCenter.default.addObserver(
@@ -486,6 +539,7 @@ final class ReaderController: ReaderPresenting {
 
     private func windowWillClose() {
         translationTask?.cancel()
+        toolbarProxy = nil
         suggestTask?.cancel()
         askTask?.cancel()
         chatHistory = []
@@ -507,14 +561,9 @@ private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        // Legacy bare-string form kept for the refresh pill; the chat posts dicts.
-        if message.body as? String == "refresh" { controller?.refreshCurrentArticle(); return }
-        guard let dict = message.body as? [String: String] else { return }
-        switch dict["action"] {
-        case "suggest": controller?.suggestQuestions()
-        case "ask": if let question = dict["question"], !question.isEmpty { controller?.answer(question: question) }
-        case "panel": controller?.setChatPanel(open: dict["open"] == "1")
-        default: break
-        }
+        // The toolbar owns refresh, the view switch and the chat panel now, so asking is all that's left to post up.
+        guard let dict = message.body as? [String: String], dict["action"] == "ask",
+              let question = dict["question"], !question.isEmpty else { return }
+        controller?.answer(question: question)
     }
 }
