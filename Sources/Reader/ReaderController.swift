@@ -84,7 +84,7 @@ final class ReaderController: ReaderPresenting {
             let seq = runSeq
             translating = true
             defer { if runSeq == seq { translating = false } }
-            setStatus(loc("Wczytuję artykuł…", "Loading article…"), in: webView)
+            setStatus(loc("Wczytuję artykuł…", "Loading article…"))
             let article = try await extractor.extract(from: url)
             if Task.isCancelled { return }
             window?.title = article.title
@@ -108,9 +108,9 @@ final class ReaderController: ReaderPresenting {
             }
         } catch is CancellationError {
         } catch let error as ReaderError {
-            if !Task.isCancelled { setStatus(error.message, in: webView) }
+            if !Task.isCancelled { setStatus(error.message) }
         } catch {
-            if !Task.isCancelled { setStatus(ReaderError.fetchFailed.message, in: webView) }
+            if !Task.isCancelled { setStatus(ReaderError.fetchFailed.message) }
         }
     }
 
@@ -127,7 +127,7 @@ final class ReaderController: ReaderPresenting {
             if Task.isCancelled { return }
             _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoApply", String(id), html))
         }
-        setStatus("", in: webView)
+        setStatus("")
     }
 
     /// `engine` is the cached label of whatever translated the stored text; nil asks for the engine in use now.
@@ -138,18 +138,25 @@ final class ReaderController: ReaderPresenting {
         guard let json = try await webView.evaluateStringResult(call),
               let blocks = try? JSONDecoder().decode([ReaderTemplate.Block].self, from: Data(json.utf8))
         else { throw ReaderError.extractionFailed }
-        if let labels = Self.languageLabels(primary: settings.primaryLanguage, content: article.content) {
-            toolbarProxy?.modeControl?.setLabel(labels.translated, forSegment: ReaderMode.translated.rawValue)
-            toolbarProxy?.modeControl?.setLabel(labels.original, forSegment: ReaderMode.original.rawValue)
-        }
+        // Always set both, never only on a hit: the control outlives the article, so a nil detection would otherwise
+        // leave the previous article's codes claiming a language pair this one doesn't have.
+        let labels = Self.languageLabels(primary: settings.primaryLanguage, content: article.content)
+            ?? (loc("Tłumaczenie", "Translation"), loc("Oryginał", "Original"))
+        toolbarProxy?.modeControl?.setLabel(labels.translated, forSegment: ReaderMode.translated.rawValue)
+        toolbarProxy?.modeControl?.setLabel(labels.original, forSegment: ReaderMode.original.rawValue)
         setEngine(engine ?? currentEngineLabel)
         return blocks
     }
 
     private func showChatItemOpen(_ open: Bool) {
+        let label = open
+            ? loc("Zamknij pytania do artykułu", "Close the article chat")
+            : loc("Zapytaj artykuł", "Ask the article")
         toolbarProxy?.chatItem?.image = NSImage(
             systemSymbolName: open ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right",
-            accessibilityDescription: loc("Zapytaj artykuł", "Ask the article"))
+            accessibilityDescription: label)
+        toolbarProxy?.chatItem?.label = label
+        toolbarProxy?.chatItem?.toolTip = label
     }
 
     /// Who translated *this* text, kept in the window's subtitle — a cached replay can outlive a provider switch.
@@ -269,9 +276,9 @@ final class ReaderController: ReaderPresenting {
 
     /// The limiter blocks rather than failing, so without this the status bar would simply stop moving mid-article.
     func cloudWait(_ seconds: TimeInterval) {
-        guard translating, let webView else { return }
+        guard translating else { return }
         setStatus(loc("Czekam na limit Google AI… (\(Int(seconds.rounded(.up))) s)",
-                      "Waiting for the Google AI rate limit… (\(Int(seconds.rounded(.up))) s)"), in: webView)
+                      "Waiting for the Google AI rate limit… (\(Int(seconds.rounded(.up))) s)"))
     }
 
     private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws -> [Int: String]? {
@@ -285,7 +292,7 @@ final class ReaderController: ReaderPresenting {
                     ReaderTemplate.call("glossoApply", String(block.id), block.html))
                 applied[block.id] = block.html
             }
-            setStatus("", in: webView)
+            setStatus("")
             return applied
         }
         // Applied up front so they never take up room in a batch, and never get sent.
@@ -309,7 +316,7 @@ final class ReaderController: ReaderPresenting {
         for batch in ReaderTemplate.batches(pending, maxCount: batchSize) {
             if Task.isCancelled { return nil }
             setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",
-                          "Translating… (\(done + 1)/\(translatable.count))"), in: webView)
+                          "Translating… (\(done + 1)/\(translatable.count))"))
             var batched: [Int: String] = [:]
             // Two batches in a row failing means whatever is answering can't hold the format; stop paying for the attempt.
             if batch.count > 1, consecutiveBatchFailures < 2 {
@@ -324,7 +331,7 @@ final class ReaderController: ReaderPresenting {
                 if Task.isCancelled { return nil }
                 // Repainted per block, so a rate-limit message painted while this batch was waiting cannot outlive the wait.
                 setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",
-                              "Translating… (\(done + 1)/\(translatable.count))"), in: webView)
+                              "Translating… (\(done + 1)/\(translatable.count))"))
                 let translated: String
                 if let fromBatch = batched[block.id] {
                     translated = ReaderTemplate.unwrap(fromBatch)
@@ -345,7 +352,7 @@ final class ReaderController: ReaderPresenting {
                             _ = try? await webView.evaluateStringResult("glossoAbort()")
                             let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
                             setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
-                                          "Translation stopped — the rest stays in the original language.") + detail, in: webView)
+                                          "Translation stopped — the rest stays in the original language.") + detail)
                             return nil
                         }
                         _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
@@ -366,10 +373,10 @@ final class ReaderController: ReaderPresenting {
         if Task.isCancelled { return nil }
         if failed > 0 {
             setStatus(loc("Przetłumaczono z pominięciem \(failed) bloków (zostały w oryginale).",
-                          "Translated with \(failed) blocks skipped (kept in the original language)."), in: webView)
+                          "Translated with \(failed) blocks skipped (kept in the original language)."))
             return nil
         }
-        setStatus("", in: webView)
+        setStatus("")
         return applied
     }
 
@@ -383,7 +390,7 @@ final class ReaderController: ReaderPresenting {
         return (recognizer.languageHypotheses(withMaximum: 3)[primary.nl] ?? 0) >= 0.8
     }
 
-    fileprivate func setChatPanel(open: Bool, animated: Bool = true) {
+    private func setChatPanel(open: Bool, animated: Bool = true) {
         guard open != chatPanelOpen, let window else { return }
         chatPanelOpen = open
         var frame = chatFrameTarget ?? window.frame
@@ -426,7 +433,7 @@ final class ReaderController: ReaderPresenting {
             "document.getElementById('glosso-content').textContent.slice(0, 12000)")) ?? ""
     }
 
-    fileprivate func suggestQuestions() {
+    private func suggestQuestions() {
         guard let webView else { return }
         suggestTask?.cancel()
         suggestTask = Task { @MainActor [weak self] in
@@ -472,7 +479,7 @@ final class ReaderController: ReaderPresenting {
 
     /// The status and the engine label share the window's subtitle: two slots in a bar the page had to lay out itself,
     /// and one line the system already draws under the title.
-    private func setStatus(_ message: String, in webView: WKWebView) {
+    private func setStatus(_ message: String) {
         statusText = message
         refreshSubtitle()
     }
@@ -484,9 +491,10 @@ final class ReaderController: ReaderPresenting {
     }
 
     func setMode(_ newMode: ReaderMode) {
-        guard mode != newMode, let webView else { return }
+        guard mode != newMode else { return }
+        // Record it even with no webview to talk to, or the control and this flag disagree and the next click no-ops.
         mode = newMode
-        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetMode", newMode.jsValue), completionHandler: nil)
+        webView?.evaluateJavaScript(ReaderTemplate.call("glossoSetMode", newMode.jsValue), completionHandler: nil)
     }
 
     func toggleChatPanel() {

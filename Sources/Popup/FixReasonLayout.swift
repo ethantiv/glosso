@@ -35,4 +35,10 @@ enum AlternativesLayout {
     static func estimatedHeight(count: Int, loading: Bool) -> CGFloat {
         loading || count == 0 ? base + placeholder : base + CGFloat(count) * row
     }
+
+    /// The explanation body is a plain Text that grows with the answer, so its height has to be measured, not guessed —
+    /// the constant it replaced over-reserved 41pt under the panel on a one-sentence explanation.
+    static func explanationHeight(content: CGFloat, loading: Bool) -> CGFloat {
+        loading ? base + placeholder : base + max(content, placeholder)
+    }
 }

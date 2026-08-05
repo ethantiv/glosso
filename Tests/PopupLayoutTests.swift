@@ -47,6 +47,27 @@ struct PopupLayoutTests {
                 "loading dropdown renders \(host.fittingSize.height)pt, the window reserves \(reserved)pt")
     }
 
+    @Test("the explanation view renders at the height the window reserves for it")
+    func explanationHeightMatchesTheReservation() {
+        for loading in [true, false] {
+            let model = PopupModel()
+            model.text = "Nauka języka to kwestia uporu."
+            model.openDropdown(for: 0)
+            model.openExplanation()
+            model.explanationLoading = loading
+            if !loading {
+                model.explanationText = "Rzeczownik odczasownikowy pasuje tu lepiej, bo chodzi o proces, a nie o wynik."
+            }
+            let host = hosted(AlternativesDropdown(model: model, onPick: { _ in }, onExplain: {}, onBack: {}))
+            // The measured content feeds the same reservation the window uses, so the two can't drift apart.
+            let rendered = host.fittingSize.height
+            let reserved = AlternativesLayout.explanationHeight(
+                content: loading ? 0 : rendered - AlternativesLayout.base, loading: loading)
+            #expect(abs(rendered - reserved) <= 2,
+                    "explanation (loading: \(loading)) renders \(rendered)pt, the window reserves \(reserved)pt")
+        }
+    }
+
     @Test("the panel reports a stable, non-zero ideal size")
     func popupIdealSizeIsStable() {
         let model = PopupModel()

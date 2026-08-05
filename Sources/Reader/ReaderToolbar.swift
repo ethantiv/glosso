@@ -54,7 +54,9 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             let item = button(identifier, symbol: "arrow.trianglehead.clockwise",
                               label: loc("Przetłumacz ponownie", "Translate again"),
                               action: #selector(refresh))
-            refreshItem = item
+            // Only remember the item that actually goes into the bar; a palette copy would take the mutations meant
+            // for the live one.
+            if flag { refreshItem = item }
             return item
         case .glossoMode:
             let item = NSToolbarItem(itemIdentifier: identifier)
@@ -66,13 +68,13 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             item.label = loc("Widok", "View")
             item.paletteLabel = item.label
             item.toolTip = loc("Przełącz oryginał i tłumaczenie", "Switch between original and translation")
-            modeControl = control
+            if flag { modeControl = control }
             return item
         case .glossoChat:
             let item = button(identifier, symbol: "bubble.left.and.text.bubble.right",
                               label: loc("Zapytaj artykuł", "Ask the article"),
                               action: #selector(toggleChat))
-            chatItem = item
+            if flag { chatItem = item }
             return item
         default:
             return nil

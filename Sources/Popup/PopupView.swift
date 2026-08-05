@@ -707,7 +707,8 @@ struct PopupView: View {
                 content: model.fixReasonContentHeight, loading: model.explanationLoading)
         }
         if model.showingExplanation {
-            return FixReasonLayout.header + (model.explanationLoading ? 40 : 132)
+            return AlternativesLayout.explanationHeight(
+                content: model.explanationContentHeight, loading: model.explanationLoading)
         }
         return AlternativesLayout.estimatedHeight(
             count: model.alternatives.count, loading: model.altsLoading)
@@ -747,17 +748,16 @@ struct PopupView: View {
 /// Placeholder bars while the model works. The system's own placeholder redaction replaced a hand-rolled shimmer whose
 /// additive white sweep only read correctly in light mode and never followed the panel's resizable width.
 private struct SkeletonView: View {
-    private let widths: [CGFloat] = [1.0, 0.85, 0.94, 0.62]
+    /// Trailing insets in points, not a horizontal scale: scaling the drawn bar squashes its corner radius with it.
+    private let trailingInsets: [CGFloat] = [0, 40, 16, 96]
 
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
-            ForEach(widths.indices, id: \.self) { index in
-                Text(" ")
-                    .font(PopupTheme.fontLead)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            ForEach(trailingInsets.indices, id: \.self) { index in
+                RoundedRectangle(cornerRadius: PopupTheme.rControl)
+                    .fill(.quaternary)
                     .frame(height: 11)
-                    .background(.quaternary, in: RoundedRectangle(cornerRadius: PopupTheme.rControl))
-                    .scaleEffect(x: widths[index], anchor: .leading)
+                    .padding(.trailing, trailingInsets[index])
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)

@@ -139,6 +139,14 @@ struct OnboardingView: View {
 
     @ViewBuilder private var localModelStep: some View {
         Section {
+            // Only worth showing once there is a choice to make; the first-run path downloads one model and it activates itself.
+            if installed.count > 1 {
+                Picker(loc("Aktywny model", "Active model"), selection: $store.modelName) {
+                    ForEach(installed, id: \.self) { id in
+                        Text(EmbeddedModelCatalog.models.first { $0.id == id }?.displayName ?? id).tag(id)
+                    }
+                }
+            }
             ModelCatalogList(
                 installed: installed,
                 activeID: store.modelName,
