@@ -56,6 +56,7 @@ final class ReaderController: ReaderPresenting {
         mode = .translated
         toolbarProxy?.modeControl?.selectedSegment = ReaderMode.translated.rawValue
         setChatPanel(open: false)
+        showChatItemOpen(false)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
             await self?.run(url: url, in: webView)
@@ -143,6 +144,12 @@ final class ReaderController: ReaderPresenting {
         }
         setEngine(engine ?? currentEngineLabel)
         return blocks
+    }
+
+    private func showChatItemOpen(_ open: Bool) {
+        toolbarProxy?.chatItem?.image = NSImage(
+            systemSymbolName: open ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right",
+            accessibilityDescription: loc("Zapytaj artykuł", "Ask the article"))
     }
 
     /// Who translated *this* text, kept in the window's subtitle — a cached replay can outlive a provider switch.
@@ -487,9 +494,7 @@ final class ReaderController: ReaderPresenting {
         let open = !chatPanelOpen
         setChatPanel(open: open)
         webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : ""), completionHandler: nil)
-        toolbarProxy?.chatItem?.image = NSImage(
-            systemSymbolName: open ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right",
-            accessibilityDescription: loc("Zapytaj artykuł", "Ask the article"))
+        showChatItemOpen(open)
         if open, !questionsRequested {
             questionsRequested = true
             webView.evaluateJavaScript(ReaderTemplate.call("glossoSuggesting"), completionHandler: nil)
