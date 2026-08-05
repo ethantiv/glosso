@@ -275,7 +275,6 @@ enum ReaderTemplate {
       translatedTitle: '',
       summary: '',
       chatBusy: false,          // one question in flight at a time
-      questionsRequested: false, // suggestions are generated once, lazily
       asked: []                 // questions already asked — their chips stay gone
     };
     function glossoSetArticle(title, byline, html) {
@@ -410,7 +409,7 @@ enum ReaderTemplate {
       box.textContent = '';
       let questions = [];
       try { questions = JSON.parse(json); } catch (e) {}
-      if (!questions.length) { glosso.questionsRequested = false; return; }
+      if (!questions.length) { return; }
       for (const q of questions) {
         if (glosso.asked.includes(q.trim())) { continue; }
         const chip = document.createElement('button');

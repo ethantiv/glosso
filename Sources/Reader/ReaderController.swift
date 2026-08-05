@@ -431,6 +431,8 @@ final class ReaderController: ReaderPresenting {
                     about: context, into: self.settings.primaryLanguage, model: self.settings.activeModel)) ?? []
             }
             if Task.isCancelled { return }
+            // Nothing came back — let the next open try again, the way the page's own flag used to.
+            if questions.isEmpty { self.questionsRequested = false }
             let json = (try? JSONEncoder().encode(questions))
                 .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
             _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetQuestions", json))
