@@ -75,20 +75,16 @@ struct SettingsView: View {
             }
 
             Section(loc("Skróty", "Shortcuts")) {
-                LabeledContent(loc("Popraw w miejscu", "Fix in place")) {
-                    KeyChordRecorder(chord: $store.fixChord, otherChord: store.translateInPlaceChord)
-                        .frame(width: 96, height: 24)
-                        .accessibilityLabel(loc("Skrót: popraw w miejscu", "Shortcut: fix in place"))
-                }
-                LabeledContent(loc("Tłumacz w miejscu", "Translate in place")) {
-                    KeyChordRecorder(chord: $store.translateInPlaceChord, otherChord: store.fixChord)
-                        .frame(width: 96, height: 24)
-                        .accessibilityLabel(loc("Skrót: tłumacz w miejscu", "Shortcut: translate in place"))
-                }
+                // An HStack, not LabeledContent: the recorder is an NSView with a fixed height, and LabeledContent
+                // drops it below the label's baseline instead of centring it on the row.
+                chordRow(loc("Popraw w miejscu", "Fix in place"),
+                         chord: $store.fixChord, other: store.translateInPlaceChord)
+                chordRow(loc("Tłumacz w miejscu", "Translate in place"),
+                         chord: $store.translateInPlaceChord, other: store.fixChord)
             }
         }
         .formStyle(.grouped)
-        .background(ActiveSpaceConfigurator())
+        .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
             await loadModels()
@@ -139,6 +135,16 @@ struct SettingsView: View {
                         "In this mode the selected text is sent to Ollama."))
     }
 
+    private func chordRow(_ label: String, chord: Binding<KeyChord>, other: KeyChord) -> some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 12)
+            KeyChordRecorder(chord: chord, otherChord: other)
+                .frame(width: 96, height: 24)
+                .accessibilityLabel(loc("Skrót: \(label)", "Shortcut: \(label)"))
+        }
+    }
+
     private func privacyNote(_ text: String) -> some View {
         Label(text, systemImage: "exclamationmark.triangle.fill")
             .symbolRenderingMode(.multicolor)
@@ -186,17 +192,21 @@ struct SettingsView: View {
     }
 }
 
-/// Two things the Settings scene can't say for itself: an `LSUIElement` app's window has to follow to whichever Space is
-/// active, and the system-composed title ("Glosso Settings") comes from the unlocalized bundle even on a Polish system.
-private struct ActiveSpaceConfigurator: NSViewRepresentable {
+/// Three things the Settings scene can't say for itself: an `LSUIElement` app's window has to follow to whichever Space
+/// is active; the system-composed title ("Glosso Settings") comes from the unlocalized bundle even on a Polish system;
+/// and a `Settings` scene ships without `.resizable` whatever `windowResizability` says, so the zoom button stays dead
+/// and the form can't be grown — which is exactly what "support arbitrary window sizes" rules out.
+private struct SettingsWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { ConfiguringView() }
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     private final class ConfiguringView: NSView {
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            window?.collectionBehavior.insert(.moveToActiveSpace)
-            window?.title = loc("Ustawienia Glosso", "Glosso Settings")
+            guard let window else { return }
+            window.collectionBehavior.insert(.moveToActiveSpace)
+            window.title = loc("Ustawienia Glosso", "Glosso Settings")
+            window.styleMask.insert(.resizable)
         }
     }
 }
