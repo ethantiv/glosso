@@ -167,6 +167,9 @@ struct PopupView: View {
         HStack(spacing: 2) { content() }
             .padding(3)
             .glassEffect(.regular, in: .capsule)
+            // Same hairline the card draws, for the same reason: glass over an opaque white surface has almost no edge
+            // of its own, so without it the capsule dissolves into the panel.
+            .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
     }
 
     private func segment(_ label: some View, selected: Bool, action: @escaping () -> Void) -> some View {
@@ -174,6 +177,7 @@ struct PopupView: View {
             label
                 .font(PopupTheme.fontControl)
                 .fontWeight(selected ? .semibold : .regular)
+                .foregroundStyle(selected ? AnyShapeStyle(.primary) : AnyShapeStyle(.secondary))
                 .padding(.horizontal, 10)
                 .padding(.vertical, 4)
                 // The marker rides on the label, not on the button style: inside one glass shape a per-button style
