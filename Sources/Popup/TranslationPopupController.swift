@@ -110,6 +110,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
         contentIdealSize = size
         applyContentSize()
         panel.orderFrontRegardless()
+        // Key on open, not only after the first click: the panel's controls and its editable source field are useless
+        // without keyboard, and forcing `appearsActive` made an unfocused panel look focused. `orderFrontRegardless`
+        // stays because a background agent's plain `orderFront` can be refused; `.nonactivatingPanel` is what keeps the
+        // app itself from activating, so the frontmost app stays frontmost and keeps its selection.
+        panel.makeKey()
 
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: nil
