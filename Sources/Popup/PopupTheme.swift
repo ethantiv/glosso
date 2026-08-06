@@ -7,6 +7,9 @@ enum PopupTheme {
     static let rPane: CGFloat = 12
     static let rControl: CGFloat = 7
     static let padPane: CGFloat = 15
+    /// Tighter than the rest of the pane: the control row above already carries its own bottom padding, so the full
+    /// inset stacked into a visible gap over the section labels.
+    static let padPaneTop: CGFloat = 6
     static let padWindow: CGFloat = 9
 
     static let fontLabel = Font.system(size: 11, weight: .semibold)

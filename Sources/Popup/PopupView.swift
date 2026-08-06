@@ -377,11 +377,7 @@ struct PopupView: View {
 
     private var sourcePane: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                label(loc("Oryginał", "Original"))
-                Spacer(minLength: 0)
-                retranslateButton
-            }
+            paneHeader(loc("Oryginał", "Original")) { retranslateButton }
             if !model.sourceText.isEmpty {
                 ScrollView {
                     TextField("", text: $model.sourceText, axis: .vertical)
@@ -405,8 +401,21 @@ struct PopupView: View {
                 SkeletonView()
             }
         }
-        .padding(PopupTheme.padPane)
+        .padding(.horizontal, PopupTheme.padPane)
+        .padding(.bottom, PopupTheme.padPane)
+        .padding(.top, PopupTheme.padPaneTop)
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
+    }
+
+    /// Both panes carry a label and one trailing control, and the control lives in an **overlay** so it can't set the
+    /// row's height: a small glass button is taller than the label, which used to push "Oryginał" a few points below
+    /// "Tłumaczenie". An overlay draws outside the row without laying it out, so the two labels sit on one line.
+    private func paneHeader(_ title: String, @ViewBuilder trailing: () -> some View) -> some View {
+        HStack(spacing: 6) {
+            label(title)
+            Spacer(minLength: 0)
+        }
+        .overlay(alignment: .trailing) { trailing() }
     }
 
     /// The reader's refresh symbol for the same action; the title stays for VoiceOver and the tooltip adds the ⌘↩.
@@ -434,18 +443,18 @@ struct PopupView: View {
 
     private var translationPane: some View {
         VStack(alignment: .leading, spacing: 8) {
-            HStack(spacing: 6) {
-                label(resultLabel)
+            paneHeader(resultLabel) {
                 if showLiveDot {
                     ProgressView()
                         .controlSize(.small)
                         .accessibilityLabel(loc("Trwa tłumaczenie", "Translating"))
                 }
-                Spacer(minLength: 0)
             }
             content
         }
-        .padding(PopupTheme.padPane)
+        .padding(.horizontal, PopupTheme.padPane)
+        .padding(.bottom, PopupTheme.padPane)
+        .padding(.top, PopupTheme.padPaneTop)
         .frame(width: Self.translationWidth + paneWidthDelta, alignment: .leading)
     }
 
