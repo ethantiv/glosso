@@ -67,6 +67,9 @@ struct PopupView: View {
                 reportSize(size)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            // The panel is a non-activating one and never becomes key, so without this every control here draws in the
+            // window-inactive appearance: gray labels and a selected verb indistinguishable from the rest.
+            .environment(\.appearsActive, true)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
             .onAppear {
@@ -92,11 +95,15 @@ struct PopupView: View {
                 truncatedFooter.transition(.opacity)
             }
         }
-        // The one Liquid Glass surface in the app: a floating panel over another app's content is the functional layer,
-        // and the regular variant is what Apple prescribes for text-heavy floating surfaces. Everything inside it stays
-        // a standard control on plain backgrounds — glass on glass is not allowed.
-        .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rWindow))
+        // An opaque window surface carrying glass controls, the way a Notes window does it — the material belongs to the
+        // things floating over the page, never behind its text. The card draws its own hairline because the panel's
+        // AppKit shadow is off, so a white panel over a white app would otherwise have no edge at all.
+        .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rWindow))
+        .overlay(
+            RoundedRectangle(cornerRadius: PopupTheme.rWindow)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents()
     }
@@ -153,28 +160,38 @@ struct PopupView: View {
         .padding(.bottom, PopupTheme.padWindow)
     }
 
-    /// Four mutually exclusive verbs are a segmented control; the case order is load-bearing (it drives prefetch too).
+    /// Four mutually exclusive verbs as one glass cluster floating over the panel; the case order is load-bearing
+    /// (it drives prefetch too). Buttons rather than a segmented `Picker`, because only a button takes a glass style.
     private var verbPicker: some View {
-        Picker(loc("Co zrobić z zaznaczeniem", "What to do with the selection"), selection: verbSelection) {
+        // No `GlassEffectContainer` here on purpose: it merges neighbouring capsules into one shape, and a merged shape
+        // carries one appearance, so the selected verb loses whatever marks it as selected.
+        HStack(spacing: 4) {
             ForEach(Action.allCases, id: \.self) { action in
-                Label(action.displayName, systemImage: action.systemImage).tag(action)
+                verbButton(action)
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(loc("Co zrobić z zaznaczeniem", "What to do with the selection"))
     }
 
-    private var verbSelection: Binding<Action> {
-        Binding {
-            model.action
-        } set: { action in
-            guard model.action != action else { return }
-            model.action = action
-            model.clearUndo()
-            model.clearToneNote()
-            selectAction(action)
+    @ViewBuilder
+    private func verbButton(_ action: Action) -> some View {
+        let button = Button { choose(action) } label: {
+            Label(action.displayName, systemImage: action.systemImage)
         }
+        if action == model.action {
+            button.buttonStyle(.glassProminent).accessibilityAddTraits(.isSelected)
+        } else {
+            button.buttonStyle(.glass)
+        }
+    }
+
+    private func choose(_ action: Action) {
+        guard model.action != action else { return }
+        model.action = action
+        model.clearUndo()
+        model.clearToneNote()
+        selectAction(action)
     }
 
     @ViewBuilder
@@ -198,13 +215,21 @@ struct PopupView: View {
     }
 
     /// A menu, not a click-to-cycle pill: cycling through N states hides the options a person is choosing between.
+    /// `.menuStyle(.button)` is what lets the glass style reach it — a plain menu `Picker` draws its own bordered box.
     private var tonePicker: some View {
-        Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
-            ForEach(Formality.allCases, id: \.self) { formality in
-                Text(formality.displayName).tag(formality)
+        Menu {
+            Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
+                ForEach(Formality.allCases, id: \.self) { formality in
+                    Text(formality.displayName).tag(formality)
+                }
             }
+            .labelsHidden()
+            .pickerStyle(.inline)
+        } label: {
+            Text(model.formality.displayName)
         }
-        .labelsHidden()
+        .menuStyle(.button)
+        .buttonStyle(.glass)
         .fixedSize()
         .accessibilityLabel(loc("Ton wypowiedzi", "Tone"))
     }
@@ -223,7 +248,7 @@ struct PopupView: View {
 
     private var toneNoteButton: some View {
         Button(loc("Co się zmieniło?", "What changed?"), systemImage: "arrow.left.arrow.right", action: toggleToneNote)
-            .buttonStyle(.borderless)
+            .buttonStyle(.glass)
             .help(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
             .accessibilityAddTraits(model.toneNoteVisible ? .isSelected : [])
     }
@@ -293,39 +318,42 @@ struct PopupView: View {
             .scaleEffect(x: reversed ? -1 : 1, anchor: .center)
     }
 
+    /// A container spacing wider than the row's own gap is what makes the capsules merge into one cluster, the way a
+    /// Notes toolbar group does.
     private var headerButtons: some View {
-        HStack(spacing: 2) {
-            if canReplace {
-                Button(action: { replace(model.text) }) {
-                    Image(systemName: "text.insert")
+        GlassEffectContainer(spacing: 20) {
+            HStack(spacing: 4) {
+                if canReplace {
+                    Button(action: { replace(model.text) }) {
+                        Image(systemName: "text.insert")
+                    }
+                    .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
+                    .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
                 }
-                .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
-                .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
-            }
-            if canCopy {
-                Button(action: copy) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        .contentTransition(.symbolEffect(.replace))
-                        .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
+                if canCopy {
+                    Button(action: copy) {
+                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                            .contentTransition(.symbolEffect(.replace))
+                            .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
+                    }
+                    .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
+                    .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
                 }
-                .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
-                .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
-            }
-            if canUndo {
-                Button(action: undo) {
-                    Image(systemName: "arrow.uturn.backward")
+                if canUndo {
+                    Button(action: undo) {
+                        Image(systemName: "arrow.uturn.backward")
+                    }
+                    .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
+                    .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
                 }
-                .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
-                .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
+                Button(action: close) {
+                    Image(systemName: "xmark")
+                }
+                .help(loc("Zamknij", "Close"))
+                .accessibilityLabel(loc("Zamknij", "Close"))
             }
-            Button(action: close) {
-                Image(systemName: "xmark")
-            }
-            .help(loc("Zamknij", "Close"))
-            .accessibilityLabel(loc("Zamknij", "Close"))
+            .buttonStyle(.glass)
         }
-        .buttonStyle(.borderless)
-        .controlSize(.large)
     }
 
     private func copy() {
@@ -377,7 +405,7 @@ struct PopupView: View {
 
     private var retranslateButton: some View {
         Button(model.action.displayName, systemImage: "arrow.trianglehead.clockwise", action: runRetranslate)
-            .buttonStyle(.bordered)
+            .buttonStyle(.glass)
             .controlSize(.small)
             .disabled(!canRetranslate)
             .opacity(canRetranslate ? 1 : 0)
