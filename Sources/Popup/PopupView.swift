@@ -160,7 +160,7 @@ struct PopupView: View {
         .padding(.bottom, PopupTheme.padWindow)
     }
 
-    /// Four mutually exclusive verbs as one glass cluster floating over the panel; the case order is load-bearing
+    /// Four mutually exclusive verbs as glass capsules floating over the panel; the case order is load-bearing
     /// (it drives prefetch too). Buttons rather than a segmented `Picker`, because only a button takes a glass style.
     private var verbPicker: some View {
         // No `GlassEffectContainer` here on purpose: it merges neighbouring capsules into one shape, and a merged shape

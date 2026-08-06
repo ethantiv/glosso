@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// What's left of the popup's own styling after the move to system materials and colors: geometry, type and motion.
-/// Colors are gone on purpose — controls take the user's accent, surfaces take Liquid Glass or a system material.
+/// Colors are gone on purpose — the panel is a system surface and the controls floating over it are Liquid Glass.
 enum PopupTheme {
     static let rWindow: CGFloat = 16
     static let rPane: CGFloat = 12
