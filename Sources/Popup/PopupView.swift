@@ -160,38 +160,30 @@ struct PopupView: View {
         .padding(.bottom, PopupTheme.padWindow)
     }
 
-    /// Four mutually exclusive verbs as glass capsules floating over the panel; the case order is load-bearing
-    /// (it drives prefetch too). Buttons rather than a segmented `Picker`, because only a button takes a glass style.
+    /// Four mutually exclusive verbs in one segmented capsule, the same shape the reader's toolbar uses for its
+    /// language sides; the case order is load-bearing (it drives prefetch too). The filled segment is what marks the
+    /// active verb — four glass capsules with a prominent one made every verb read as a primary action.
     private var verbPicker: some View {
-        // No `GlassEffectContainer` here on purpose: it merges neighbouring capsules into one shape, and a merged shape
-        // carries one appearance, so the selected verb loses whatever marks it as selected.
-        HStack(spacing: 4) {
+        Picker(loc("Co zrobić z zaznaczeniem", "What to do with the selection"), selection: verbSelection) {
             ForEach(Action.allCases, id: \.self) { action in
-                verbButton(action)
+                Label(action.displayName, systemImage: action.systemImage).tag(action)
             }
         }
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel(loc("Co zrobić z zaznaczeniem", "What to do with the selection"))
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .fixedSize()
     }
 
-    @ViewBuilder
-    private func verbButton(_ action: Action) -> some View {
-        let button = Button { choose(action) } label: {
-            Label(action.displayName, systemImage: action.systemImage)
+    private var verbSelection: Binding<Action> {
+        Binding {
+            model.action
+        } set: { action in
+            guard model.action != action else { return }
+            model.action = action
+            model.clearUndo()
+            model.clearToneNote()
+            selectAction(action)
         }
-        if action == model.action {
-            button.buttonStyle(.glassProminent).accessibilityAddTraits(.isSelected)
-        } else {
-            button.buttonStyle(.glass)
-        }
-    }
-
-    private func choose(_ action: Action) {
-        guard model.action != action else { return }
-        model.action = action
-        model.clearUndo()
-        model.clearToneNote()
-        selectAction(action)
     }
 
     @ViewBuilder
@@ -214,22 +206,16 @@ struct PopupView: View {
         }
     }
 
-    /// A menu, not a click-to-cycle pill: cycling through N states hides the options a person is choosing between.
-    /// `.menuStyle(.button)` is what lets the glass style reach it — a plain menu `Picker` draws its own bordered box.
+    /// Segmented, like the verbs and like the reader's language sides: three mutually exclusive tones, all three
+    /// visible. The click-to-cycle pill this replaced hid the options a person was choosing between.
     private var tonePicker: some View {
-        Menu {
-            Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
-                ForEach(Formality.allCases, id: \.self) { formality in
-                    Text(formality.displayName).tag(formality)
-                }
+        Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
+            ForEach(Formality.allCases, id: \.self) { formality in
+                Text(formality.displayName).tag(formality)
             }
-            .labelsHidden()
-            .pickerStyle(.inline)
-        } label: {
-            Text(model.formality.displayName)
         }
-        .menuStyle(.button)
-        .buttonStyle(.glass)
+        .pickerStyle(.segmented)
+        .labelsHidden()
         .fixedSize()
         .accessibilityLabel(loc("Ton wypowiedzi", "Tone"))
     }
@@ -318,42 +304,42 @@ struct PopupView: View {
             .scaleEffect(x: reversed ? -1 : 1, anchor: .center)
     }
 
-    /// A container spacing wider than the row's own gap is what makes the capsules merge into one cluster, the way a
-    /// Notes toolbar group does.
+    /// Separate circles with room between them, the way the reader's toolbar items sit — HIG asks for enough space
+    /// around a button to tell it apart from its neighbours, and for a hit region a merged capsule can't offer.
     private var headerButtons: some View {
-        GlassEffectContainer(spacing: 20) {
-            HStack(spacing: 4) {
-                if canReplace {
-                    Button(action: { replace(model.text) }) {
-                        Image(systemName: "text.insert")
-                    }
-                    .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
-                    .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
+        HStack(spacing: 8) {
+            if canReplace {
+                Button(action: { replace(model.text) }) {
+                    Image(systemName: "text.insert")
                 }
-                if canCopy {
-                    Button(action: copy) {
-                        Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                            .contentTransition(.symbolEffect(.replace))
-                            .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
-                    }
-                    .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
-                    .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
-                }
-                if canUndo {
-                    Button(action: undo) {
-                        Image(systemName: "arrow.uturn.backward")
-                    }
-                    .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
-                    .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
-                }
-                Button(action: close) {
-                    Image(systemName: "xmark")
-                }
-                .help(loc("Zamknij", "Close"))
-                .accessibilityLabel(loc("Zamknij", "Close"))
+                .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
+                .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
             }
-            .buttonStyle(.glass)
+            if canCopy {
+                Button(action: copy) {
+                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                        .contentTransition(.symbolEffect(.replace))
+                        .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
+                }
+                .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
+                .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
+            }
+            if canUndo {
+                Button(action: undo) {
+                    Image(systemName: "arrow.uturn.backward")
+                }
+                .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
+                .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
+            }
+            Button(action: close) {
+                Image(systemName: "xmark")
+            }
+            .help(loc("Zamknij", "Close"))
+            .accessibilityLabel(loc("Zamknij", "Close"))
         }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.large)
     }
 
     private func copy() {
@@ -403,12 +389,17 @@ struct PopupView: View {
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
     }
 
+    /// Icon only, on the reader's refresh symbol: same action, same shape, and the tooltip carries the full sentence
+    /// plus the ⌘↩ shortcut, so dropping the label costs a screen reader nothing.
     private var retranslateButton: some View {
-        Button(model.action.displayName, systemImage: "arrow.trianglehead.clockwise", action: runRetranslate)
-            .buttonStyle(.glass)
-            .controlSize(.small)
-            .disabled(!canRetranslate)
-            .opacity(canRetranslate ? 1 : 0)
+        Button(action: runRetranslate) {
+            Image(systemName: "arrow.trianglehead.clockwise")
+        }
+        .buttonStyle(.glass)
+        .buttonBorderShape(.circle)
+        .controlSize(.small)
+        .disabled(!canRetranslate)
+        .opacity(canRetranslate ? 1 : 0)
         .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
         .accessibilityLabel(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"))
     }
