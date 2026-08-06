@@ -25,6 +25,11 @@ final class SettingsStore {
     @ObservationIgnored private let loginItem: any LoginItemManaging
     @ObservationIgnored private let writeAPIKey: (String) -> Void
     @ObservationIgnored private let writeOllamaAPIKey: (String) -> Void
+    @ObservationIgnored private let readAPIKey: () -> String?
+    @ObservationIgnored private let readOllamaAPIKey: () -> String?
+    @ObservationIgnored private var keysLoaded = false
+    /// Set while `loadAPIKeys` seeds the two properties, so their `didSet` doesn't write what it just read back.
+    @ObservationIgnored private var loadingKeys = false
 
     var modelName: String {
         didSet { defaults.set(modelName, forKey: Key.model) }
@@ -53,18 +58,33 @@ final class SettingsStore {
     }
 
     /// Not UserDefaults-backed: the Keychain is the source of truth, like `launchAtLogin` deferring to SMAppService.
+    /// Empty until `loadAPIKeys()` — see it for why the read can't happen in `init`.
     var apiKey: String {
         didSet {
-            guard apiKey != oldValue else { return }
+            guard !loadingKeys, apiKey != oldValue else { return }
             writeAPIKey(apiKey)
         }
     }
 
     var ollamaAPIKey: String {
         didSet {
-            guard ollamaAPIKey != oldValue else { return }
+            guard !loadingKeys, ollamaAPIKey != oldValue else { return }
             writeOllamaAPIKey(ollamaAPIKey)
         }
+    }
+
+    /// Reads both keys out of the Keychain, once, and only when a view that shows them is about to appear. Nothing else
+    /// needs them: `GeminiClient` and the Ollama Cloud `OllamaClient` call `APIKeyStore.read` themselves per request,
+    /// so these two properties exist purely to back the `SecureField`s in Settings and onboarding. Reading them in
+    /// `init` cost every launch two Keychain reads — and on a self-signed build, whose signature changes with every
+    /// release, that is two password prompts for keys the run may never use.
+    func loadAPIKeys() {
+        guard !keysLoaded else { return }
+        keysLoaded = true
+        loadingKeys = true
+        apiKey = readAPIKey() ?? ""
+        ollamaAPIKey = readOllamaAPIKey() ?? ""
+        loadingKeys = false
     }
 
     var primaryLanguage: PrimaryLanguage {
@@ -115,13 +135,15 @@ final class SettingsStore {
         defaults: UserDefaults = .standard,
         loginItem: any LoginItemManaging = SMAppServiceLoginItem(),
         systemLanguages: [String] = Locale.preferredLanguages,
-        readAPIKey: () -> String? = { APIKeyStore.read() },
+        readAPIKey: @escaping () -> String? = { APIKeyStore.read() },
         writeAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0) },
-        readOllamaAPIKey: () -> String? = { APIKeyStore.read(account: APIKeyStore.ollamaAccount) },
+        readOllamaAPIKey: @escaping () -> String? = { APIKeyStore.read(account: APIKeyStore.ollamaAccount) },
         writeOllamaAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0, account: APIKeyStore.ollamaAccount) }
     ) {
         self.defaults = defaults
         self.loginItem = loginItem
+        self.readAPIKey = readAPIKey
+        self.readOllamaAPIKey = readOllamaAPIKey
         self.writeAPIKey = writeAPIKey
         self.writeOllamaAPIKey = writeOllamaAPIKey
         self.modelName = defaults.string(forKey: Key.model) ?? EmbeddedModelCatalog.recommended.id
@@ -129,8 +151,8 @@ final class SettingsStore {
             .flatMap(LLMProvider.init(rawValue:)) ?? .local
         self.cloudModel = defaults.string(forKey: Key.cloudModel) ?? CloudModelCatalog.default.id
         self.ollamaCloudModel = defaults.string(forKey: Key.ollamaCloudModel) ?? OllamaCloudCatalog.defaultModel
-        self.apiKey = readAPIKey() ?? ""
-        self.ollamaAPIKey = readOllamaAPIKey() ?? ""
+        self.apiKey = ""
+        self.ollamaAPIKey = ""
         let primary = defaults.string(forKey: Key.primaryLanguage)
             .flatMap(PrimaryLanguage.init(rawValue:))
             ?? (defaults.object(forKey: Key.hasCompletedOnboarding) != nil

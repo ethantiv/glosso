@@ -87,6 +87,7 @@ struct SettingsView: View {
         .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
+            store.loadAPIKeys()
             await loadModels()
         }
         .task(id: store.provider) {

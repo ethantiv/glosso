@@ -175,6 +175,31 @@ import Testing
         #expect(defaults.dictionaryRepresentation().values.allSatisfy { ($0 as? String) != "AIza-secret" })
     }
 
+    @Test func theKeychainIsUntouchedUntilAViewAsksForTheKeys() {
+        // On a self-signed build the signature changes every release, so each Keychain read is a password prompt.
+        // Nothing but the two SecureFields needs these — the clients read the Keychain themselves, per request.
+        let reads = Counter()
+        let writes = KeyBox()
+        let store = SettingsStore(
+            defaults: transientDefaults(),
+            readAPIKey: { reads.bump(); return "AIza-secret" },
+            writeAPIKey: { writes.value = $0 },
+            readOllamaAPIKey: { reads.bump(); return "ollama-secret" },
+            writeOllamaAPIKey: { _ in }
+        )
+        #expect(reads.value == 0)
+        #expect(store.apiKey.isEmpty)
+
+        store.loadAPIKeys()
+        #expect(store.apiKey == "AIza-secret")
+        #expect(store.ollamaAPIKey == "ollama-secret")
+        // Seeding must not look like an edit, or every open of Settings would write the key straight back.
+        #expect(writes.value == nil)
+
+        store.loadAPIKeys()
+        #expect(reads.value == 2)
+    }
+
     @Test func activeModelFollowsTheOllamaCloudProvider() {
         // Three engines, three naming schemes: `gemma4:31b` means nothing to Gemini and `gemma-4-31b-it` means nothing to Ollama.
         let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in },
@@ -283,4 +308,12 @@ private final class KeyBox: @unchecked Sendable {
         get { lock.withLock { stored } }
         set { lock.withLock { stored = newValue } }
     }
+}
+
+private final class Counter: @unchecked Sendable {
+    private let lock = NSLock()
+    private var count = 0
+
+    var value: Int { lock.withLock { count } }
+    func bump() { lock.withLock { count += 1 } }
 }

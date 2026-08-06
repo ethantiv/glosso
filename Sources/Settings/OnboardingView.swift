@@ -28,7 +28,10 @@ struct OnboardingView: View {
             footer
         }
         .frame(minWidth: 520, minHeight: 470)
-        .task { await refresh() }
+        .task {
+            store.loadAPIKeys()
+            await refresh()
+        }
     }
 
     // MARK: Header & footer
