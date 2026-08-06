@@ -742,14 +742,10 @@ struct PopupView: View {
             count: model.alternatives.count, loading: model.altsLoading)
     }
 
-    /// Horizontally the dropdown tracks the word; vertically it hangs off the card's bottom edge, never over the card.
-    /// The card is opaque, so glass drawn over it samples flat white and renders as an opaque box — only the window's
-    /// transparent area below the card lets the material show anything. `container` spans the card plus `reservedBottom`,
-    /// which is exactly the strip the dropdown drops into.
     private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
         let maxX = max(dropdownShadowPad, container.width - AlternativesDropdown.width - dropdownShadowPad)
         let x = min(max(dropdownShadowPad, wordRect.minX), maxX)
-        let y = max(dropdownShadowPad, container.height - reservedBottom + dropdownGap)
+        let y = max(dropdownShadowPad, wordRect.maxY + dropdownGap)
         return CGSize(width: x, height: y)
     }
 

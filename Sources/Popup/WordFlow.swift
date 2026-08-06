@@ -168,13 +168,18 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        // A popover is one of the surfaces HIG names for regular Liquid Glass. It carries no backdrop of its own —
-        // `dropdownOffset` keeps it entirely below the card, over the window's transparent area, so the material samples
-        // the desktop uniformly. Over the card it would sample flat white and render as an opaque white box, and
-        // straddling the edge it sampled both and rendered one popover split by a horizontal seam.
-        .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rPane))
+        // The one control in the popup that isn't glass, and it can't be. HIG names popovers as a regular Liquid Glass
+        // surface, but glass shows whatever is behind it, and this one opens under the clicked word — over the card's
+        // flat white, where it renders as an opaque box anyway, then past the card's bottom edge, where it switches to
+        // the desktop and splits the popover along a hard horizontal line. Anchoring to the word wins over the material,
+        // so the fill is explicit and depth comes from the shadow instead.
+        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: PopupTheme.rPane))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        .overlay(
+            RoundedRectangle(cornerRadius: PopupTheme.rPane)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
+        .shadow(color: .black.opacity(0.28), radius: 16, y: 6)
     }
 
     @ViewBuilder
