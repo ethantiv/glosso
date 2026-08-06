@@ -168,12 +168,11 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        // A popover is one of the surfaces HIG names for regular Liquid Glass. The opaque fill goes *behind* the glass,
-        // not instead of it: this overlay protrudes past the card into the window's transparent shadow margin, so
-        // without a backdrop of its own the material samples the panel on its upper half and the desktop on its lower
-        // one and renders one popover split by a horizontal seam. The fill gives it one backdrop over its whole height.
+        // A popover is one of the surfaces HIG names for regular Liquid Glass. It carries no backdrop of its own —
+        // `dropdownOffset` keeps it entirely below the card, over the window's transparent area, so the material samples
+        // the desktop uniformly. Over the card it would sample flat white and render as an opaque white box, and
+        // straddling the edge it sampled both and rendered one popover split by a horizontal seam.
         .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rPane))
-        .background(Color(nsColor: .controlBackgroundColor), in: .rect(cornerRadius: PopupTheme.rPane))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
