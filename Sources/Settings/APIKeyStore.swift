@@ -34,8 +34,25 @@ enum APIKeyStore {
             var insert = baseQuery(account)
             insert[kSecValueData as String] = data
             insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+            if let access = anyApplicationAccess() {
+                insert[kSecAttrAccess as String] = access
+            }
             SecItemAdd(insert as CFDictionary, nil)
         }
+    }
+
+    /// An ACL with an empty trusted-application list, which the Keychain reads as "any application" — the programmatic
+    /// form of Keychain Access's "Allow all applications", and of `security add-generic-password -A`. Without it
+    /// `SecItemAdd` pins the item to the binary that created it, and since the app is signed with a self-signed identity
+    /// whose binary changes with every release, each update would ask for the login password before the key could be
+    /// read. The trade-off is deliberate: any process on the Mac can then read the key without a prompt. The alternative
+    /// — the data-protection keychain, which has no ACLs at all — needs a stable Team ID this project doesn't have.
+    /// Only new items are affected; `SecItemUpdate` leaves an existing item's ACL alone. The deprecation warning on
+    /// `SecAccessCreate` is expected and load-bearing: setting an ACL on a file-keychain item has no replacement API.
+    private static func anyApplicationAccess() -> SecAccess? {
+        var access: SecAccess?
+        guard SecAccessCreate(service as CFString, [] as CFArray, &access) == errSecSuccess else { return nil }
+        return access
     }
 
     static func delete(account: String = googleAccount) {
