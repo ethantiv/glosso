@@ -168,9 +168,15 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        // Glass, like any macOS menu: it floats over the panel's opaque surface, which is the layer glass belongs to.
-        .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rPane))
+        // Opaque, unlike every other control in the popup: this overlay protrudes past the card into the window's
+        // transparent shadow margin, so glass samples the panel on its upper half and the desktop on its lower one and
+        // renders one popover split by a horizontal seam. Verified on screen, twice — a real macOS menu is opaque anyway.
+        .background(Color(nsColor: .controlBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
+        .overlay(
+            RoundedRectangle(cornerRadius: PopupTheme.rPane)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
