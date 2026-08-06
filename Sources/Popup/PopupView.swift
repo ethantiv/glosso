@@ -160,18 +160,41 @@ struct PopupView: View {
         .padding(.bottom, PopupTheme.padWindow)
     }
 
-    /// Four mutually exclusive verbs in one segmented capsule, the same shape the reader's toolbar uses for its
-    /// language sides; the case order is load-bearing (it drives prefetch too). The filled segment is what marks the
-    /// active verb — four glass capsules with a prominent one made every verb read as a primary action.
+    /// One glass capsule with a filled segment marking the choice — the shape the reader's toolbar gets for free from
+    /// `NSSegmentedControl`. Rebuilt here because a borderless non-activating panel can't carry a toolbar, and a plain
+    /// segmented control on an opaque card renders as a flat gray track with no depth at all.
+    private func glassSegments<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {
+        HStack(spacing: 2) { content() }
+            .padding(3)
+            .glassEffect(.regular, in: .capsule)
+    }
+
+    private func segment(_ label: some View, selected: Bool, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            label
+                .font(PopupTheme.fontControl)
+                .fontWeight(selected ? .semibold : .regular)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 4)
+                // The marker rides on the label, not on the button style: inside one glass shape a per-button style
+                // has no appearance of its own to carry it.
+                .background { if selected { Capsule().fill(.selection) } }
+                .contentShape(Capsule())
+        }
+        .buttonStyle(.plain)
+        .accessibilityAddTraits(selected ? .isSelected : [])
+    }
+
+    /// The case order is load-bearing — it drives the background prefetch too.
     private var verbPicker: some View {
-        Picker(loc("Co zrobić z zaznaczeniem", "What to do with the selection"), selection: verbSelection) {
+        glassSegments {
             ForEach(Action.allCases, id: \.self) { action in
-                Label(action.displayName, systemImage: action.systemImage).tag(action)
+                segment(Label(action.displayName, systemImage: action.systemImage),
+                        selected: action == model.action) { verbSelection.wrappedValue = action }
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
+        .accessibilityElement(children: .contain)
+        .accessibilityLabel(loc("Co zrobić z zaznaczeniem", "What to do with the selection"))
     }
 
     private var verbSelection: Binding<Action> {
@@ -206,17 +229,16 @@ struct PopupView: View {
         }
     }
 
-    /// Segmented, like the verbs and like the reader's language sides: three mutually exclusive tones, all three
-    /// visible. The click-to-cycle pill this replaced hid the options a person was choosing between.
+    /// Same capsule as the verbs: three mutually exclusive tones, all three visible. The click-to-cycle pill this
+    /// replaced hid the options a person was choosing between.
     private var tonePicker: some View {
-        Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
+        glassSegments {
             ForEach(Formality.allCases, id: \.self) { formality in
-                Text(formality.displayName).tag(formality)
+                segment(Text(formality.displayName),
+                        selected: formality == model.formality) { toneSelection.wrappedValue = formality }
             }
         }
-        .pickerStyle(.segmented)
-        .labelsHidden()
-        .fixedSize()
+        .accessibilityElement(children: .contain)
         .accessibilityLabel(loc("Ton wypowiedzi", "Tone"))
     }
 
@@ -307,36 +329,30 @@ struct PopupView: View {
     /// Separate circles with room between them, the way the reader's toolbar items sit — HIG asks for enough space
     /// around a button to tell it apart from its neighbours, and for a hit region a merged capsule can't offer.
     private var headerButtons: some View {
+        // `Button(title:systemImage:)` + `.labelStyle(.iconOnly)` is the documented shape for an icon-only button: the
+        // title never draws but still names the control for VoiceOver, so no separate `.accessibilityLabel` is needed.
         HStack(spacing: 8) {
             if canReplace {
-                Button(action: { replace(model.text) }) {
-                    Image(systemName: "text.insert")
-                }
-                .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
-                .accessibilityLabel(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
+                Button(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"),
+                       systemImage: "text.insert") { replace(model.text) }
+                    .help(loc("Zastąp zaznaczenie tłumaczeniem", "Replace the selection with the translation"))
             }
             if canCopy {
-                Button(action: copy) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
-                        .contentTransition(.symbolEffect(.replace))
-                        .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
-                }
-                .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
-                .accessibilityLabel(loc("Kopiuj tłumaczenie", "Copy the translation"))
+                Button(loc("Kopiuj tłumaczenie", "Copy the translation"),
+                       systemImage: copied ? "checkmark" : "doc.on.doc", action: copy)
+                    .contentTransition(.symbolEffect(.replace))
+                    .foregroundStyle(copied ? AnyShapeStyle(Color.green) : AnyShapeStyle(.primary))
+                    .help(loc("Kopiuj tłumaczenie", "Copy the translation"))
             }
             if canUndo {
-                Button(action: undo) {
-                    Image(systemName: "arrow.uturn.backward")
-                }
-                .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
-                .accessibilityLabel(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
+                Button(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"),
+                       systemImage: "arrow.uturn.backward", action: undo)
+                    .help(loc("Przywróć poprzednie tłumaczenie", "Restore the previous translation"))
             }
-            Button(action: close) {
-                Image(systemName: "xmark")
-            }
-            .help(loc("Zamknij", "Close"))
-            .accessibilityLabel(loc("Zamknij", "Close"))
+            Button(loc("Zamknij", "Close"), systemImage: "xmark", action: close)
+                .help(loc("Zamknij", "Close"))
         }
+        .labelStyle(.iconOnly)
         .buttonStyle(.glass)
         .buttonBorderShape(.circle)
         .controlSize(.large)
@@ -389,19 +405,17 @@ struct PopupView: View {
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
     }
 
-    /// Icon only, on the reader's refresh symbol: same action, same shape, and the tooltip carries the full sentence
-    /// plus the ⌘↩ shortcut, so dropping the label costs a screen reader nothing.
+    /// The reader's refresh symbol for the same action; the title stays for VoiceOver and the tooltip adds the ⌘↩.
     private var retranslateButton: some View {
-        Button(action: runRetranslate) {
-            Image(systemName: "arrow.trianglehead.clockwise")
-        }
-        .buttonStyle(.glass)
-        .buttonBorderShape(.circle)
-        .controlSize(.small)
-        .disabled(!canRetranslate)
-        .opacity(canRetranslate ? 1 : 0)
-        .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
-        .accessibilityLabel(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"))
+        Button(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"),
+               systemImage: "arrow.trianglehead.clockwise", action: runRetranslate)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.small)
+            .disabled(!canRetranslate)
+            .opacity(canRetranslate ? 1 : 0)
+            .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
     }
 
     private func runRetranslate() {
