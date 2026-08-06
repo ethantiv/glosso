@@ -15,14 +15,13 @@ struct SettingsView: View {
     @State private var pulling: [String: Double] = [:]
     @State private var quota: (used: Int, limit: Int)?
 
-    private let recommendedModel = EmbeddedModelCatalog.recommended.id
-
-    private var otherInstalledModels: [String] {
-        let catalogIDs = Set(EmbeddedModelCatalog.models.map(\.id))
-        return models.filter { !catalogIDs.contains($0) }.sorted()
+    /// The active pick is always in the list, even when it isn't installed yet — otherwise the picker blanks out and nothing on screen names the model in use.
+    private var installedModelChoices: [String] {
+        var ids = Set(models)
+        ids.insert(store.modelName)
+        return ids.sorted()
     }
 
-    /// The active pick is always in the list, even when the fetch failed or the model was retired — otherwise the picker vanishes and nothing on screen names the model in use.
     private var otherOllamaCloudModels: [String] {
         var ids = Set(ollamaCloudModels)
         ids.insert(store.ollamaCloudModel)
@@ -30,18 +29,61 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        VStack(spacing: 0) {
-            titleBar
-            settingsGroups
+        Form {
+            Section(loc("Silnik", "Engine")) {
+                Picker(loc("Silnik tłumaczenia", "Translation engine"), selection: $store.provider) {
+                    ForEach(LLMProvider.allCases, id: \.self) { option in
+                        Text(option.displayName).tag(option)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                if store.provider == .cloud { cloudSection }
+                if store.provider == .ollamaCloud { ollamaCloudSection }
+            }
+
+            // Either cloud falls back to this one on a spent quota or a dead key, so it has to be installable here.
+            Section(store.provider == .local ? loc("Model", "Model") : loc("Model zapasowy", "Fallback model")) {
+                Picker(loc("Aktywny model", "Active model"), selection: $store.modelName) {
+                    ForEach(installedModelChoices, id: \.self) { id in
+                        Text(displayName(forInstalled: id)).tag(id)
+                    }
+                }
+                ModelCatalogList(
+                    installed: models,
+                    activeID: store.modelName,
+                    pulling: pulling,
+                    allowsDelete: true,
+                    download: startPull,
+                    delete: deleteModel
+                )
+            }
+
+            Section(loc("Ogólne", "General")) {
+                Picker(loc("Język główny", "Primary language"), selection: $store.primaryLanguage) {
+                    ForEach(PrimaryLanguage.allCases, id: \.self) { lang in
+                        Text(lang.displayName).tag(lang)
+                    }
+                }
+                Picker(loc("Drugi język", "Second language"), selection: $store.secondLanguage) {
+                    Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
+                    ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { lang in
+                        Text(lang.displayName).tag(SecondLanguage?.some(lang))
+                    }
+                }
+                Toggle(loc("Uruchamiaj przy logowaniu", "Launch at login"), isOn: $store.launchAtLogin)
+            }
+
+            Section(loc("Skróty", "Shortcuts")) {
+                // An HStack, not LabeledContent: the recorder is an NSView with a fixed height, and LabeledContent
+                // drops it below the label's baseline instead of centring it on the row.
+                chordRow(loc("Popraw w miejscu", "Fix in place"),
+                         chord: $store.fixChord, other: store.translateInPlaceChord)
+                chordRow(loc("Tłumacz w miejscu", "Translate in place"),
+                         chord: $store.translateInPlaceChord, other: store.fixChord)
+            }
         }
-        .frame(width: 460, alignment: .top)
-        .ignoresSafeArea(.container, edges: .top)
-        .tint(PopupTheme.accent)
-        .toolbar(removing: .title)
-        .toolbarBackgroundVisibility(.hidden, for: .windowToolbar)
-        .containerBackground(for: .window) {
-            PopupTheme.surface
-        }
+        .formStyle(.grouped)
         .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
@@ -60,265 +102,63 @@ struct SettingsView: View {
         }
     }
 
-    private var titleBar: some View {
-        Text(loc("Ustawienia", "Settings"))
-            .font(.system(size: 13, weight: .semibold))
-            .foregroundStyle(.primary)
-            .frame(maxWidth: .infinity)
-            .frame(height: 38)
-            .overlay(alignment: .bottom) {
-                Rectangle().fill(PopupTheme.hairline).frame(height: 0.5)
-            }
-    }
-
-    private var settingsGroups: some View {
-        VStack(spacing: 14) {
-            group("Model") {
-                row(loc("Silnik", "Engine")) {
-                    Picker("", selection: $store.provider) {
-                        ForEach(LLMProvider.allCases, id: \.self) { option in
-                            Text(option.displayName).tag(option)
-                        }
-                    }
-                    .labelsHidden()
-                    .pickerStyle(.segmented)
-                    .accessibilityLabel(loc("Silnik tłumaczenia", "Translation engine"))
-                    .fixedSize()
-                }
-                rowDivider
-                if store.provider != .local {
-                    if store.provider == .cloud { cloudSection } else { ollamaCloudSection }
-                    rowDivider
-                    // Either cloud falls back to this one on a spent quota or a dead key, so it has to be installable here.
-                    row(loc("Model zapasowy", "Fallback model")) { EmptyView() }
-                }
-                ForEach(Array(EmbeddedModelCatalog.models.enumerated()), id: \.element.id) { index, entry in
-                    if index > 0 { rowDivider }
-                    modelRow(
-                        id: entry.id,
-                        title: entry.displayName,
-                        icon: entry.icon,
-                        size: entry.size,
-                        isDownloaded: models.contains(entry.id),
-                        isRecommended: entry.id == recommendedModel
-                    )
-                }
-                if !otherInstalledModels.isEmpty {
-                    rowDivider
-                    otherModelsRow
-                }
-            }
-
-            group(loc("Ogólne", "General")) {
-                row(loc("Język główny", "Primary language")) {
-                    Picker("", selection: $store.primaryLanguage) {
-                        ForEach(PrimaryLanguage.allCases, id: \.self) { lang in
-                            Text(lang.displayName).tag(lang)
-                        }
-                    }
-                    .labelsHidden()
-                    .accessibilityLabel(loc("Język główny", "Primary language"))
-                    .fixedSize()
-                }
-                rowDivider
-                row(loc("Drugi język", "Second language")) {
-                    Picker("", selection: $store.secondLanguage) {
-                        Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
-                        ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { lang in
-                            Text(lang.displayName).tag(SecondLanguage?.some(lang))
-                        }
-                    }
-                    .labelsHidden()
-                    .accessibilityLabel(loc("Drugi język", "Second language"))
-                    .fixedSize()
-                }
-                rowDivider
-                row(loc("Uruchamiaj przy logowaniu", "Launch at login")) {
-                    Toggle("", isOn: $store.launchAtLogin)
-                        .labelsHidden()
-                        .accessibilityLabel(loc("Uruchamiaj przy logowaniu", "Launch at login"))
-                        .toggleStyle(.switch)
-                }
-            }
-
-            group(loc("Skróty", "Shortcuts")) {
-                row(loc("Popraw w miejscu", "Fix in place")) {
-                    KeyChordRecorder(chord: $store.fixChord, otherChord: store.translateInPlaceChord)
-                        .frame(width: 96, height: 24)
-                        .accessibilityLabel(loc("Skrót: popraw w miejscu", "Shortcut: fix in place"))
-                }
-                rowDivider
-                row(loc("Tłumacz w miejscu", "Translate in place")) {
-                    KeyChordRecorder(chord: $store.translateInPlaceChord, otherChord: store.fixChord)
-                        .frame(width: 96, height: 24)
-                        .accessibilityLabel(loc("Skrót: tłumacz w miejscu", "Shortcut: translate in place"))
-                }
-            }
-        }
-        .padding(16)
-    }
-
     @ViewBuilder private var cloudSection: some View {
-        row(loc("Klucz API", "API key")) {
-            SecureField("", text: $store.apiKey)
-                .textFieldStyle(.roundedBorder)
-                .labelsHidden()
-                .accessibilityLabel(loc("Klucz API Google AI", "Google AI API key"))
-                .frame(width: 200)
+        // The Keychain read lives here, not on the window: under the local provider this section never renders, and
+        // asking for the login password to fill a field nobody can see is the whole bug this avoids.
+        SecureField(loc("Klucz API", "API key"), text: $store.apiKey)
+            .task { store.loadGoogleAPIKey() }
+        Link(loc("Pobierz darmowy klucz w Google AI Studio",
+                 "Get a free key in Google AI Studio"),
+             destination: URL(string: "https://aistudio.google.com/apikey")!)
+        Picker(loc("Model", "Model"), selection: $store.cloudModel) {
+            ForEach(CloudModelCatalog.models, id: \.id) { entry in
+                Label(entry.displayName, systemImage: entry.icon).tag(entry.id)
+            }
         }
-        rowDivider
-        row("") {
-            Link(loc("Pobierz darmowy klucz w Google AI Studio",
-                     "Get a free key in Google AI Studio"),
-                 destination: URL(string: "https://aistudio.google.com/apikey")!)
-                .font(PopupTheme.fontMeta)
-        }
-        ForEach(Array(CloudModelCatalog.models.enumerated()), id: \.element.id) { _, entry in
-            rowDivider
-            cloudModelRow(id: entry.id, displayName: entry.displayName, icon: entry.icon,
-                          isActive: store.cloudModel == entry.id) { store.cloudModel = entry.id }
-        }
-        rowDivider
-        row(loc("Zapytania dzisiaj", "Requests today")) {
+        .pickerStyle(.radioGroup)
+        LabeledContent(loc("Zapytania dzisiaj", "Requests today")) {
             Text(quota.map { "\($0.used) / \($0.limit)" } ?? "—")
-                .font(PopupTheme.fontMeta)
                 .foregroundStyle(.secondary)
         }
-        rowDivider
-        Label(loc("W tym trybie zaznaczony tekst jest wysyłany do Google.",
-                  "In this mode the selected text is sent to Google."),
-              systemImage: "exclamationmark.triangle.fill")
-            .font(PopupTheme.fontMeta)
-            .foregroundStyle(PopupTheme.warn)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .fixedSize(horizontal: false, vertical: true)
+        privacyNote(loc("W tym trybie zaznaczony tekst jest wysyłany do Google.",
+                        "In this mode the selected text is sent to Google."))
     }
 
     @ViewBuilder private var ollamaCloudSection: some View {
-        row(loc("Klucz API", "API key")) {
-            SecureField("", text: $store.ollamaAPIKey)
-                .textFieldStyle(.roundedBorder)
-                .labelsHidden()
-                .accessibilityLabel(loc("Klucz API Ollama Cloud", "Ollama Cloud API key"))
-                .frame(width: 200)
-        }
-        rowDivider
-        row("") {
-            Link(loc("Utwórz klucz na ollama.com", "Create a key on ollama.com"),
-                 destination: URL(string: "https://ollama.com/settings/keys")!)
-                .font(PopupTheme.fontMeta)
-        }
-        rowDivider
-        cloudModelRow(id: OllamaCloudCatalog.defaultModel, displayName: "Gemma",
-                      icon: "gauge.with.dots.needle.100percent",
-                      isActive: store.ollamaCloudModel == OllamaCloudCatalog.defaultModel) {
-            store.ollamaCloudModel = OllamaCloudCatalog.defaultModel
-        }
-        if !otherOllamaCloudModels.isEmpty {
-            rowDivider
-            row(loc("Inne modele", "Other models")) {
-                Picker("", selection: $store.ollamaCloudModel) {
-                    ForEach(otherOllamaCloudModels, id: \.self) { name in
-                        Text(name).tag(name)
-                    }
-                }
-                .labelsHidden()
-                .accessibilityLabel(loc("Inny model chmurowy", "Other cloud model"))
-                .fixedSize()
+        SecureField(loc("Klucz API", "API key"), text: $store.ollamaAPIKey)
+            .task { store.loadOllamaAPIKey() }
+        Link(loc("Utwórz klucz na ollama.com", "Create a key on ollama.com"),
+             destination: URL(string: "https://ollama.com/settings/keys")!)
+        Picker(loc("Model", "Model"), selection: $store.ollamaCloudModel) {
+            Text("Gemma — \(OllamaCloudCatalog.defaultModel)").tag(OllamaCloudCatalog.defaultModel)
+            ForEach(otherOllamaCloudModels, id: \.self) { name in
+                Text(name).tag(name)
             }
         }
-        rowDivider
-        Label(loc("W tym trybie zaznaczony tekst jest wysyłany do Ollamy.",
-                  "In this mode the selected text is sent to Ollama."),
-              systemImage: "exclamationmark.triangle.fill")
-            .font(PopupTheme.fontMeta)
-            .foregroundStyle(PopupTheme.warn)
-            .padding(.horizontal, 13)
-            .padding(.vertical, 8)
-            .frame(maxWidth: .infinity, alignment: .leading)
+        privacyNote(loc("W tym trybie zaznaczony tekst jest wysyłany do Ollamy.",
+                        "In this mode the selected text is sent to Ollama."))
+    }
+
+    private func chordRow(_ label: String, chord: Binding<KeyChord>, other: KeyChord) -> some View {
+        HStack {
+            Text(label)
+            Spacer(minLength: 12)
+            KeyChordRecorder(chord: chord, otherChord: other)
+                .frame(width: 96, height: 24)
+                .accessibilityLabel(loc("Skrót: \(label)", "Shortcut: \(label)"))
+        }
+    }
+
+    private func privacyNote(_ text: String) -> some View {
+        Label(text, systemImage: "exclamationmark.triangle.fill")
+            .symbolRenderingMode(.multicolor)
+            .foregroundStyle(.secondary)
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    private func cloudModelRow(id: String, displayName: String, icon: String, isActive: Bool, select: @escaping () -> Void) -> some View {
-        HStack(spacing: 12) {
-            Button(action: select) {
-                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(isActive ? PopupTheme.accent : Color.secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(isActive)
-            .accessibilityLabel(loc("Użyj modelu \(displayName)", "Use model \(displayName)"))
-            .accessibilityAddTraits(isActive ? .isSelected : [])
-
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(.secondary)
-                .frame(width: 22)
-
-            Text(displayName).font(PopupTheme.fontSource)
-            Spacer(minLength: 8)
-            Text(id)
-                .font(PopupTheme.fontMeta)
-                .foregroundStyle(.secondary)
-        }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
-    }
-
-    private var otherModelsRow: some View {
-        row(loc("Inne zainstalowane", "Other installed")) {
-            Picker("", selection: $store.modelName) {
-                ForEach(otherInstalledModels, id: \.self) { name in
-                    Text(name).tag(name)
-                }
-            }
-            .labelsHidden()
-            .accessibilityLabel(loc("Inny zainstalowany model", "Other installed model"))
-            .fixedSize()
-        }
-    }
-
-    private func group<Content: View>(_ title: String, @ViewBuilder content: () -> Content) -> some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text(title.uppercased())
-                .font(PopupTheme.fontLabel)
-                .tracking(0.5)
-                .foregroundStyle(.tertiary)
-                .padding(.horizontal, 13)
-                .padding(.top, 10)
-                .padding(.bottom, 2)
-            content()
-        }
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(PopupTheme.groupedCard, in: RoundedRectangle(cornerRadius: PopupTheme.rPane))
-        .overlay(
-            RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
-        )
-    }
-
-    private func row<Control: View>(
-        _ label: String,
-        @ViewBuilder control: () -> Control
-    ) -> some View {
-        HStack(spacing: 12) {
-            Text(label)
-                .font(PopupTheme.fontSource)
-                .foregroundStyle(.primary)
-            Spacer(minLength: 8)
-            HStack(spacing: 8) { control() }
-        }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
-    }
-
-    private var rowDivider: some View {
-        Rectangle()
-            .fill(PopupTheme.hairline)
-            .frame(height: 0.5)
+    private func displayName(forInstalled id: String) -> String {
+        guard let entry = EmbeddedModelCatalog.models.first(where: { $0.id == id }) else { return id }
+        return "\(entry.displayName) — \(id)"
     }
 
     private func loadModels() async {
@@ -332,80 +172,6 @@ struct SettingsView: View {
             guard generation == loadGeneration else { return }
             models = []
         }
-    }
-
-    private func modelRow(
-        id: String,
-        title: String,
-        icon: String,
-        size: String,
-        isDownloaded: Bool,
-        isRecommended: Bool
-    ) -> some View {
-        let isActive = store.modelName == id
-        return HStack(spacing: 12) {
-            Button { store.modelName = id } label: {
-                Image(systemName: isActive ? "largecircle.fill.circle" : "circle")
-                    .font(.system(size: 16))
-                    .foregroundStyle(isActive ? PopupTheme.accent : Color.secondary)
-            }
-            .buttonStyle(.plain)
-            .disabled(!isDownloaded || isActive)
-            .accessibilityLabel(loc("Użyj modelu \(title)", "Use model \(title)"))
-            .accessibilityAddTraits(isActive ? .isSelected : [])
-
-            Image(systemName: icon)
-                .font(.system(size: 16))
-                .foregroundStyle(.secondary)
-                .frame(width: 20)
-                .help(title)
-                .accessibilityLabel(title)
-            Text(id)
-                .font(PopupTheme.fontMeta)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.tail)
-            Spacer(minLength: 8)
-
-            Group { if isRecommended { recommendedBadge } }
-                .frame(width: 64, alignment: .trailing)
-            if let progress = pulling[id] {
-                ProgressView(value: progress)
-                    .controlSize(.small)
-                    .frame(width: 116)
-            } else {
-                Text(size)
-                    .font(PopupTheme.fontMeta)
-                    .foregroundStyle(.secondary)
-                    .lineLimit(1)
-                    .frame(width: 52, alignment: .leading)
-                Group {
-                    if isDownloaded {
-                        Button(loc("Usuń", "Delete")) { deleteModel(id) }
-                            .buttonStyle(.link)
-                            .disabled(isActive)
-                    } else {
-                        Button(loc("Pobierz", "Download")) { startPull(id) }
-                            .buttonStyle(.link)
-                    }
-                }
-                .lineLimit(1)
-                .frame(width: 60, alignment: .trailing)
-            }
-        }
-        .padding(.horizontal, 13)
-        .padding(.vertical, 8)
-    }
-
-    private var recommendedBadge: some View {
-        Text(loc("Zalecany", "Recommended"))
-            .font(PopupTheme.fontLabel)
-            .foregroundStyle(PopupTheme.accent)
-            .lineLimit(1)
-            .fixedSize()
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(PopupTheme.accent.opacity(0.12), in: Capsule())
     }
 
     private func startPull(_ model: String) {
@@ -430,43 +196,21 @@ struct SettingsView: View {
     }
 }
 
+/// Three things the Settings scene can't say for itself: an `LSUIElement` app's window has to follow to whichever Space
+/// is active; the system-composed title ("Glosso Settings") comes from the unlocalized bundle even on a Polish system;
+/// and a `Settings` scene ships without `.resizable` whatever `windowResizability` says, so the zoom button stays dead
+/// and the form can't be grown — which is exactly what "support arbitrary window sizes" rules out.
 private struct SettingsWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { ConfiguringView() }
     func updateNSView(_ nsView: NSView, context: Context) {}
 
     private final class ConfiguringView: NSView {
-        private var observers: [NSObjectProtocol] = []
-
-        override func viewWillMove(toWindow newWindow: NSWindow?) {
-            super.viewWillMove(toWindow: newWindow)
-            if newWindow == nil {
-                observers.forEach(NotificationCenter.default.removeObserver)
-                observers.removeAll()
-            }
-        }
-
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard let window, observers.isEmpty else { return }
-            DispatchQueue.main.async { [weak self] in self?.configure(window) }
-
-            let center = NotificationCenter.default
-            for name in [NSWindow.didBecomeKeyNotification, NSWindow.didBecomeMainNotification] {
-                observers.append(center.addObserver(forName: name, object: window, queue: .main) { [weak self] note in
-                    guard let window = note.object as? NSWindow else { return }
-                    MainActor.assumeIsolated { self?.configure(window) }
-                })
-            }
-        }
-
-        private func configure(_ window: NSWindow) {
+            guard let window else { return }
             window.collectionBehavior.insert(.moveToActiveSpace)
-            window.styleMask.insert(.fullSizeContentView)
-            window.titlebarAppearsTransparent = true
-            window.titleVisibility = .hidden
-            window.title = ""
-            window.titlebarSeparatorStyle = .none
-            window.isMovableByWindowBackground = true
+            window.title = loc("Ustawienia Glosso", "Glosso Settings")
+            window.styleMask.insert(.resizable)
         }
     }
 }

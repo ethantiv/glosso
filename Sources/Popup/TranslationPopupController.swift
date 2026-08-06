@@ -1,4 +1,5 @@
 import AppKit
+import QuartzCore
 import SwiftUI
 
 @MainActor
@@ -26,6 +27,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var moveObserver: NSObjectProtocol?
     private var sizeApplyScheduled = false
     private var isApplyingFrame = false
+    // Destination of the in-flight resize animation, nil when settled.
+    private var frameTarget: CGRect?
+    private var frameAnimSeq = 0
     private var resizeStartDelta: CGSize?
     private var anchorTopLeft: CGPoint = .zero
     private var anchorScreenFrame: CGRect = .zero
@@ -106,6 +110,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
         contentIdealSize = size
         applyContentSize()
         panel.orderFrontRegardless()
+        // Key on open, not only after the first click: the panel's controls and its editable source field are useless
+        // without keyboard, and forcing `appearsActive` made an unfocused panel look focused. `orderFrontRegardless`
+        // stays because a background agent's plain `orderFront` can be refused; `.nonactivatingPanel` is what keeps the
+        // app itself from activating, so the frontmost app stays frontmost and keeps its selection.
+        panel.makeKey()
 
         moveObserver = NotificationCenter.default.addObserver(
             forName: NSWindow.didMoveNotification, object: panel, queue: nil
@@ -208,10 +217,37 @@ final class TranslationPopupController: TranslationPopupPresenting {
         let target = CGRect(
             x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height
         )
-        guard target != panel.frame else { return }
+        // Compare against the in-flight destination, not the frame mid-animation, or every runloop turn restarts it.
+        guard target != (frameTarget ?? panel.frame) else { return }
+        // Not while the grip is being dragged (the window would lag the mouse), not before the panel is on screen,
+        // and not under reduce motion.
+        let animate = panel.isVisible && resizeStartDelta == nil
+            && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        guard animate else {
+            frameTarget = nil
+            isApplyingFrame = true
+            panel.setFrame(target, display: true)
+            isApplyingFrame = false
+            return
+        }
+        // `isApplyingFrame` has to outlive the animation: the didMove observer fires per animation step and would
+        // otherwise re-anchor the panel from a frame it is still travelling through. Same guard shape as the reader's
+        // chat resize — only the newest animation clears the flag.
+        frameAnimSeq += 1
+        let seq = frameAnimSeq
+        frameTarget = target
         isApplyingFrame = true
-        panel.setFrame(target, display: true)
-        isApplyingFrame = false
+        NSAnimationContext.runAnimationGroup({ context in
+            context.duration = 0.18
+            context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+            panel.animator().setFrame(target, display: true)
+        }, completionHandler: { [weak self] in
+            MainActor.assumeIsolated {
+                guard let self, self.frameAnimSeq == seq else { return }
+                self.frameTarget = nil
+                self.isApplyingFrame = false
+            }
+        })
     }
 
     private func handleResizeDrag(translation: CGSize, ended: Bool) {

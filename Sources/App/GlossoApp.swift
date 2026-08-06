@@ -60,6 +60,9 @@ struct GlossoApp: App {
                 limiter: appDelegate.cloudLimiter
             )
         }
+        .defaultSize(width: 520, height: 620)
+        // .contentMinSize, not .contentSize: the window grows as far as the user wants, it just can't shrink below the form.
+        .windowResizability(.contentMinSize)
     }
 }
 
@@ -132,6 +135,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             return
         }
 
+        if ProcessInfo.processInfo.environment["GLOSSO_FORCE_DARK"] != nil {
+            NSApp.appearance = NSAppearance(named: .darkAqua)
+        }
         appState.accessibilityGranted = ax.isTrusted
         if !ax.isTrusted {
             ax.requestAccess(prompt: true)

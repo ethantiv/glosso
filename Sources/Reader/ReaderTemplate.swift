@@ -106,8 +106,9 @@ enum ReaderTemplate {
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       :root { color-scheme: light dark;
-              --accent: light-dark(#4F5BD8, #98A2F8);
-              --accent-ink: light-dark(#4350C4, #A7B0FA);
+              /* Controls follow the user's accent; anything belonging to the article reads as ink, not a brand colour. */
+              --accent: AccentColor;
+              --accent-ink: color-mix(in srgb, CanvasText 78%, Canvas);
               --ink-soft: light-dark(#605D6C, #A29FB0);
               --hairline: light-dark(#E6E4EA, #37343E);
               --ui-font: "Avenir Next", -apple-system, system-ui, sans-serif; }
@@ -121,7 +122,7 @@ enum ReaderTemplate {
              padding: 2.2em 1.5em 4em; overflow-wrap: break-word; }
       h1#glosso-title { font-size: 2.5em; line-height: 1.18; margin: 0 auto .4em;
                         font-weight: 400; text-align: center; letter-spacing: 0; }
-      #glosso-fleuron { display: none; text-align: center; color: var(--accent);
+      #glosso-fleuron { display: none; text-align: center; color: var(--accent-ink);
                         font-size: 1.1em; letter-spacing: .6em; margin: .4em 0; }
       #glosso-byline { text-align: center; font-variant-caps: small-caps;
                        letter-spacing: .12em; font-size: .95em;
@@ -136,28 +137,9 @@ enum ReaderTemplate {
                                 text-transform: uppercase; color: var(--accent-ink);
                                 margin-bottom: .5em; }
       #glosso-content figcaption { font-family: var(--ui-font); text-align: center; }
-      #glosso-pills { position: fixed; top: .9em; right: .9em; z-index: 10;
-                      display: none; gap: .5em; font-family: var(--ui-font); }
-      #glosso-pills { transition: right .25s ease-in-out; }
-      body.glosso-chat-open #glosso-pills { right: calc(320px + .9em); }
-      .glosso-pill { display: flex; align-items: center; gap: .4em;
-                     font-family: var(--ui-font); font-size: .74rem; font-weight: 600;
-                     padding: .4em .8em;
-                     border-radius: 999px; cursor: pointer;
-                     color: var(--accent-ink);
-                     background: color-mix(in srgb, var(--accent) 9%, Canvas);
-                     border: 1px solid color-mix(in srgb, var(--accent) 26%, Canvas); }
-      .glosso-pill:hover { background: color-mix(in srgb, var(--accent) 16%, Canvas); }
-      .glosso-pill svg { width: 1.05em; height: 1.05em; }
-      #glosso-seg { display: flex; padding: 0; border-radius: 999px; overflow: hidden;
-                    cursor: pointer; color: var(--accent-ink);
-                    background: color-mix(in srgb, var(--accent) 9%, Canvas);
-                    border: 1px solid color-mix(in srgb, var(--accent) 26%, Canvas); }
-      #glosso-seg button { font-family: var(--ui-font); font-size: .74rem; font-weight: 600;
-                           border: 0; padding: .4em .9em; cursor: pointer;
-                           background: transparent; color: inherit; letter-spacing: .04em; }
-      #glosso-seg button[aria-pressed="true"] { background: var(--accent);
-                                                color: light-dark(#fff, #14163B); }
+      .glosso-send { font-family: var(--ui-font); font-size: .74rem; font-weight: 600;
+                     padding: .4em .8em; border-radius: 999px; cursor: pointer;
+                     color: AccentColorText; background: AccentColor; border: 0; }
       img, video { max-width: 100%; height: auto; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
@@ -173,7 +155,7 @@ enum ReaderTemplate {
       pre { overflow-x: auto; background: color-mix(in srgb, CanvasText 7%, Canvas);
             padding: 1em; border-radius: 6px; font-size: .8em; text-align: left; }
       code { font-family: ui-monospace, monospace; }
-      a { color: var(--accent-ink); }
+      a { color: LinkText; }
       .glosso-pending { opacity: .45; }
       .glosso-dual { cursor: pointer; }
       .glosso-interlinear { margin: .5em 0 .2em 1.6em; font-style: italic;
@@ -204,8 +186,8 @@ enum ReaderTemplate {
                               counter-reset: glosso-footnote; }
       .glosso-chat-q { align-self: flex-end; max-width: 88%; margin-bottom: .8em;
                        font-family: var(--ui-font); font-size: .88em; line-height: 1.5;
-                       background: var(--accent);
-                       color: light-dark(#fff, #14163B);
+                       background: AccentColor;
+                       color: AccentColorText;
                        border-radius: 11px; border-bottom-right-radius: 4px;
                        padding: .45em .7em; }
       .glosso-chat-a { white-space: pre-wrap; margin-bottom: 1.2em;
@@ -249,39 +231,13 @@ enum ReaderTemplate {
                      border: 2px solid color-mix(in srgb, CanvasText 25%, Canvas);
                      border-top-color: transparent; animation: glosso-spin 1s linear infinite; }
       @keyframes glosso-spin { to { transform: rotate(360deg); } }
-      #glosso-footer { position: fixed; bottom: 0; left: 0; right: 0;
-                       font-family: var(--ui-font); font-size: .76rem;
-                       letter-spacing: .06em;
-                       padding: .55em 1em; background: Canvas; color: var(--ink-soft);
-                       border-top: 1px solid var(--hairline);
-                       display: none; gap: 1em; align-items: baseline;
-                       transition: right .25s ease-in-out; }
-      body.glosso-chat-open #glosso-footer { right: 340px; }
-      /* min-width: 0 or the status' longest word wins the row and pushes the model name out of the bar. */
-      #glosso-status { flex: 1; min-width: 0; text-align: left;
-                       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-      #glosso-engine { white-space: nowrap; }
+      @media (prefers-reduced-motion: reduce) {
+        *, *::before, *::after { transition: none !important; animation: none !important; }
+      }
     </style>
     </head>
     <body>
     <div id="glosso-progress"><div></div></div>
-    <div id="glosso-pills">
-      <button id="glosso-refresh" class="glosso-pill" type="button" title="\(loc("Przetłumacz ponownie", "Translate again"))">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 12a9 9 0 1 1-2.6-6.4"/>
-          <path d="M21 3v6h-6"/>
-        </svg>
-      </button>
-      <div id="glosso-seg" role="group" title="\(loc("Przełącz oryginał / tłumaczenie", "Toggle original / translation"))">
-        <button id="glosso-seg-translated" type="button" aria-pressed="true">\(loc("Tłumaczenie", "Translation"))</button>
-        <button id="glosso-seg-original" type="button" aria-pressed="false">\(loc("Oryginał", "Original"))</button>
-      </div>
-      <button id="glosso-chat" class="glosso-pill" type="button" title="\(loc("Zapytaj artykuł", "Ask the article"))">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-          <path d="M21 11.5a8.4 8.4 0 0 1-8.5 8.3 8.9 8.9 0 0 1-3.2-.6L3 21l1.8-5.1a8.1 8.1 0 0 1-1.3-4.4A8.4 8.4 0 0 1 12 3.2a8.4 8.4 0 0 1 9 8.3Z"/>
-        </svg>
-      </button>
-    </div>
     <h1 id="glosso-title"></h1>
     <div id="glosso-fleuron">&#10086;</div>
     <div id="glosso-byline"></div>
@@ -294,12 +250,8 @@ enum ReaderTemplate {
       <div id="glosso-chat-suggestions"></div>
       <form id="glosso-chat-form">
         <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
-        <button type="submit" class="glosso-pill">\(loc("Wyślij", "Send"))</button>
+        <button type="submit" class="glosso-send">\(loc("Wyślij", "Send"))</button>
       </form>
-    </div>
-    <div id="glosso-footer">
-      <span id="glosso-status"></span>
-      <span id="glosso-engine"></span>
     </div>
     <script>
     function glossoSanitize(root) {
@@ -322,9 +274,7 @@ enum ReaderTemplate {
       originalTitle: '',
       translatedTitle: '',
       summary: '',
-      engine: '',               // provider · model label, right side of the footer
       chatBusy: false,          // one question in flight at a time
-      questionsRequested: false, // suggestions are generated once, lazily
       asked: []                 // questions already asked — their chips stay gone
     };
     function glossoSetArticle(title, byline, html) {
@@ -366,7 +316,6 @@ enum ReaderTemplate {
           register(el, !SKIP.includes(el.tagName));
         }
       })(content);
-      document.getElementById('glosso-pills').style.display = 'flex';
       // The ornament belongs to the loaded title page, not the empty template.
       document.getElementById('glosso-fleuron').style.display = 'block';
       glossoProgress();
@@ -391,10 +340,6 @@ enum ReaderTemplate {
       if (el) { el.classList.add('glosso-dual'); }
       if (glosso.mode === 'translated') { glossoRender(id, html); }
     }
-    function glossoSetLanguages(translated, original) {
-      document.getElementById('glosso-seg-translated').textContent = translated;
-      document.getElementById('glosso-seg-original').textContent = original;
-    }
     function glossoSetTitle(title) {
       glosso.translatedTitle = title;
       if (glosso.mode === 'translated') {
@@ -413,9 +358,11 @@ enum ReaderTemplate {
       summary.textContent = glosso.summary;
       summary.style.display = (glosso.summary && glosso.mode === 'translated') ? 'block' : 'none';
     }
-    function glossoToggleOriginal() {
-      const toOriginal = glosso.mode === 'translated';
-      glosso.mode = toOriginal ? 'original' : 'translated';
+    // An idempotent setter, not a toggle: the toolbar's segmented control owns this state and sets it outright.
+    function glossoSetMode(mode) {
+      const toOriginal = mode === 'original';
+      if (toOriginal === (glosso.mode === 'original')) { return; }
+      glosso.mode = mode;
       for (const id of Object.keys(glosso.translated)) {
         glossoRender(id, toOriginal ? glosso.original[id] : glosso.translated[id]);
       }
@@ -430,8 +377,6 @@ enum ReaderTemplate {
       heading.classList.toggle('glosso-pending', !toOriginal && !glosso.translatedTitle);
       glossoRefreshSummary();
       document.body.classList.toggle('glosso-original', toOriginal);
-      document.getElementById('glosso-seg-translated').setAttribute('aria-pressed', String(!toOriginal));
-      document.getElementById('glosso-seg-original').setAttribute('aria-pressed', String(toOriginal));
     }
     function glossoAbort() {
       glosso.pending.clear();
@@ -440,23 +385,11 @@ enum ReaderTemplate {
         el.classList.remove('glosso-pending');
       }
     }
-    function glossoStatus(msg) {
-      document.getElementById('glosso-status').textContent = msg;
-      glossoFooter();
-    }
-    function glossoSetEngine(label) {
-      glosso.engine = label;
-      document.getElementById('glosso-engine').textContent = label;
-      glossoFooter();
-    }
-    // The bar outlives the status text now, so visibility follows either half.
-    function glossoFooter() {
-      const footer = document.getElementById('glosso-footer');
-      const filled = glosso.engine || document.getElementById('glosso-status').textContent;
-      footer.style.display = filled ? 'flex' : 'none';
-    }
-    function glossoToggleChat() {
-      const open = !document.body.classList.contains('glosso-chat-open');
+    // Swift owns whether the panel is open — it animates the window's width to match, so the page only applies it.
+    function glossoSetChat(open) {
+      // Swift passes "1"/"" — `call` JSON-encodes every argument as a string, so coerce before comparing.
+      open = !!open;
+      if (open === document.body.classList.contains('glosso-chat-open')) { return; }
       const cs = getComputedStyle(document.body);
       document.body.style.width = cs.width;
       document.body.style.marginLeft = cs.marginLeft;
@@ -466,22 +399,19 @@ enum ReaderTemplate {
         document.body.style.marginLeft = '';
       }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
-      window.webkit?.messageHandlers?.glosso?.postMessage({action: 'panel', open: open ? '1' : ''});
-      if (open && !glosso.questionsRequested) {
-        glosso.questionsRequested = true;
-        const spin = document.createElement('span');
-        spin.className = 'glosso-spin';
-        document.getElementById('glosso-chat-suggestions').appendChild(spin);
-        window.webkit?.messageHandlers?.glosso?.postMessage({action: 'suggest'});
-      }
       if (open) { document.getElementById('glosso-chat-input').focus(); }
+    }
+    function glossoSuggesting() {
+      const spin = document.createElement('span');
+      spin.className = 'glosso-spin';
+      document.getElementById('glosso-chat-suggestions').appendChild(spin);
     }
     function glossoSetQuestions(json) {
       const box = document.getElementById('glosso-chat-suggestions');
       box.textContent = '';
       let questions = [];
       try { questions = JSON.parse(json); } catch (e) {}
-      if (!questions.length) { glosso.questionsRequested = false; return; }
+      if (!questions.length) { return; }
       for (const q of questions) {
         if (glosso.asked.includes(q.trim())) { continue; }
         const chip = document.createElement('button');
@@ -539,13 +469,6 @@ enum ReaderTemplate {
       messages.scrollTop = messages.scrollHeight;
       document.getElementById('glosso-chat-input').focus();
     }
-    document.getElementById('glosso-seg-original').addEventListener('click', function() {
-      if (glosso.mode !== 'original') { glossoToggleOriginal(); }
-    });
-    document.getElementById('glosso-seg-translated').addEventListener('click', function() {
-      if (glosso.mode !== 'translated') { glossoToggleOriginal(); }
-    });
-    document.getElementById('glosso-chat').addEventListener('click', glossoToggleChat);
     document.getElementById('glosso-content').addEventListener('click', function(e) {
       if (glosso.mode !== 'translated' || e.target.closest('a')) { return; }
       const block = e.target.closest('[data-glosso-id]');
@@ -583,9 +506,6 @@ enum ReaderTemplate {
         e.preventDefault();
         document.getElementById('glosso-chat-form').requestSubmit();
       }
-    });
-    document.getElementById('glosso-refresh').addEventListener('click', function() {
-      window.webkit?.messageHandlers?.glosso?.postMessage('refresh');
     });
     function glossoProgress() {
       const max = document.documentElement.scrollHeight - window.innerHeight;

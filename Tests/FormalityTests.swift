@@ -20,10 +20,4 @@ import Testing
             #expect(Formality.automatic.displayName == "Automatic")
         }
     }
-
-    @Test func nextCyclesThroughAllModesAndWraps() {
-        #expect(Formality.automatic.next == .formal)
-        #expect(Formality.formal.next == .informal)
-        #expect(Formality.informal.next == .automatic)
-    }
 }

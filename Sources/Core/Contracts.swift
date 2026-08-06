@@ -64,10 +64,6 @@ enum Formality: String, CaseIterable, Sendable {
         }
     }
 
-    var next: Formality {
-        let all = Self.allCases
-        return all[(all.firstIndex(of: self)! + 1) % all.count]
-    }
 }
 
 enum Action: String, CaseIterable, Sendable {

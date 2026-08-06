@@ -168,12 +168,11 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        .background(PopupTheme.menuSurface)
+        // Regular Liquid Glass, the variant HIG names for popovers, and no backdrop of its own. Anchored to the word it
+        // straddles the card's bottom edge, so the upper part samples the card's white and the lower part the desktop —
+        // which is what a real macOS menu extending past its window does too, not a defect to paper over with a fill.
+        .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rPane))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
-        .overlay(
-            RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
-        )
         .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
@@ -186,7 +185,7 @@ struct AlternativesDropdown: View {
                 .font(PopupTheme.fontControl)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(PopupTheme.accent)
+        .foregroundStyle(.tint)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         Divider()
@@ -224,7 +223,7 @@ struct AlternativesDropdown: View {
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -248,6 +247,7 @@ struct AlternativesDropdown: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
+                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.explanationContentHeight = $0 }
         }
     }
 
@@ -261,7 +261,7 @@ struct AlternativesDropdown: View {
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -304,7 +304,7 @@ private struct AlternativeRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(hovering ? PopupTheme.accentTintStrong : .clear)
+                .background(hovering ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
