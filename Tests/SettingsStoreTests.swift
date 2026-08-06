@@ -175,29 +175,35 @@ import Testing
         #expect(defaults.dictionaryRepresentation().values.allSatisfy { ($0 as? String) != "AIza-secret" })
     }
 
-    @Test func theKeychainIsUntouchedUntilAViewAsksForTheKeys() {
+    @Test func theKeychainIsUntouchedUntilTheFieldShowingTheKeyAppears() {
         // On a self-signed build the signature changes every release, so each Keychain read is a password prompt.
         // Nothing but the two SecureFields needs these — the clients read the Keychain themselves, per request.
-        let reads = Counter()
+        let google = Counter(), ollama = Counter()
         let writes = KeyBox()
         let store = SettingsStore(
             defaults: transientDefaults(),
-            readAPIKey: { reads.bump(); return "AIza-secret" },
+            readAPIKey: { google.bump(); return "AIza-secret" },
             writeAPIKey: { writes.value = $0 },
-            readOllamaAPIKey: { reads.bump(); return "ollama-secret" },
+            readOllamaAPIKey: { ollama.bump(); return "ollama-secret" },
             writeOllamaAPIKey: { _ in }
         )
-        #expect(reads.value == 0)
+        #expect(google.value == 0)
+        #expect(ollama.value == 0)
         #expect(store.apiKey.isEmpty)
 
-        store.loadAPIKeys()
+        // One field on screen must cost one prompt, not two: the other provider's section isn't rendered.
+        store.loadGoogleAPIKey()
         #expect(store.apiKey == "AIza-secret")
-        #expect(store.ollamaAPIKey == "ollama-secret")
-        // Seeding must not look like an edit, or every open of Settings would write the key straight back.
+        #expect(ollama.value == 0)
+        // Seeding must not look like an edit, or showing the field would write the key straight back.
         #expect(writes.value == nil)
 
-        store.loadAPIKeys()
-        #expect(reads.value == 2)
+        store.loadGoogleAPIKey()
+        #expect(google.value == 1)
+
+        store.loadOllamaAPIKey()
+        #expect(store.ollamaAPIKey == "ollama-secret")
+        #expect(ollama.value == 1)
     }
 
     @Test func activeModelFollowsTheOllamaCloudProvider() {

@@ -27,7 +27,8 @@ final class SettingsStore {
     @ObservationIgnored private let writeOllamaAPIKey: (String) -> Void
     @ObservationIgnored private let readAPIKey: () -> String?
     @ObservationIgnored private let readOllamaAPIKey: () -> String?
-    @ObservationIgnored private var keysLoaded = false
+    @ObservationIgnored private var googleKeyLoaded = false
+    @ObservationIgnored private var ollamaKeyLoaded = false
     /// Set while `loadAPIKeys` seeds the two properties, so their `didSet` doesn't write what it just read back.
     @ObservationIgnored private var loadingKeys = false
 
@@ -73,16 +74,23 @@ final class SettingsStore {
         }
     }
 
-    /// Reads both keys out of the Keychain, once, and only when a view that shows them is about to appear. Nothing else
-    /// needs them: `GeminiClient` and the Ollama Cloud `OllamaClient` call `APIKeyStore.read` themselves per request,
-    /// so these two properties exist purely to back the `SecureField`s in Settings and onboarding. Reading them in
-    /// `init` cost every launch two Keychain reads — and on a self-signed build, whose signature changes with every
-    /// release, that is two password prompts for keys the run may never use.
-    func loadAPIKeys() {
-        guard !keysLoaded else { return }
-        keysLoaded = true
+    /// Pulls one key out of the Keychain, once, and only for the `SecureField` that is actually on screen. Nothing else
+    /// needs these: `GeminiClient` and the Ollama Cloud `OllamaClient` call `APIKeyStore.read` themselves per request,
+    /// so the two properties exist purely to back those fields. Reading them in `init` cost every launch two Keychain
+    /// reads — and on a self-signed build, whose signature changes with every release, that is two password prompts,
+    /// even on a local-engine run that shows neither field.
+    func loadGoogleAPIKey() {
+        guard !googleKeyLoaded else { return }
+        googleKeyLoaded = true
         loadingKeys = true
         apiKey = readAPIKey() ?? ""
+        loadingKeys = false
+    }
+
+    func loadOllamaAPIKey() {
+        guard !ollamaKeyLoaded else { return }
+        ollamaKeyLoaded = true
+        loadingKeys = true
         ollamaAPIKey = readOllamaAPIKey() ?? ""
         loadingKeys = false
     }

@@ -87,7 +87,6 @@ struct SettingsView: View {
         .background(SettingsWindowConfigurator())
         .task {
             store.refreshLaunchAtLogin()
-            store.loadAPIKeys()
             await loadModels()
         }
         .task(id: store.provider) {
@@ -104,7 +103,10 @@ struct SettingsView: View {
     }
 
     @ViewBuilder private var cloudSection: some View {
+        // The Keychain read lives here, not on the window: under the local provider this section never renders, and
+        // asking for the login password to fill a field nobody can see is the whole bug this avoids.
         SecureField(loc("Klucz API", "API key"), text: $store.apiKey)
+            .task { store.loadGoogleAPIKey() }
         Link(loc("Pobierz darmowy klucz w Google AI Studio",
                  "Get a free key in Google AI Studio"),
              destination: URL(string: "https://aistudio.google.com/apikey")!)
@@ -124,6 +126,7 @@ struct SettingsView: View {
 
     @ViewBuilder private var ollamaCloudSection: some View {
         SecureField(loc("Klucz API", "API key"), text: $store.ollamaAPIKey)
+            .task { store.loadOllamaAPIKey() }
         Link(loc("Utwórz klucz na ollama.com", "Create a key on ollama.com"),
              destination: URL(string: "https://ollama.com/settings/keys")!)
         Picker(loc("Model", "Model"), selection: $store.ollamaCloudModel) {

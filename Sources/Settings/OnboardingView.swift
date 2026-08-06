@@ -28,10 +28,7 @@ struct OnboardingView: View {
             footer
         }
         .frame(minWidth: 520, minHeight: 470)
-        .task {
-            store.loadAPIKeys()
-            await refresh()
-        }
+        .task { await refresh() }
     }
 
     // MARK: Header & footer
@@ -114,6 +111,7 @@ struct OnboardingView: View {
     @ViewBuilder private var ollamaCloudModelStep: some View {
         Section {
             SecureField(loc("Klucz API", "API key"), text: $store.ollamaAPIKey)
+                .task { store.loadOllamaAPIKey() }
             Link(loc("Utwórz klucz na ollama.com", "Create a key on ollama.com"),
                  destination: URL(string: "https://ollama.com/settings/keys")!)
         } footer: {
@@ -125,6 +123,7 @@ struct OnboardingView: View {
     @ViewBuilder private var cloudModelStep: some View {
         Section {
             SecureField(loc("Klucz API", "API key"), text: $store.apiKey)
+                .task { store.loadGoogleAPIKey() }
             Link(loc("Pobierz darmowy klucz w Google AI Studio",
                      "Get a free key in Google AI Studio"),
                  destination: URL(string: "https://aistudio.google.com/apikey")!)
