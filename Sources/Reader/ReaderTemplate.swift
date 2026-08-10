@@ -189,10 +189,13 @@ enum ReaderTemplate {
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
                               display: flex; flex-direction: column; }
       .glosso-chat-q, .glosso-chat-a { max-width: 88%; margin-bottom: .5em;
-                                       font-size: .88em; line-height: 1.5;
+                                       font-size: .92em; line-height: 1.5;
                                        border-radius: 18px; padding: .5em .85em; }
+      /* Darkened in light mode: white on a stock `AccentColor` clears about 3.6:1, under the 4.5:1 that small text
+         needs. Dark mode keeps the raw accent, where the same white already has room. */
       .glosso-chat-q { align-self: flex-end; border-bottom-right-radius: 5px;
-                       background: AccentColor; color: AccentColorText; }
+                       background: light-dark(color-mix(in srgb, AccentColor 88%, black), AccentColor);
+                       color: AccentColorText; }
       .glosso-chat-a { align-self: flex-start; border-bottom-left-radius: 5px;
                        background: light-dark(#E9E9EB, #3A3A3C); color: CanvasText;
                        white-space: pre-wrap; }
@@ -202,14 +205,9 @@ enum ReaderTemplate {
       #glosso-suggest-label { font-size: .72rem; font-weight: 600;
                               margin-bottom: -.45em; color: var(--ink-soft);
                               display: none; }
+      /* The same wrapped list before and during the conversation — `glossoAsk` already removes a chip once it has been
+         asked, so the list shrinks on its own and doesn't need a second, truncated layout to squeeze into. */
       #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
-      .glosso-chat-started #glosso-suggest-label { display: none !important; }
-      .glosso-chat-started #glosso-chat-suggestions { flex-wrap: nowrap;
-                                                      overflow-x: auto; flex: none;
-                                                      padding-bottom: .7em; }
-      .glosso-chat-started .glosso-chip { flex: none; max-width: 15em;
-                                          white-space: nowrap; overflow: hidden;
-                                          text-overflow: ellipsis; }
       .glosso-chip { font-family: inherit; font-size: .82em; line-height: 1.4;
                      text-align: left; cursor: pointer; color: CanvasText;
                      background: Canvas; border: 1px solid var(--hairline);
@@ -432,7 +430,6 @@ enum ReaderTemplate {
       question = question.trim();
       if (!question || glosso.chatBusy) { return; }
       glosso.asked.push(question);
-      document.getElementById('glosso-chat-panel').classList.add('glosso-chat-started');
       for (const chip of document.querySelectorAll('.glosso-chip')) {
         if (chip.textContent.trim() === question) { chip.remove(); }
       }
