@@ -49,8 +49,6 @@ final class PopupModel {
     var fixReasonMode: Bool = false
     var selectedFixChange: (before: String, after: String)? = nil
     var fixReasonContentHeight: CGFloat = 0
-    /// Reported by the rendered explanation, so the window reserves what it actually draws instead of a guess.
-    var explanationContentHeight: CGFloat = 0
 
     var toneChange: (from: Formality, to: Formality, previous: String)? = nil
     var toneNoteText: String = ""
@@ -136,7 +134,6 @@ final class PopupModel {
     func openExplanation() {
         showingExplanation = true
         explanationText = ""
-        explanationContentHeight = 0
         explanationLoading = true
         explanationRequestToken &+= 1
     }

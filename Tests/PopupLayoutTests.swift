@@ -3,8 +3,8 @@ import SwiftUI
 import Testing
 @testable import Glosso
 
-/// The popup's window height is derived from hand-written estimates of what SwiftUI renders. Nothing else in the suite
-/// notices when a restyle moves those numbers — the dropdown would simply get clipped, or the panel would reserve a gap.
+/// The panel's window size is whatever SwiftUI measures, so a layout that never settles feeds `applyContentSize` a new
+/// frame every runloop turn and nothing else in the suite would notice.
 @MainActor
 @Suite("Popup layout")
 struct PopupLayoutTests {
@@ -14,57 +14,30 @@ struct PopupLayoutTests {
         return host
     }
 
-    private func model(alternatives: [String]) -> PopupModel {
-        let model = PopupModel()
-        model.text = "Nauka języka to kwestia uporu."
-        model.openDropdown(for: 0)
-        model.alternatives = alternatives
-        model.altsLoading = false
-        return model
-    }
-
-    @Test("the alternatives dropdown renders at the height the window reserves for it")
-    func dropdownHeightMatchesTheReservation() {
-        for count in [1, 3, 5] {
-            let model = model(alternatives: (0..<count).map { "alternatywa \($0)" })
-            let host = hosted(AlternativesDropdown(model: model, onPick: { _ in }, onExplain: {}, onBack: {}))
-
-            let rendered = host.fittingSize.height
-            let reserved = AlternativesLayout.estimatedHeight(count: count, loading: false)
-            #expect(abs(rendered - reserved) <= 2,
-                    "\(count) alternatives render \(rendered)pt, the window reserves \(reserved)pt")
-        }
-    }
-
-    @Test("the loading dropdown fits its reserved height too")
-    func loadingDropdownFitsTheReservation() {
-        let model = PopupModel()
-        model.openDropdown(for: 0)
-        let host = hosted(AlternativesDropdown(model: model, onPick: { _ in }, onExplain: {}, onBack: {}))
-
-        let reserved = AlternativesLayout.estimatedHeight(count: 0, loading: true)
-        #expect(abs(host.fittingSize.height - reserved) <= 2,
-                "loading dropdown renders \(host.fittingSize.height)pt, the window reserves \(reserved)pt")
-    }
-
-    @Test("the explanation view renders at the height the window reserves for it")
-    func explanationHeightMatchesTheReservation() {
-        for loading in [true, false] {
+    @Test("the dropdown reports a stable, non-zero ideal size")
+    func dropdownIdealSizeIsStable() {
+        // Its own window sizes itself from this measurement, per content state — a state that measures to zero would
+        // open an invisible window.
+        for state in ["alternatives", "loading", "explanation"] {
             let model = PopupModel()
             model.text = "Nauka języka to kwestia uporu."
             model.openDropdown(for: 0)
-            model.openExplanation()
-            model.explanationLoading = loading
-            if !loading {
+            switch state {
+            case "alternatives":
+                model.alternatives = (0..<3).map { "alternatywa \($0)" }
+                model.altsLoading = false
+            case "explanation":
+                model.openExplanation()
+                model.explanationLoading = false
                 model.explanationText = "Rzeczownik odczasownikowy pasuje tu lepiej, bo chodzi o proces, a nie o wynik."
+            default:
+                break
             }
             let host = hosted(AlternativesDropdown(model: model, onPick: { _ in }, onExplain: {}, onBack: {}))
-            // The measured content feeds the same reservation the window uses, so the two can't drift apart.
-            let rendered = host.fittingSize.height
-            let reserved = AlternativesLayout.explanationHeight(
-                content: loading ? 0 : rendered - AlternativesLayout.base, loading: loading)
-            #expect(abs(rendered - reserved) <= 2,
-                    "explanation (loading: \(loading)) renders \(rendered)pt, the window reserves \(reserved)pt")
+            let first = host.fittingSize
+            host.layoutSubtreeIfNeeded()
+            #expect(first.width > 0 && first.height > 0, "\(state) measures \(first)")
+            #expect(first == host.fittingSize, "\(state) measures differently on a second pass")
         }
     }
 

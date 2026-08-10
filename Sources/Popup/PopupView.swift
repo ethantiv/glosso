@@ -56,7 +56,6 @@ struct PopupView: View {
     var body: some View {
         panelBox
             .overlay(alignment: .bottomTrailing) { resizeGrip }
-            .padding(.bottom, reservedBottom)
             .backgroundPreferenceValue(WordAnchorKey.self) { anchors in
                 anchorReporter(anchors: anchors)
             }
@@ -108,10 +107,6 @@ struct PopupView: View {
         .gesture(WindowDragGesture())
         .allowsWindowActivationEvents()
     }
-
-    /// Zero while the dropdown is a child window — the panel no longer has to grow to make room for it. The estimate
-    /// below stays for the moment: the two arrangements are being compared, and reverting shouldn't have to rebuild it.
-    private var reservedBottom: CGFloat { 0 }
 
     // MARK: Resize grip
 
@@ -712,31 +707,6 @@ struct PopupView: View {
             Color.clear
                 .onChange(of: rect, initial: true) { _, new in reportDropdownAnchor(new) }
         }
-    }
-
-    private let dropdownGap: CGFloat = 4
-
-    private let dropdownShadowPad: CGFloat = 14
-
-    private var estimatedDropdownHeight: CGFloat {
-        // The "Dlaczego tak?" header row (issue #39) adds one row above either view.
-        if model.fixReasonMode {
-            return FixReasonLayout.estimatedDropdownHeight(
-                content: model.fixReasonContentHeight, loading: model.explanationLoading)
-        }
-        if model.showingExplanation {
-            return AlternativesLayout.explanationHeight(
-                content: model.explanationContentHeight, loading: model.explanationLoading)
-        }
-        return AlternativesLayout.estimatedHeight(
-            count: model.alternatives.count, loading: model.altsLoading)
-    }
-
-    private func dropdownOffset(wordRect: CGRect, container: CGSize) -> CGSize {
-        let maxX = max(dropdownShadowPad, container.width - AlternativesDropdown.width - dropdownShadowPad)
-        let x = min(max(dropdownShadowPad, wordRect.minX), maxX)
-        let y = max(dropdownShadowPad, wordRect.maxY + dropdownGap)
-        return CGSize(width: x, height: y)
     }
 
     // MARK: Footer

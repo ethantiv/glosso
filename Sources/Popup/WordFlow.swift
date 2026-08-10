@@ -255,7 +255,6 @@ struct AlternativesDropdown: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 9)
-                .onGeometryChange(for: CGFloat.self) { $0.size.height } action: { model.explanationContentHeight = $0 }
         }
     }
 
