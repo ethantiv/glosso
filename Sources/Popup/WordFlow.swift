@@ -168,13 +168,20 @@ struct AlternativesDropdown: View {
             }
         }
         .frame(width: Self.width, alignment: .leading)
-        .background(PopupTheme.menuSurface)
+        // Regular Liquid Glass, the variant HIG names for popovers, and no backdrop of its own. Anchored to the word it
+        // straddles the card's bottom edge, so the upper part samples the card's white and the lower part the desktop —
+        // which is what a real macOS menu extending past its window does too, not a defect to paper over with a fill.
+        .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rPane))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
+        // A hairline, not a `.shadow()`: the window shadow already traces the union of the card and this popover, so a
+        // blur of its own stacked on top of it and drew a hard dark ring around the part hanging past the card. The
+        // hairline separates it over the card, where the window shadow reaches nothing, without stacking.
+        // A full point, not the card's half: a border is the only channel that can lift this popover off the white card
+        // without a blur, and a blur is what rings its protruding half against the window shadow.
         .overlay(
             RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                .strokeBorder(PopupTheme.hairline, lineWidth: 0.5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
         )
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
     }
 
     @ViewBuilder
@@ -186,7 +193,7 @@ struct AlternativesDropdown: View {
                 .font(PopupTheme.fontControl)
             Spacer(minLength: 0)
         }
-        .foregroundStyle(PopupTheme.accent)
+        .foregroundStyle(.tint)
         .padding(.horizontal, 12)
         .padding(.vertical, 8)
         Divider()
@@ -224,7 +231,7 @@ struct AlternativesDropdown: View {
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -261,7 +268,7 @@ struct AlternativesDropdown: View {
                     .font(PopupTheme.fontControl)
                 Spacer(minLength: 0)
             }
-            .foregroundStyle(PopupTheme.accent)
+            .foregroundStyle(.tint)
             .padding(.horizontal, 12)
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -304,7 +311,7 @@ private struct AlternativeRow: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
-                .background(hovering ? PopupTheme.accentTintStrong : .clear)
+                .background(hovering ? AnyShapeStyle(.selection) : AnyShapeStyle(.clear))
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
