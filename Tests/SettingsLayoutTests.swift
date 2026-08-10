@@ -30,7 +30,12 @@ struct SettingsLayoutTests {
     @Test("every engine's form fits one screen without scrolling")
     func formFitsOnOneScreen() {
         for provider in LLMProvider.allCases {
-            let store = SettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!, systemLanguages: ["pl-PL"])
+            // No-op key readers: the cloud sections' SecureFields read the Keychain on appear, which on a re-signed
+            // build pops the login-password dialog and stalls the run. The measured layout is the same either way.
+            let store = SettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!,
+                                      systemLanguages: ["pl-PL"],
+                                      readAPIKey: { nil },
+                                      readOllamaAPIKey: { nil })
             store.provider = provider
             let host = NSHostingView(rootView: SettingsView(
                 store: store,
