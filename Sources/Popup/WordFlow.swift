@@ -176,9 +176,11 @@ struct AlternativesDropdown: View {
         // A hairline, not a `.shadow()`: the window shadow already traces the union of the card and this popover, so a
         // blur of its own stacked on top of it and drew a hard dark ring around the part hanging past the card. The
         // hairline separates it over the card, where the window shadow reaches nothing, without stacking.
+        // A full point, not the card's half: a border is the only channel that can lift this popover off the white card
+        // without a blur, and a blur is what rings its protruding half against the window shadow.
         .overlay(
             RoundedRectangle(cornerRadius: PopupTheme.rPane)
-                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 1)
         )
     }
 
