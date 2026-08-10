@@ -14,6 +14,7 @@ struct SettingsView: View {
     @State private var loadGeneration = 0
     @State private var pulling: [String: Double] = [:]
     @State private var quota: (used: Int, limit: Int)?
+    @State private var catalogExpanded = true
 
     /// The active pick is always in the list, even when it isn't installed yet — otherwise the picker blanks out and nothing on screen names the model in use.
     private var installedModelChoices: [String] {
@@ -49,14 +50,17 @@ struct SettingsView: View {
                         Text(displayName(forInstalled: id)).tag(id)
                     }
                 }
-                ModelCatalogList(
-                    installed: models,
-                    activeID: store.modelName,
-                    pulling: pulling,
-                    allowsDelete: true,
-                    download: startPull,
-                    delete: deleteModel
-                )
+                // Collapsed under a cloud engine: this is the fallback then, not the model the user picks day to day.
+                DisclosureGroup(loc("Modele do pobrania", "Models to download"), isExpanded: $catalogExpanded) {
+                    ModelCatalogList(
+                        installed: models,
+                        activeID: store.modelName,
+                        pulling: pulling,
+                        allowsDelete: true,
+                        download: startPull,
+                        delete: deleteModel
+                    )
+                }
             }
 
             Section(loc("Ogólne", "General")) {
@@ -85,6 +89,7 @@ struct SettingsView: View {
         }
         .formStyle(.grouped)
         .background(SettingsWindowConfigurator())
+        .onChange(of: store.provider, initial: true) { catalogExpanded = store.provider == .local }
         .task {
             store.refreshLaunchAtLogin()
             await loadModels()
@@ -115,7 +120,6 @@ struct SettingsView: View {
                 Label(entry.displayName, systemImage: entry.icon).tag(entry.id)
             }
         }
-        .pickerStyle(.radioGroup)
         LabeledContent(loc("Zapytania dzisiaj", "Requests today")) {
             Text(quota.map { "\($0.used) / \($0.limit)" } ?? "—")
                 .foregroundStyle(.secondary)
@@ -202,15 +206,69 @@ struct SettingsView: View {
 /// and the form can't be grown — which is exactly what "support arbitrary window sizes" rules out.
 private struct SettingsWindowConfigurator: NSViewRepresentable {
     func makeNSView(context: Context) -> NSView { ConfiguringView() }
-    func updateNSView(_ nsView: NSView, context: Context) {}
+    // Every body re-eval lands here, including the 5s quota tick — ConfiguringView no-ops unless the content changed.
+    func updateNSView(_ nsView: NSView, context: Context) { (nsView as? ConfiguringView)?.scheduleFit() }
 
     private final class ConfiguringView: NSView {
+        private var lastContentHeight: CGFloat?
+        private var fitScheduled = false
+
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             guard let window else { return }
             window.collectionBehavior.insert(.moveToActiveSpace)
             window.title = loc("Ustawienia Glosso", "Glosso Settings")
             window.styleMask.insert(.resizable)
+            scheduleFit()
         }
+
+        // Never inside the layout pass: resizing a window from within its own layout is the recursion that overflowed
+        // the stack in the popup. The next runloop turn is also when the new content is measurable.
+        func scheduleFit() {
+            guard !fitScheduled else { return }
+            fitScheduled = true
+            DispatchQueue.main.async { [weak self] in
+                self?.fitScheduled = false
+                self?.fitWindowToContent()
+            }
+        }
+
+        private func fitWindowToContent() {
+            guard let window, !window.inLiveResize, let root = window.contentView else { return }
+            let content = SettingsWindowSizing.formContentHeight(in: root) ?? SettingsWindowSizing.fallbackHeight
+            // The user's own drag survives every re-render; only a changed content height replaces it.
+            guard abs((lastContentHeight ?? -1) - content) > 1 else { return }
+            lastContentHeight = content
+            // Measured off the window itself: frameRect(forContentRect:) reports no title bar here and cuts the last row.
+            let chrome = window.frame.height - window.contentLayoutRect.height
+            let ceiling = (window.screen?.visibleFrame ?? window.frame).height
+            var frame = window.frame
+            frame.size.height = min(content + chrome, ceiling)
+            // Top-left pinned: growing from the bottom edge would walk the title bar off the top of the screen.
+            frame.origin.y = window.frame.maxY - frame.height
+            guard frame != window.frame else { return }
+            window.setFrame(frame, display: true)
+        }
+    }
+}
+
+/// The grouped Form is scroll-backed, and a scroll view under a concrete proposal reports the window's height, not its
+/// content's — so the real number comes from the document view, the one place AppKit keeps it.
+@MainActor
+enum SettingsWindowSizing {
+    static let fallbackHeight: CGFloat = 760
+
+    static func formContentHeight(in root: NSView) -> CGFloat? {
+        guard let document = firstScrollView(in: root)?.documentView else { return nil }
+        document.layoutSubtreeIfNeeded()
+        return document.frame.height
+    }
+
+    private static func firstScrollView(in view: NSView) -> NSScrollView? {
+        if let scroll = view as? NSScrollView { return scroll }
+        for subview in view.subviews {
+            if let found = firstScrollView(in: subview) { return found }
+        }
+        return nil
     }
 }
