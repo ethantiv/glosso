@@ -65,8 +65,9 @@ struct PopupView: View {
                 reportSize(size)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-            // The panel is a non-activating one and never becomes key, so without this every control here draws in the
-            // window-inactive appearance: gray labels and a selected verb indistinguishable from the rest.
+            // The panel takes key on open, but the *app* never activates, and the active appearance follows the app.
+            // Without this every control here draws in the window-inactive appearance: gray labels and a selected verb
+            // indistinguishable from the rest.
             .environment(\.appearsActive, true)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
