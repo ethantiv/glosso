@@ -80,7 +80,7 @@ struct PopupLayoutTests {
             fetchAlternatives: { _, _ in [] }, fetchExplanation: { _, _ in "" },
             fetchFixReason: { _, _, _ in "" }, fetchToneNote: { _, _, _, _ in "" },
             pickAlternative: { _, _, _ in }, replace: { _ in }, retranslate: { _ in },
-            undo: {}, resizeBy: { _, _ in }, reportSize: { _ in }
+            undo: {}, resizeBy: { _, _ in }, reportSize: { _ in }, reportDropdownAnchor: { _ in }
         ))
 
         let first = host.fittingSize

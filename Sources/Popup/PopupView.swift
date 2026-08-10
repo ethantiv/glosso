@@ -16,6 +16,8 @@ struct PopupView: View {
     let undo: () -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
     let reportSize: (CGSize) -> Void
+    /// The clicked word's rect in window coordinates, or nil when no dropdown should be showing.
+    let reportDropdownAnchor: (CGRect?) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var copied = false
@@ -55,8 +57,8 @@ struct PopupView: View {
         panelBox
             .overlay(alignment: .bottomTrailing) { resizeGrip }
             .padding(.bottom, reservedBottom)
-            .overlayPreferenceValue(WordAnchorKey.self) { anchors in
-                dropdownOverlay(anchors: anchors)
+            .backgroundPreferenceValue(WordAnchorKey.self) { anchors in
+                anchorReporter(anchors: anchors)
             }
             .padding(Self.shadowMargin)
             .fixedSize()
@@ -107,9 +109,9 @@ struct PopupView: View {
         .allowsWindowActivationEvents()
     }
 
-    private var reservedBottom: CGFloat {
-        model.dropdownVisible ? estimatedDropdownHeight + dropdownGap + dropdownShadowPad : 0
-    }
+    /// Zero while the dropdown is a child window — the panel no longer has to grow to make room for it. The estimate
+    /// below stays for the moment: the two arrangements are being compared, and reverting shouldn't have to rebuild it.
+    private var reservedBottom: CGFloat { 0 }
 
     // MARK: Resize grip
 
@@ -573,25 +575,6 @@ struct PopupView: View {
         }
     }
 
-    private func onTapExplain(word: String, translation: String) {
-        model.openExplanation()
-        let wordID = model.selectedWordID
-        if let wordID, let cached = model.explanationCache[wordID] {
-            model.explanationText = cached
-            model.explanationLoading = false
-            return
-        }
-        let token = model.explanationRequestToken
-        Task { @MainActor in
-            let explanation = await fetchExplanation(word, translation)
-            guard model.explanationRequestToken == token,
-                  model.dropdownVisible, model.showingExplanation else { return }
-            model.explanationText = explanation
-            model.explanationLoading = false
-            if let wordID, !explanation.isEmpty { model.explanationCache[wordID] = explanation }
-        }
-    }
-
     private var fixSplitContent: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(spacing: 6) {
@@ -714,30 +697,20 @@ struct PopupView: View {
         }
     }
 
+    /// The dropdown lives in its own child window now, so this view's only job is to hand the controller the clicked
+    /// word's rect in the window's coordinate space. Reported from a background layer, not an overlay, so it can never
+    /// intercept a click meant for the word underneath.
     @ViewBuilder
-    private func dropdownOverlay(anchors: [Int: Anchor<CGRect>]) -> some View {
+    private func anchorReporter(anchors: [Int: Anchor<CGRect>]) -> some View {
         GeometryReader { proxy in
-            if model.dropdownVisible, let id = model.selectedWordID, let anchor = anchors[id] {
-                let wordRect = proxy[anchor]
-                Color.clear
-                    .contentShape(Rectangle())
-                    .onTapGesture { model.closeDropdown() }
-                AlternativesDropdown(
-                    model: model,
-                    onPick: { chosen in
-                        let original = model.segments.first { $0.id == id }?.text ?? ""
-                        model.snapshotForUndo()
-                        pickAlternative(original, chosen, model.text)
-                    },
-                    onExplain: {
-                        let word = model.segments.first { $0.id == id }?.text ?? ""
-                        onTapExplain(word: word, translation: model.text)
-                    },
-                    onBack: { model.closeExplanation() }
-                )
-                .fixedSize()
-                .offset(dropdownOffset(wordRect: wordRect, container: proxy.size))
-            }
+            let rect: CGRect? = {
+                guard model.dropdownVisible, let id = model.selectedWordID, let anchor = anchors[id] else { return nil }
+                let local = proxy[anchor]
+                let origin = proxy.frame(in: .global).origin
+                return local.offsetBy(dx: origin.x, dy: origin.y)
+            }()
+            Color.clear
+                .onChange(of: rect, initial: true) { _, new in reportDropdownAnchor(new) }
         }
     }
 
