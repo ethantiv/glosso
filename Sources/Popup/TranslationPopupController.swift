@@ -54,6 +54,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.sizeDelta = .zero
         resizeStartDelta = nil
         contentIdealSize = nil
+        // A resize animation the previous panel was still running leaves its destination behind, and the first
+        // `applyContentSize` here compares against it — an identical frame would then skip positioning the new panel.
+        frameTarget = nil
+        isApplyingFrame = false
 
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: Self.defaultSize))
         panel.title = loc("Tłumaczenie", "Translation")
@@ -65,17 +69,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
             fetchAlternatives: { [weak self] word, translation in
                 await self?.onFetchAlternatives?(word, translation) ?? []
             },
-            fetchExplanation: { [weak self] word, translation in
-                await self?.onFetchExplanation?(word, translation) ?? ""
-            },
             fetchFixReason: { [weak self] before, after, corrected in
                 await self?.onFetchFixReason?(before, after, corrected) ?? ""
             },
             fetchToneNote: { [weak self] previous, current, from, to in
                 await self?.onFetchToneNote?(previous, current, from, to) ?? ""
-            },
-            pickAlternative: { [weak self] original, chosen, translation in
-                self?.onPickAlternative?(original, chosen, translation)
             },
             replace: { [weak self] text in self?.onReplace?(text) },
             retranslate: { [weak self] source in self?.onRetranslate?(source) },
@@ -277,7 +275,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
             x: parent.frame.minX + anchor.minX,
             y: parent.frame.maxY - anchor.maxY - Self.dropdownGap
         )
-        let screenFrame = child.screen?.visibleFrame ?? parent.screen?.visibleFrame ?? anchorScreenFrame
+        // The parent's screen, never the child's: a freshly made dropdown still sits at (0,0), so `child.screen` names
+        // whichever display owns that corner and would clamp the popover onto it, away from the panel.
+        let screenFrame = parent.screen?.visibleFrame ?? anchorScreenFrame
         let topLeft = PanelPositioning.clampedTopLeft(desired, panelSize: size, screenFrame: screenFrame)
         let target = CGRect(x: topLeft.x, y: topLeft.y - size.height, width: size.width, height: size.height)
         guard target != child.frame else { return }

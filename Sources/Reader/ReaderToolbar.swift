@@ -92,6 +92,9 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
         item.target = self
         item.action = action
         item.isBordered = true
+        // The controller owns `isEnabled`. Left on, the toolbar's own validation re-enables any item whose target
+        // answers its action — which this proxy does — and the refresh button would come back mid-translation.
+        item.autovalidates = false
         return item
     }
 

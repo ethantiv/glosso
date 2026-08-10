@@ -50,9 +50,9 @@ struct PopupLayoutTests {
         let host = hosted(PopupView(
             model: model,
             close: {}, selectFormality: { _ in }, selectAction: { _ in },
-            fetchAlternatives: { _, _ in [] }, fetchExplanation: { _, _ in "" },
+            fetchAlternatives: { _, _ in [] },
             fetchFixReason: { _, _, _ in "" }, fetchToneNote: { _, _, _, _ in "" },
-            pickAlternative: { _, _, _ in }, replace: { _ in }, retranslate: { _ in },
+            replace: { _ in }, retranslate: { _ in },
             undo: {}, resizeBy: { _, _ in }, reportSize: { _ in }, reportDropdownAnchor: { _ in }
         ))
 

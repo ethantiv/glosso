@@ -7,10 +7,8 @@ struct PopupView: View {
     let selectFormality: (Formality) -> Void
     let selectAction: (Action) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
-    let fetchExplanation: (_ word: String, _ translation: String) async -> String
     let fetchFixReason: (_ before: String, _ after: String, _ corrected: String) async -> String
     let fetchToneNote: (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String
-    let pickAlternative: (_ original: String, _ chosen: String, _ translation: String) -> Void
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
     let undo: () -> Void

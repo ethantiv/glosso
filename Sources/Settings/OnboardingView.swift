@@ -139,12 +139,20 @@ struct OnboardingView: View {
         }
     }
 
+    /// The active pick is always in the list, even before it is downloaded — a selection with no matching tag leaves the
+    /// picker blank and nothing on screen names the model in use.
+    private var modelChoices: [String] {
+        var ids = Set(installed)
+        ids.insert(store.modelName)
+        return ids.sorted()
+    }
+
     @ViewBuilder private var localModelStep: some View {
         Section {
             // Only worth showing once there is a choice to make; the first-run path downloads one model and it activates itself.
-            if installed.count > 1 {
+            if modelChoices.count > 1 {
                 Picker(loc("Aktywny model", "Active model"), selection: $store.modelName) {
-                    ForEach(installed, id: \.self) { id in
+                    ForEach(modelChoices, id: \.self) { id in
                         Text(EmbeddedModelCatalog.models.first { $0.id == id }?.displayName ?? id).tag(id)
                     }
                 }
