@@ -205,11 +205,11 @@ struct SettingsView: View {
 /// and a `Settings` scene ships without `.resizable` whatever `windowResizability` says, so the zoom button stays dead
 /// and the form can't be grown — which is exactly what "support arbitrary window sizes" rules out.
 private struct SettingsWindowConfigurator: NSViewRepresentable {
-    func makeNSView(context: Context) -> NSView { ConfiguringView() }
+    func makeNSView(context: Context) -> ConfiguringView { ConfiguringView() }
     // Every body re-eval lands here, including the 5s quota tick — ConfiguringView no-ops unless the content changed.
-    func updateNSView(_ nsView: NSView, context: Context) { (nsView as? ConfiguringView)?.scheduleFit() }
+    func updateNSView(_ nsView: ConfiguringView, context: Context) { nsView.scheduleFit() }
 
-    private final class ConfiguringView: NSView {
+    final class ConfiguringView: NSView {
         private var lastContentHeight: CGFloat?
         private var fitScheduled = false
 
@@ -235,17 +235,25 @@ private struct SettingsWindowConfigurator: NSViewRepresentable {
 
         private func fitWindowToContent() {
             guard let window, !window.inLiveResize, let root = window.contentView else { return }
+            // A window that isn't on a screen yet has no ceiling to clamp to — retry next turn rather than cache a
+            // height measured against the window's own current size, which would pin it there for good.
+            guard let visible = (window.screen ?? NSScreen.main)?.visibleFrame else { return }
             let content = SettingsWindowSizing.formContentHeight(in: root) ?? SettingsWindowSizing.fallbackHeight
             // The user's own drag survives every re-render; only a changed content height replaces it.
             guard abs((lastContentHeight ?? -1) - content) > 1 else { return }
             lastContentHeight = content
             // Measured off the window itself: frameRect(forContentRect:) reports no title bar here and cuts the last row.
             let chrome = window.frame.height - window.contentLayoutRect.height
-            let ceiling = (window.screen?.visibleFrame ?? window.frame).height
             var frame = window.frame
-            frame.size.height = min(content + chrome, ceiling)
-            // Top-left pinned: growing from the bottom edge would walk the title bar off the top of the screen.
-            frame.origin.y = window.frame.maxY - frame.height
+            frame.size.height = min(content + chrome, visible.height)
+            // Top-left pinned, then clamped like the popup: growing downward off the screen edge would hide the very
+            // rows this sizing exists to show.
+            let topLeft = PanelPositioning.clampedTopLeft(
+                CGPoint(x: frame.minX, y: window.frame.maxY),
+                panelSize: frame.size,
+                screenFrame: visible
+            )
+            frame.origin = CGPoint(x: topLeft.x, y: topLeft.y - frame.height)
             guard frame != window.frame else { return }
             window.setFrame(frame, display: true)
         }
