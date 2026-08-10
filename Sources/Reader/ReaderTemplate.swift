@@ -111,6 +111,10 @@ enum ReaderTemplate {
               --accent-ink: color-mix(in srgb, CanvasText 78%, Canvas);
               --ink-soft: light-dark(#605D6C, #A29FB0);
               --hairline: light-dark(#E6E4EA, #37343E);
+              /* The chat's filled surfaces, darkened so white text clears 4.5:1. One definition because the question
+                 bubble and the send button sit next to each other and any drift between them is visible. Mixing the
+                 colour also costs `AccentColorText`, which only pairs with an unmixed `AccentColor` — hence #fff. */
+              --chat-accent: light-dark(color-mix(in srgb, AccentColor 82%, black), AccentColor);
               --ui-font: "Avenir Next", -apple-system, system-ui, sans-serif; }
       #glosso-progress { position: fixed; top: 0; left: 0; right: 0; height: 6px;
                          background: color-mix(in srgb, var(--accent) 22%, Canvas);
@@ -142,7 +146,7 @@ enum ReaderTemplate {
       .glosso-send { font-family: var(--ui-font); font-size: .9rem; font-weight: 600;
                      width: 28px; height: 28px; flex: none; padding: 0; line-height: 1;
                      border-radius: 50%; cursor: pointer;
-                     color: AccentColorText; background: AccentColor; border: 0; }
+                     color: #fff; background: var(--chat-accent); border: 0; }
       img, video { max-width: 100%; height: auto; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
@@ -191,13 +195,8 @@ enum ReaderTemplate {
       .glosso-chat-q, .glosso-chat-a { max-width: 88%; margin-bottom: .5em;
                                        font-size: .92em; line-height: 1.5;
                                        border-radius: 18px; padding: .5em .85em; }
-      /* Explicit white, not `AccentColorText`. That keyword only means anything next to a plain `AccentColor`
-         background; darkening this one through `color-mix` broke the pairing and WebKit fell back to dark ink, which
-         is how the bubble ended up black-on-blue. The send button keeps the pair because its background is unmixed.
-         The extra darkening carries white at 4.5:1 — a very light accent (yellow) lands nearer 4:1. */
       .glosso-chat-q { align-self: flex-end; border-bottom-right-radius: 5px;
-                       background: light-dark(color-mix(in srgb, AccentColor 82%, black), AccentColor);
-                       color: #fff; }
+                       background: var(--chat-accent); color: #fff; }
       .glosso-chat-a { align-self: flex-start; border-bottom-left-radius: 5px;
                        background: light-dark(#E9E9EB, #3A3A3C); color: CanvasText;
                        white-space: pre-wrap; }
