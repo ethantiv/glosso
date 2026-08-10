@@ -173,7 +173,13 @@ struct AlternativesDropdown: View {
         // which is what a real macOS menu extending past its window does too, not a defect to paper over with a fill.
         .glassEffect(.regular, in: .rect(cornerRadius: PopupTheme.rPane))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rPane))
-        .shadow(color: .black.opacity(0.18), radius: 10, y: 4)
+        // A hairline, not a `.shadow()`: the window shadow already traces the union of the card and this popover, so a
+        // blur of its own stacked on top of it and drew a hard dark ring around the part hanging past the card. The
+        // hairline separates it over the card, where the window shadow reaches nothing, without stacking.
+        .overlay(
+            RoundedRectangle(cornerRadius: PopupTheme.rPane)
+                .strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5)
+        )
     }
 
     @ViewBuilder
