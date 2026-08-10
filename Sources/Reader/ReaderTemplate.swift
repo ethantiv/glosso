@@ -137,8 +137,11 @@ enum ReaderTemplate {
                                 text-transform: uppercase; color: var(--accent-ink);
                                 margin-bottom: .5em; }
       #glosso-content figcaption { font-family: var(--ui-font); text-align: center; }
-      .glosso-send { font-family: var(--ui-font); font-size: .74rem; font-weight: 600;
-                     padding: .4em .8em; border-radius: 999px; cursor: pointer;
+      /* A circle with an arrow, like the Messages compose button. The word "Send" moves to aria-label: it never
+         draws but still names the control for VoiceOver. */
+      .glosso-send { font-family: var(--ui-font); font-size: .9rem; font-weight: 600;
+                     width: 28px; height: 28px; flex: none; padding: 0; line-height: 1;
+                     border-radius: 50%; cursor: pointer;
                      color: AccentColorText; background: AccentColor; border: 0; }
       img, video { max-width: 100%; height: auto; }
       /* Embedded players carry fixed width/height attributes and would overflow
@@ -165,11 +168,14 @@ enum ReaderTemplate {
                                  font-size: .64rem; font-weight: 700; letter-spacing: .14em;
                                  text-transform: uppercase; color: var(--accent-ink);
                                  display: block; margin-bottom: .3em; }
+      /* The one part of the page that deliberately leaves the "Dwugłos" typography behind: a conversation reads as a
+         Messages thread, not as a critical apparatus. Hence the UI font here, and bubbles below. */
       #glosso-chat-panel { position: fixed; top: 6px; right: 0; bottom: 0; width: 320px;
                            display: flex; flex-direction: column; gap: .9em;
                            transform: translateX(100%); visibility: hidden;
                            transition: transform .25s ease-in-out, visibility 0s .25s;
-                           background: color-mix(in srgb, var(--accent) 3%, Canvas);
+                           background: light-dark(#F5F5F7, #1F1F22);
+                           font-family: var(--ui-font);
                            z-index: 5; box-sizing: border-box;
                            border-left: 1px solid var(--hairline);
                            padding: 1.1em 1.2em 1em; font-size: .92em; }
@@ -177,53 +183,42 @@ enum ReaderTemplate {
                                                  transition: transform .25s ease-in-out,
                                                              visibility 0s; }
       body.glosso-chat-open { margin-right: 340px; }
-      .glosso-chat-label { font-family: var(--ui-font); font-size: .68rem;
-                           font-weight: 600; letter-spacing: .2em;
-                           text-transform: uppercase; text-align: center;
-                           color: var(--accent-ink); }
+      /* Title case, not caps: HIG asks for it, and the panel isn't a section header in a book any more. */
+      .glosso-chat-label { font-size: .78rem; font-weight: 600; text-align: center;
+                           color: var(--ink-soft); }
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
-                              display: flex; flex-direction: column;
-                              counter-reset: glosso-footnote; }
-      .glosso-chat-q { align-self: flex-end; max-width: 88%; margin-bottom: .8em;
-                       font-family: var(--ui-font); font-size: .88em; line-height: 1.5;
-                       background: AccentColor;
-                       color: AccentColorText;
-                       border-radius: 11px; border-bottom-right-radius: 4px;
-                       padding: .45em .7em; }
-      .glosso-chat-a { white-space: pre-wrap; margin-bottom: 1.2em;
-                       border-top: 1px solid var(--hairline); padding-top: .7em;
-                       font-size: .92em; line-height: 1.6; }
-      .glosso-chat-a::before { content: counter(glosso-footnote);
-                               counter-increment: glosso-footnote;
-                               font-size: .72em; vertical-align: .45em;
-                               margin-right: .45em; color: var(--accent-ink);
-                               font-weight: 600; }
-      .glosso-chat-error { color: color-mix(in srgb, red 70%, CanvasText); }
-      #glosso-suggest-label { font-family: var(--ui-font); font-size: .62rem;
-                              font-weight: 600; letter-spacing: .16em;
-                              text-transform: uppercase; margin-bottom: -.45em;
-                              color: var(--ink-soft);
+                              display: flex; flex-direction: column; }
+      .glosso-chat-q, .glosso-chat-a { max-width: 88%; margin-bottom: .5em;
+                                       font-size: .88em; line-height: 1.5;
+                                       border-radius: 18px; padding: .5em .85em; }
+      .glosso-chat-q { align-self: flex-end; border-bottom-right-radius: 5px;
+                       background: AccentColor; color: AccentColorText; }
+      .glosso-chat-a { align-self: flex-start; border-bottom-left-radius: 5px;
+                       background: light-dark(#E9E9EB, #3A3A3C); color: CanvasText;
+                       white-space: pre-wrap; }
+      /* A tinted bubble, not tinted text: red on the received-bubble gray is barely a signal. */
+      .glosso-chat-error { background: color-mix(in srgb, red 12%, Canvas);
+                           color: color-mix(in srgb, red 70%, CanvasText); }
+      #glosso-suggest-label { font-size: .72rem; font-weight: 600;
+                              margin-bottom: -.45em; color: var(--ink-soft);
                               display: none; }
-      #glosso-chat-suggestions { display: flex; flex-direction: column; }
+      #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
       .glosso-chat-started #glosso-suggest-label { display: none !important; }
-      .glosso-chat-started #glosso-chat-suggestions { flex-direction: row;
+      .glosso-chat-started #glosso-chat-suggestions { flex-wrap: nowrap;
                                                       overflow-x: auto; flex: none;
-                                                      gap: 1em; padding-bottom: .7em; }
+                                                      padding-bottom: .7em; }
       .glosso-chat-started .glosso-chip { flex: none; max-width: 15em;
                                           white-space: nowrap; overflow: hidden;
-                                          text-overflow: ellipsis; border-top: 0; }
-      .glosso-chip { font-family: inherit; font-style: italic; font-size: .88em;
-                     line-height: 1.45; text-align: left; cursor: pointer;
-                     color: CanvasText; background: transparent; border: 0;
-                     border-top: 1px solid var(--hairline);
-                     padding: .55em .1em .55em 1.2em; position: relative; }
-      .glosso-chip::before { content: "»"; position: absolute; left: 0;
-                             font-style: normal; color: var(--accent-ink); }
-      .glosso-chip:hover { color: var(--accent-ink); }
+                                          text-overflow: ellipsis; }
+      .glosso-chip { font-family: inherit; font-size: .82em; line-height: 1.4;
+                     text-align: left; cursor: pointer; color: CanvasText;
+                     background: Canvas; border: 1px solid var(--hairline);
+                     border-radius: 999px; padding: .4em .9em; }
+      .glosso-chip:hover { background: color-mix(in srgb, CanvasText 6%, Canvas); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
       #glosso-chat-form { display: flex; gap: .5em; align-items: center; }
       #glosso-chat-input { flex: 1; font-family: inherit; font-size: .9em;
-                           padding: .45em .65em; border-radius: 10px;
+                           padding: .5em .9em; border-radius: 999px;
                            border: 1px solid var(--hairline);
                            background: Canvas; color: CanvasText;
                            resize: none; max-height: 8em; overflow-y: auto; line-height: 1.4; }
@@ -250,7 +245,7 @@ enum ReaderTemplate {
       <div id="glosso-chat-suggestions"></div>
       <form id="glosso-chat-form">
         <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
-        <button type="submit" class="glosso-send">\(loc("Wyślij", "Send"))</button>
+        <button type="submit" class="glosso-send" aria-label="\(loc("Wyślij", "Send"))">↑</button>
       </form>
     </div>
     <script>
