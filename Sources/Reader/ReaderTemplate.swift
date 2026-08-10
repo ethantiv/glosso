@@ -191,11 +191,13 @@ enum ReaderTemplate {
       .glosso-chat-q, .glosso-chat-a { max-width: 88%; margin-bottom: .5em;
                                        font-size: .92em; line-height: 1.5;
                                        border-radius: 18px; padding: .5em .85em; }
-      /* Darkened in light mode: white on a stock `AccentColor` clears about 3.6:1, under the 4.5:1 that small text
-         needs. Dark mode keeps the raw accent, where the same white already has room. */
+      /* Explicit white, not `AccentColorText`. That keyword only means anything next to a plain `AccentColor`
+         background; darkening this one through `color-mix` broke the pairing and WebKit fell back to dark ink, which
+         is how the bubble ended up black-on-blue. The send button keeps the pair because its background is unmixed.
+         The extra darkening carries white at 4.5:1 — a very light accent (yellow) lands nearer 4:1. */
       .glosso-chat-q { align-self: flex-end; border-bottom-right-radius: 5px;
-                       background: light-dark(color-mix(in srgb, AccentColor 88%, black), AccentColor);
-                       color: AccentColorText; }
+                       background: light-dark(color-mix(in srgb, AccentColor 82%, black), AccentColor);
+                       color: #fff; }
       .glosso-chat-a { align-self: flex-start; border-bottom-left-radius: 5px;
                        background: light-dark(#E9E9EB, #3A3A3C); color: CanvasText;
                        white-space: pre-wrap; }
