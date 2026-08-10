@@ -54,7 +54,6 @@ struct PopupView: View {
     var body: some View {
         panelBox
             .overlay(alignment: .bottomTrailing) { resizeGrip }
-            .shadow(color: .black.opacity(0.16), radius: 12, y: 5)
             .padding(.bottom, reservedBottom)
             .overlayPreferenceValue(WordAnchorKey.self) { anchors in
                 dropdownOverlay(anchors: anchors)
@@ -96,8 +95,8 @@ struct PopupView: View {
             }
         }
         // An opaque window surface carrying glass controls, the way a Notes window does it — the material belongs to the
-        // things floating over the page, never behind its text. The card draws its own hairline because the panel's
-        // AppKit shadow is off, so a white panel over a white app would otherwise have no edge at all.
+        // things floating over the page, never behind its text. The hairline stays even though the window now casts its
+        // own shadow: over a white app the shadow alone leaves the top edge without a contour.
         .background(Color(nsColor: .textBackgroundColor))
         .clipShape(RoundedRectangle(cornerRadius: PopupTheme.rWindow))
         .overlay(

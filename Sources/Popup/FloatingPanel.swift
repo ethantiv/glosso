@@ -16,7 +16,11 @@ final class FloatingPanel: NSPanel {
         hidesOnDeactivate = false
         isOpaque = false
         backgroundColor = .clear
-        hasShadow = false
+        // AppKit's own shadow, not a SwiftUI one: a hand-drawn shadow only has the window's transparent margin to blur
+        // into, so it gets clipped by the window edge and reads as a hard line. The window shadow renders outside the
+        // frame and matches every other window on screen. It is cached, though — see `invalidateShadow()` in the
+        // controller.
+        hasShadow = true
         isMovableByWindowBackground = false
     }
 

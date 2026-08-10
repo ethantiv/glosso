@@ -228,6 +228,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
             isApplyingFrame = true
             panel.setFrame(target, display: true)
             isApplyingFrame = false
+            // AppKit caches a non-opaque window's shadow and won't recompute it when the frame changes; without this
+            // the shadow keeps the silhouette it had before the dropdown grew the window.
+            panel.invalidateShadow()
             return
         }
         // `isApplyingFrame` has to outlive the animation: the didMove observer fires per animation step and would
@@ -246,6 +249,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 guard let self, self.frameAnimSeq == seq else { return }
                 self.frameTarget = nil
                 self.isApplyingFrame = false
+                // Once, at the end — recomputing the shadow mask per animation step costs a full-window pass a frame.
+                panel.invalidateShadow()
             }
         })
     }
