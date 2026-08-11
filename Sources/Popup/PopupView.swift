@@ -26,8 +26,11 @@ struct PopupView: View {
     private static let sourceWidth: CGFloat = 268
     private static let translationWidth: CGFloat = 300
     private static let maxPaneHeight: CGFloat = 400
-    // The pane padding sits outside the ScrollView, so without this the overlay scroller draws over the last letter.
-    private static let scrollerInset: CGFloat = 12
+    // The scroller sits at the ScrollView's trailing edge, so the content — not the ScrollView — has to step aside.
+    private static let scrollerInset: CGFloat = 14
+    // The pane's own padding would park the scroller 15pt inboard; it reaches past it to sit this close to the edge.
+    private static let scrollerEdgeGap: CGFloat = 6
+    private static let scrollerOverhang: CGFloat = scrollerEdgeGap - PopupTheme.padPane
 
     static let shadowMargin: CGFloat = 14
 
@@ -382,6 +385,7 @@ struct PopupView: View {
                         .font(PopupTheme.fontLead)
                         .foregroundStyle(.primary)
                         .fixedSize(horizontal: false, vertical: true)
+                        .padding(.trailing, Self.scrollerInset)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .onKeyPress(.return, phases: .down) { press in
                             guard press.modifiers.contains(.command), canRetranslate else {
@@ -394,7 +398,7 @@ struct PopupView: View {
                 .frame(maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollEdgeEffectStyle(.soft, for: .all)
-                .contentMargins(.trailing, Self.scrollerInset, for: .scrollContent)
+                .padding(.trailing, Self.scrollerOverhang)
             } else if model.phase == .capturing {
                 SkeletonView()
             }
@@ -471,20 +475,23 @@ struct PopupView: View {
             }
         case .done:
             ScrollView {
-                if model.action == .translate {
-                    wordFlow
-                } else if model.action == .fixGrammar {
-                    if model.splitFixView { fixSplitContent } else { grammarDiffFlow }
-                } else if model.action == .reply {
-                    replyDrafts
-                } else {
-                    plainResultText
+                Group {
+                    if model.action == .translate {
+                        wordFlow
+                    } else if model.action == .fixGrammar {
+                        if model.splitFixView { fixSplitContent } else { grammarDiffFlow }
+                    } else if model.action == .reply {
+                        replyDrafts
+                    } else {
+                        plainResultText
+                    }
                 }
+                .padding(.trailing, Self.scrollerInset)
             }
             .frame(maxHeight: paneMaxHeight)
             .scrollBounceBehavior(.basedOnSize)
             .scrollEdgeEffectStyle(.soft, for: .all)
-            .contentMargins(.trailing, Self.scrollerInset, for: .scrollContent)
+            .padding(.trailing, Self.scrollerOverhang)
         }
     }
 
