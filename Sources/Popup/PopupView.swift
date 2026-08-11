@@ -26,6 +26,8 @@ struct PopupView: View {
     private static let sourceWidth: CGFloat = 268
     private static let translationWidth: CGFloat = 300
     private static let maxPaneHeight: CGFloat = 400
+    // The pane padding sits outside the ScrollView, so without this the overlay scroller draws over the last letter.
+    private static let scrollerInset: CGFloat = 12
 
     static let shadowMargin: CGFloat = 14
 
@@ -392,6 +394,7 @@ struct PopupView: View {
                 .frame(maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollEdgeEffectStyle(.soft, for: .all)
+                .contentMargins(.trailing, Self.scrollerInset, for: .scrollContent)
             } else if model.phase == .capturing {
                 SkeletonView()
             }
@@ -481,6 +484,7 @@ struct PopupView: View {
             .frame(maxHeight: paneMaxHeight)
             .scrollBounceBehavior(.basedOnSize)
             .scrollEdgeEffectStyle(.soft, for: .all)
+            .contentMargins(.trailing, Self.scrollerInset, for: .scrollContent)
         }
     }
 
