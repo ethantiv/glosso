@@ -82,15 +82,24 @@
     <!-- Wierne odtworzenie panelu Glosso w trybie Popraw (zrzuty natywnych okien macOS są blokowane przez system). -->
     <figure class="gpop" role="img" aria-label="Panel Glosso w trybie Popraw poprawia polski tekst „Już nie moge się doczekac naszego spotkania.” na „Już nie mogę się doczekać naszego spotkania.”">
       <div class="gpop__bar">
-        <div class="gpop__verbs">
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Tłumacz</span>
-          <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Popraw</span>
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>Odpowiedz</span>
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Streść</span>
+        <div class="gseg">
+          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Tłumacz</span>
+          <span class="gseg__i gseg__i--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Popraw</span>
+          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>Odpowiedz</span>
+          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Streść</span>
         </div>
         <div class="gpop__acts">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M3 12h9M3 18h13"/><path d="m17 5 3 3-3 3"/></svg></span>
+          <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+          <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+      </div>
+      <div class="gpop__meta">
+        <span class="gdir">PL <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M14 7l5 5-5 5"/></svg> EN</span>
+        <div class="gseg">
+          <span class="gseg__i gseg__i--on">Automatyczny</span>
+          <span class="gseg__i">Formalny</span>
+          <span class="gseg__i">Nieformalny</span>
         </div>
       </div>
       <div class="gpop__body">
@@ -202,8 +211,8 @@
 <section class="pillars" id="privacy">
   <div class="pillars__lead">
     <h2>Domyślnie bez chmury<br>i bez abonamentu.</h2>
-    <p>Model językowy (Gemma przez Ollamę) działa lokalnie na <code>localhost</code>. Żadnego konta, żadnej miesięcznej opłaty. To, co poprawiasz i tłumaczysz, nigdy nie opuszcza Twojego Maca.</p>
-    <p>Jeśli nie chcesz pobierać modelu, w Ustawieniach włączysz jeden z dwóch trybów chmurowych na własny klucz API: darmowe Google AI (Gemini Flash Lite albo tę samą Gemmę) lub Ollama Cloud z większą Gemmą. Wtedy zaznaczony tekst trafia na serwer dostawcy. Tryb lokalny pozostaje domyślny, a gdy limit chmury się wyczerpie, Glosso wraca do modelu na dysku.</p>
+    <p>Model (Gemma przez Ollamę) działa lokalnie, bez konta i bez opłat. To, co poprawiasz i tłumaczysz, nie opuszcza Twojego Maca.</p>
+    <p>Kto nie chce pobierać modelu, włączy w Ustawieniach Google AI albo Ollama Cloud na własny klucz. Wtedy tekst trafia na serwer dostawcy, więc domyślny zostaje tryb lokalny.</p>
   </div>
   <div class="pillars__list">
     <div class="pillar">
@@ -236,19 +245,28 @@
     </div>
     <div class="reader__demo" data-reveal>
       <!-- Wierne odtworzenie okna czytnika (zrzuty natywnych okien macOS są blokowane przez system). -->
-      <figure class="rwin" role="img" aria-label="Okno czytnika Glosso: artykuł przetłumaczony na polski ze streszczeniem TL;DR na górze, pigułkami Oryginał i Ponów oraz panelem czatu z pytaniem o artykuł.">
+      <figure class="rwin" role="img" aria-label="Okno czytnika Glosso: artykuł przetłumaczony na polski, ze stroną tytułową, notą od tłumacza, paskiem postępu tłumaczenia i panelem czatu z pytaniem o artykuł.">
         <div class="rwin__bar">
           <span class="rwin__dots" aria-hidden="true"></span>
-          <span class="rwin__url">theverge.com · artykuł</span>
-          <span class="rwin__pills">
-            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14l-3-3M21 16H7l3 3"/></svg>Oryginał</span>
-            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>Ponów</span>
+          <span class="rwin__titles">
+            <span class="rwin__t">Cichy powrót programów, które mieszkają na twoim dysku</span>
+            <span class="rwin__s">Tłumaczę… (4/15) · Lokalnie · gemma4:26b-mlx</span>
+          </span>
+          <span class="rwin__tools">
+            <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg></span>
+            <span class="gseg">
+              <span class="gseg__i gseg__i--on">PL</span>
+              <span class="gseg__i">EN</span>
+            </span>
+            <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 9.6 9.6 0 0 1-3.8-.8L3 21l1.9-4.6A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg></span>
           </span>
         </div>
+        <div class="rwin__progress" aria-hidden="true"><i></i></div>
         <div class="rwin__body">
           <article class="rwin__article">
             <h3>Cichy powrót programów, które mieszkają na twoim dysku</h3>
-            <p class="rwin__tldr"><span class="rwin__tag">TL;DR</span>Coraz więcej aplikacji trzyma dane lokalnie i sięga do chmury tylko wtedy, gdy naprawdę musi. Autor opisuje, skąd ta zmiana i co zyskują użytkownicy.</p>
+            <p class="rwin__fleuron" aria-hidden="true">❦</p>
+            <p class="rwin__tldr">Coraz więcej aplikacji trzyma dane lokalnie i sięga do chmury tylko wtedy, gdy naprawdę musi. Autorka opisuje, skąd ta zmiana i co zyskują użytkownicy.</p>
             <p>Przez dekadę zakładaliśmy, że każdy dokument musi mieszkać na czyimś serwerze. Nowa fala narzędzi odwraca ten porządek: plik jest u ciebie, a synchronizacja to dodatek, nie fundament.</p>
             <p class="rwin__fade">Ta filozofia ma swoją cenę. Autorzy opisywanych aplikacji przekonują jednak, że…</p>
           </article>
@@ -257,7 +275,7 @@
             <p class="rmsg rmsg--q">Co zyskuje użytkownik?</p>
             <p class="rmsg rmsg--a">Dane zostają na dysku, aplikacje działają offline, a chmura przestaje być pojedynczym punktem awarii.</p>
             <p class="rchip">Skąd wzięła się ta zmiana?</p>
-            <p class="rwin__input">Dopytaj o szczegóły…<span class="gcaret"></span></p>
+            <p class="rwin__input"><span>Zadaj pytanie…</span><span class="rsend" aria-hidden="true">↑</span></p>
           </aside>
         </div>
       </figure>

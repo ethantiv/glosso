@@ -71,15 +71,24 @@
     <!-- Faithful recreation of the Glosso panel in Fix mode (macOS blocks screenshots of native windows). -->
     <figure class="gpop" role="img" aria-label="Glosso panel in Fix mode correcting the English sentence 'I look foward to see you soon.' to 'I look forward to seeing you soon.'">
       <div class="gpop__bar">
-        <div class="gpop__verbs">
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Translate</span>
-          <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Fix</span>
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>Reply</span>
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Summarize</span>
+        <div class="gseg">
+          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Translate</span>
+          <span class="gseg__i gseg__i--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Fix</span>
+          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>Reply</span>
+          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Summarize</span>
         </div>
         <div class="gpop__acts">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg>
+          <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M3 12h9M3 18h13"/><path d="m17 5 3 3-3 3"/></svg></span>
+          <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></span>
+          <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M18 6 6 18M6 6l12 12"/></svg></span>
+        </div>
+      </div>
+      <div class="gpop__meta">
+        <span class="gdir">EN <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12h15M14 7l5 5-5 5"/></svg> PL</span>
+        <div class="gseg">
+          <span class="gseg__i gseg__i--on">Automatic</span>
+          <span class="gseg__i">Formal</span>
+          <span class="gseg__i">Informal</span>
         </div>
       </div>
       <div class="gpop__body">
@@ -191,8 +200,8 @@
 <section class="pillars" id="privacy">
   <div class="pillars__lead">
     <h2>No cloud by default,<br>and no subscription.</h2>
-    <p>The language model (Gemma via Ollama) runs locally on <code>localhost</code>. No account, no monthly bill. Whatever you fix or translate never leaves your Mac.</p>
-    <p>If you'd rather not download a model, Settings offers two cloud engines that run on your own API key: free Google AI (Gemini Flash Lite or the same Gemma) and Ollama Cloud with the bigger Gemma. The selected text then goes to that provider's servers. Local stays the default, and when a cloud quota runs out Glosso falls back to the model on your disk.</p>
+    <p>The model (Gemma via Ollama) runs locally, with no account and no monthly bill. Whatever you fix or translate never leaves your Mac.</p>
+    <p>If you'd rather not download it, Settings can switch to Google AI or Ollama Cloud on your own key. The text then goes to that provider, which is why local stays the default.</p>
   </div>
   <div class="pillars__list">
     <div class="pillar">
@@ -225,19 +234,28 @@
     </div>
     <div class="reader__demo" data-reveal>
       <!-- Faithful recreation of the reader window (macOS blocks screenshots of native windows). -->
-      <figure class="rwin" role="img" aria-label="Glosso reader window: an article translated into English with a TL;DR summary on top, Original and Redo pills, and a chat panel with a question about the article.">
+      <figure class="rwin" role="img" aria-label="Glosso reader window: an article translated into English, with a title page, a translator's note, a translation progress bar and a chat panel with a question about the article.">
         <div class="rwin__bar">
           <span class="rwin__dots" aria-hidden="true"></span>
-          <span class="rwin__url">theverge.com · article</span>
-          <span class="rwin__pills">
-            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14l-3-3M21 16H7l3 3"/></svg>Original</span>
-            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>Redo</span>
+          <span class="rwin__titles">
+            <span class="rwin__t">The quiet return of software that lives on your disk</span>
+            <span class="rwin__s">Translating… (4/15) · On this Mac · gemma4:26b-mlx</span>
+          </span>
+          <span class="rwin__tools">
+            <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg></span>
+            <span class="gseg">
+              <span class="gseg__i gseg__i--on">EN</span>
+              <span class="gseg__i">FR</span>
+            </span>
+            <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-9 8.4 9.6 9.6 0 0 1-3.8-.8L3 21l1.9-4.6A8.38 8.38 0 0 1 4 11.5 8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z"/></svg></span>
           </span>
         </div>
+        <div class="rwin__progress" aria-hidden="true"><i></i></div>
         <div class="rwin__body">
           <article class="rwin__article">
             <h3>The quiet return of software that lives on your disk</h3>
-            <p class="rwin__tldr"><span class="rwin__tag">TL;DR</span>More and more apps keep data on the device and reach for the cloud only when they have to. The author explains where the shift came from and what users gain.</p>
+            <p class="rwin__fleuron" aria-hidden="true">❦</p>
+            <p class="rwin__tldr">More and more apps keep data on the device and reach for the cloud only when they have to. The author explains where the shift came from and what users gain.</p>
             <p>For a decade we assumed every document had to live on someone else's server. A new wave of tools flips that order: the file is yours, and sync is an add-on, not the foundation.</p>
             <p class="rwin__fade">This philosophy has a price. The authors of these apps argue, though, that…</p>
           </article>
@@ -246,7 +264,7 @@
             <p class="rmsg rmsg--q">What does the user gain?</p>
             <p class="rmsg rmsg--a">Files stay on your disk, apps work offline, and the cloud stops being a single point of failure.</p>
             <p class="rchip">Where did this shift come from?</p>
-            <p class="rwin__input">Ask a follow-up…<span class="gcaret"></span></p>
+            <p class="rwin__input"><span>Ask a question…</span><span class="rsend" aria-hidden="true">↑</span></p>
           </aside>
         </div>
       </figure>

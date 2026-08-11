@@ -13,6 +13,8 @@ colors:
   ink-soft: "#4a4d68"
   paper: "#ffffff"
   line: "#e6e6f1"
+  track: "#eef0f4"
+  glass-line: "rgba(20,22,60,.10)"
 typography:
   display:
     fontFamily: "Bricolage Grotesque, system-ui, sans-serif"
@@ -38,6 +40,12 @@ typography:
     fontWeight: 400
     lineHeight: 1.6
     letterSpacing: "normal"
+  reader:
+    fontFamily: "Athelas, Palatino, ui-serif, Georgia, serif"
+    fontSize: "0.9rem"
+    fontWeight: 400
+    lineHeight: 1.7
+    letterSpacing: "normal"
   label:
     fontFamily: "-apple-system, BlinkMacSystemFont, SF Pro Text, system-ui, sans-serif"
     fontSize: "0.68rem"
@@ -49,6 +57,8 @@ rounded:
   md: "12px"
   lg: "16px"
   pill: "9px"
+  capsule: "999px"
+  circle: "50%"
 spacing:
   xs: "8px"
   sm: "12px"
@@ -133,6 +143,7 @@ Strategia **Committed/Drenched**: indygo niesie markę i zalewa sekcje-bohateró
 
 **Display Font:** Bricolage Grotesque (z fallbackiem `system-ui, sans-serif`)
 **Body/UI Font:** systemowy stos macOS — `-apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui` (z fallbackiem Segoe UI / Roboto)
+**Reader Font:** `"Athelas", "Palatino", ui-serif, Georgia, serif` — wyłącznie treść artykułu w odtworzonym oknie czytnika, bo tym krojem składa się prawdziwe okno
 **Mono Font:** `ui-monospace, "SF Mono", Menlo` — tylko dla `code`
 
 **Character:** Kontrast oparty na jednej osi: gruby, ciasno ułożony grotesk display (waga 800, `letter-spacing` od −0.02em do −0.035em) kontra neutralny, wierny macOS font systemowy w treści. To celowa decyzja — UI ma wyglądać jak natywny macOS, więc body nie udaje „brandowego" kroju. Nagłówki krzyczą, interfejs mówi normalnie.
@@ -145,7 +156,7 @@ Strategia **Committed/Drenched**: indygo niesie markę i zalewa sekcje-bohateró
 - **Label** (700, 0.68rem, tracking 0.09em, UPPERCASE): etykiety wewnątrz odtworzonego panelu (`ORYGINAŁ`, `POPRAWKA`, `TŁUMACZENIE`). Eyebrow hero (`.hero__eyebrow`, 0.9rem, waga 600) jest pojedynczy i nazwany, nie powtarzany nad każdą sekcją.
 
 ### Named Rules
-**Reguła Systemowego UI.** Tekst, który udaje interfejs Glosso (panel, keycapy, czasowniki), zawsze w foncie systemowym macOS — to część wierności produktowi. Bricolage zostaje dla narracji strony, nigdy nie wchodzi do odtworzonego okna.
+**Reguła Systemowego UI.** Tekst, który udaje **chrom** interfejsu Glosso (pasek czasowników, keycapy, etykiety paneli, pasek narzędzi czytnika, czat), zawsze w foncie systemowym macOS. Treść artykułu w czytniku jest wyjątkiem i idzie szeryfem — bo prawdziwe okno składa ją szeryfem. Bricolage zostaje dla narracji strony i nie wchodzi do odtworzonego okna w żadnej z tych ról.
 
 **Reguła Jednego Eyebrow.** Mały tracked label nad nagłówkiem dozwolony tylko raz — w hero. Powtarzanie go nad każdą sekcją to szablonowy rusztowy AI; zakazane.
 
@@ -179,11 +190,16 @@ System jest w większości płaski, z głębią budowaną dwoma środkami: **gra
 ### Cards / Containers
 - **Phase (przewodnik):** dwukolumnowa karta na badge'u kroku, róg 16px, obrys `--line`, cień Card, hover unosi o 3px i rozjaśnia obrys. Łączone pionową linią-gradientem między krokami (1→2 indygo, 2→3 do koralu).
 - **Capability (`.vcard`):** bez pudełka — tylko **górny** pasek 2px (indygo / koral / indygo-głębokie naprzemiennie), ikona + tytuł + opis. Świadomie nie ramka, by uniknąć powtarzalnej siatki kart.
-- **Shot (showcase):** odtworzony panel na gradientowym „ekranie" z kropkami traffic-light, prezentujący stany popupu (klikalne słowa, „Dlaczego tak?", edytowalne źródło, diff poprawki).
+- **Shot (showcase):** odtworzony panel na gradientowym „ekranie", prezentujący stany popupu (klikalne słowa, „Dlaczego tak?", edytowalne źródło, diff poprawki). Bez kropek traffic-light — panel Glosso jest bezramkowy i nigdy ich nie ma; ma je tylko okno czytnika.
 - **Border:** pełne obrysy lub górne paski; **nigdy** kolorowy `border-left/right` jako akcent.
 
 ### Panel / Popup (signature component)
-Wierne odtworzenie okna Glosso: pasek czasowników (Tłumacz / Streść / Popraw — aktywny ma tło `#e5e7fb` i tekst indygo-głębokie), akcje (kopiuj, zamknij), dwukolumnowe ciało ORYGINAŁ | POPRAWKA, diff (usunięcia `#c0492f` przekreślone, wstawienia indygo-głębokie pogrubione), rozwijane „Dlaczego poprawiono?" z cytatem reguły RJP. Tło białe, róg 16px, cień Panel, uchwyt resize w rogu. To bohater strony — renderowany w HTML, bo TCC blokuje zrzuty natywnych okien.
+Wierne odtworzenie okna Glosso: **segmentowany przełącznik** czasowników (Tłumacz / Popraw / Odpowiedz / Streść) — jeden tor `--track`, wybrany segment wypełniony bielą z cieniem 1px; obok trzy **okrągłe przyciski** (zastąp, kopiuj, zamknij) w bieli z obrysem `--glass-line`, bo w aplikacji są ze szkła. Druga linia paska: kierunek `PL → EN` zwykłym tekstem i drugi taki sam przełącznik z tonem (Automatyczny / Formalny / Nieformalny). Dalej dwukolumnowe ciało ORYGINAŁ | POPRAWKA rozdzielone włoskowatą pionową linią, diff (usunięcia `#c0492f` przekreślone, wstawienia indygo-głębokie pogrubione), rozwijane „Dlaczego poprawiono?" z cytatem reguły RJP. Tło białe, róg 16px, cień Panel, uchwyt resize w rogu. To bohater strony — renderowany w HTML, bo TCC blokuje zrzuty natywnych okien.
+
+**Reguła Neutralnego Chromu.** Wewnątrz odtworzonych okien indygo znaczy tylko to, co w aplikacji jest kolorem akcentu systemu: wstawki w diffie, nagłówek rozwijanego „Dlaczego?", zaznaczone słowo, dymek pytania w czacie, pasek postępu. Sam chrom — przełączniki, przyciski, obrysy — zostaje neutralny, bo taki jest na ekranie. Barwienie chromu marką sprawia, że prop przestaje być zrzutem, a zaczyna być ilustracją.
+
+### Reader window
+Osobne okno, więc dostaje prawdziwe ramy: kropki traffic-light, zunifikowany pasek narzędzi z tytułem artykułu i podtytułem (postęp · silnik · model), a po prawej okrągły „odśwież", segmentowany przełącznik z kodami języków (PL | EN) i okrągły przycisk czatu. Pod paskiem 3px pasek postępu w indygo. Treść to strona tytułowa „Dwugłosu": wyśrodkowany tytuł szeryfem, fleuron ❦, nota „OD TŁUMACZA · TL;DR" zamknięta dwiema włoskowatymi liniami (bez pudełka), potem akapity. Czat po prawej celowo wraca do fontu UI i dymków z Wiadomości: pytanie na indygo, odpowiedź na `#e9e9eb`, podpowiedzi jako kapsułki, wysyłka jako kółko.
 
 ### Navigation
 - **Style:** sticky, tło `rgba(21,23,63,.92)` z `backdrop-filter: blur(8px)`, dolny obrys w bieli półprzezroczystej. Brand (Bricolage 800) + linki `rgba(255,255,255,.82)` (hover do bieli) + koralowy CTA „Pobierz".
@@ -211,3 +227,5 @@ Edytowalne źródło w panelu pokazane stanem `--edit`: obrys indygo + glow `0 0
 - **Don't** używaj `border-left`/`border-right` >1px jako kolorowego paska akcentu (górny pasek `.vcard` jest OK).
 - **Don't** kładź białego tekstu na pastelowym indygo ani nie rozjaśniaj tekstu „dla elegancji".
 - **Don't** wpuszczaj Bricolage do odtworzonego okna Glosso — to łamie wierność macOS.
+- **Don't** barw chromu odtworzonych okien marką (Reguła Neutralnego Chromu): przełącznik, przycisk i obrys zostają neutralne, indygo trzymaj dla tego, co w aplikacji rysuje kolor akcentu.
+- **Don't** dorysowuj kropek traffic-light panelowi popupu — ma je czytnik, bo jest zwykłym oknem; popup jest bezramkowym panelem.

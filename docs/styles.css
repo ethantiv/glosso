@@ -17,6 +17,12 @@
 
   --font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", system-ui, "Segoe UI", Roboto, sans-serif;
+  /* Krój treści czytnika — ten sam stos, którym składa się prawdziwe okno. */
+  --font-read: "Athelas", "Palatino", ui-serif, Georgia, serif;
+
+  /* Chrom odtworzonych okien: tor segmentowanego przełącznika i obrys szklanych kółek. */
+  --track:      #eef0f4;
+  --glass-line: rgba(20,22,60,.10);
 
   --wrap: 1120px;
   --radius: 16px;
@@ -389,7 +395,7 @@ kbd {
 }
 .stage .gpop {
   width: auto;
-  margin: clamp(1.2rem, 3vw, 1.9rem) clamp(1rem, 3vw, 1.8rem) 0;
+  margin: clamp(1.2rem, 3vw, 1.9rem) clamp(.75rem, 2vw, 1.1rem) 0;
 }
 .gpop {
   width: 100%;
@@ -406,31 +412,65 @@ kbd {
   align-items: center;
   justify-content: space-between;
   gap: .6rem;
-  margin-bottom: 1.15rem;
+  margin-bottom: .55rem;
 }
-.gpop__verbs { display: flex; gap: .24rem; flex-wrap: wrap; }
-.gv {
+/* Segmentowany przełącznik macOS: jeden tor, wypełniony segment aktywny.
+   Neutralny celowo — w aplikacji wybór nie jest barwiony akcentem. */
+.gseg {
   display: inline-flex;
   align-items: center;
-  gap: .28rem;
+  gap: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: var(--track);
+  flex-wrap: wrap;
+}
+.gseg__i {
+  display: inline-flex;
+  align-items: center;
+  gap: .26rem;
+  font-size: .78rem;
+  font-weight: 500;
+  padding: .28rem .48rem;
+  border-radius: 999px;
+  color: var(--ink-soft);
+}
+.gseg__i svg { width: 14px; height: 14px; flex: none; }
+.gseg__i--on {
+  background: var(--paper);
+  color: var(--ink);
+  font-weight: 600;
+  box-shadow: 0 1px 2px rgba(21,23,63,.16), 0 0 0 .5px rgba(21,23,63,.06);
+}
+/* Okrągłe przyciski-akcje: w aplikacji to szkło, tutaj biel z włoskowatym obrysem. */
+.gcirc {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 50%;
+  color: var(--ink-soft);
+  background: var(--paper);
+  border: 1px solid var(--glass-line);
+  box-shadow: 0 1px 2px rgba(21,23,63,.1);
+}
+.gcirc svg { width: 14px; height: 14px; display: block; }
+.gpop__acts { display: flex; align-items: center; gap: .35rem; flex: none; }
+/* Wiersz kierunku i tonu — druga linia paska w prawdziwym panelu. */
+.gpop__meta { display: flex; align-items: center; gap: .55rem; flex-wrap: wrap; margin-bottom: 1.05rem; }
+.gdir {
+  display: inline-flex;
+  align-items: center;
+  gap: .3rem;
   font-size: .78rem;
   font-weight: 600;
-  padding: .3rem .5rem;
-  border-radius: 9px;
-  color: var(--ink-soft);
-  background: #eef0f4;
+  color: var(--ink);
+  flex: none;
 }
-.gv svg { width: 15px; height: 15px; }
-.gv--on { background: #e5e7fb; color: var(--indigo-600); }
-.gpop__acts { display: flex; align-items: center; gap: .5rem; color: #9aa0b4; flex: none; }
-.gpop__acts svg { width: 17px; height: 17px; display: block; }
+.gdir svg { width: 13px; height: 13px; color: var(--ink-soft); }
 .gpop__body { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; }
 .gpane { position: relative; min-width: 0; }
 .gpane--out { padding-left: 1rem; border-left: 1px solid var(--line); }
-.gpane--out::before {
-  content: ""; position: absolute; left: 0; top: -.55rem;
-  width: 42%; height: 2px; background: var(--indigo); border-radius: 2px;
-}
 .gpane__label {
   font-size: .68rem; font-weight: 700; letter-spacing: .09em;
   color: #6b7185; margin-bottom: .5rem;
@@ -492,14 +532,7 @@ kbd {
     linear-gradient(165deg, #5b65de, #353e9e);
   box-shadow: 0 26px 54px -32px rgba(8,9,36,.6);
 }
-.shot__ui::before {
-  content: "";
-  flex: none;
-  width: 9px; height: 9px; border-radius: 50%;
-  background: #ff5f57;
-  box-shadow: 15px 0 #febc2e, 30px 0 #28c840;
-  margin: .15rem 0 .9rem .3rem;
-}
+/* Bez kropek traffic-light: panel Glosso jest bezramkowy i nigdy ich nie ma. Ekran to sam gradient. */
 .shot__frame {
   background: #fff;
   border-radius: 13px;
@@ -742,6 +775,8 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   background: var(--indigo);
   opacity: .5;
 }
+/* Kolumna siatki nie może rosnąć do min-content okna — inaczej pasek tytułu rozpycha stronę na telefonie. */
+.reader__demo { min-width: 0; }
 .rwin {
   margin: 0;
   background: #fff;
@@ -751,11 +786,12 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   box-shadow: var(--shadow-panel);
   overflow: hidden;
 }
+/* Zunifikowany pasek narzędzi: tytuł i podtytuł dzielą wiersz z kontrolkami — tak jak w oknie czytnika. */
 .rwin__bar {
   display: flex;
   align-items: center;
   gap: .8rem;
-  padding: .6rem .9rem;
+  padding: .55rem .9rem;
   border-bottom: 1px solid var(--line);
   background: #f7f7fc;
 }
@@ -768,112 +804,138 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
   box-shadow: 15px 0 #febc2e, 30px 0 #28c840;
   margin-right: 26px;
 }
-.rwin__url {
+/* overflow + min-width: bez nich nieprzełamywalny tytuł wypycha całe okno poza szerokość telefonu. */
+.rwin__titles { flex: 1; min-width: 0; overflow: hidden; text-align: center; }
+.rwin__t {
+  display: block;
   font-size: .78rem;
+  font-weight: 700;
+  color: var(--ink);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+/* Podtytuł niesie postęp i silnik — jedyne miejsce, gdzie okno mówi, kto tłumaczy. */
+.rwin__s {
+  display: block;
+  font-size: .68rem;
   color: var(--ink-soft);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.rwin__pills { margin-left: auto; display: flex; gap: .4rem; flex: none; }
-.rpill {
-  display: inline-flex;
-  align-items: center;
-  gap: .3rem;
-  font-size: .75rem;
-  font-weight: 600;
-  color: var(--indigo-600);
-  background: #e5e7fb;
-  padding: .26rem .55rem;
-  border-radius: 999px;
+.rwin__tools { display: flex; align-items: center; gap: .35rem; flex: none; }
+.rwin__progress { height: 3px; background: #d9dcfa; }
+.rwin__progress i { display: block; height: 100%; width: 27%; background: var(--indigo); }
+.rwin__body { display: grid; grid-template-columns: minmax(0, 1.85fr) minmax(0, 1fr); }
+/* Treść czytnika składa się szeryfem („Dwugłos"), a nie fontem UI — tak jak prawdziwe okno.
+   Reguła Systemowego UI dotyczy chromu okna, nie tekstu artykułu. */
+.rwin__article {
+  padding: 1.3rem 1.3rem 1.2rem;
+  min-width: 0;
+  font-family: var(--font-read);
 }
-.rpill svg { width: 13px; height: 13px; flex: none; }
-.rwin__body { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); }
-.rwin__article { padding: 1.1rem 1.2rem 1.2rem; min-width: 0; }
-/* wnętrze odtworzonego okna mówi fontem systemowym, nie Bricolage (Reguła Systemowego UI) */
 .rwin__article h3 {
-  font-family: var(--font-ui);
-  font-weight: 700;
-  font-size: 1.15rem;
-  line-height: 1.3;
+  font-family: var(--font-read);
+  font-weight: 400;
+  font-size: 1.5rem;
+  line-height: 1.2;
   letter-spacing: 0;
-  margin-bottom: .7rem;
+  text-align: center;
+  margin-bottom: .1rem;
 }
+.rwin__fleuron { text-align: center; color: var(--indigo-600); font-size: .8rem; margin: .4rem 0 1.2rem; }
+/* Nota od tłumacza: dwie włoskowate linie, bez pudełka — cytat, nie karta. */
 .rwin__tldr {
-  font-size: .88rem;
-  line-height: 1.5;
-  background: var(--indigo-tint);
-  border: 1px solid #dcdcf3;
-  border-radius: 10px;
-  padding: .6rem .7rem;
-  margin-bottom: .85rem;
+  font-size: .85rem;
+  line-height: 1.55;
+  border-top: 1px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: .65rem .1rem;
+  margin-bottom: 1.1rem;
 }
-.rwin__tag {
-  display: inline-block;
-  font-size: .62rem;
+html[lang="en"] .rwin__tldr::before { content: "Translator's note · TL;DR"; }
+.rwin__tldr::before {
+  content: "Od tłumacza · TL;DR";
+  display: block;
+  font-family: var(--font-ui);
+  font-size: .6rem;
   font-weight: 700;
-  letter-spacing: .06em;
+  letter-spacing: .2em;
+  text-transform: uppercase;
   color: var(--indigo-600);
-  background: #e5e7fb;
-  border-radius: 5px;
-  padding: .1rem .35rem;
-  margin-right: .45rem;
+  margin-bottom: .4rem;
 }
-.rwin__article > p:not(.rwin__tldr) { font-size: .92rem; line-height: 1.6; }
+.rwin__article > p:not(.rwin__tldr) { font-size: .9rem; line-height: 1.7; }
 .rwin__article > p + p:not(.rwin__tldr) { margin-top: .7rem; }
 .rwin__fade {
   color: var(--ink-soft);
   -webkit-mask-image: linear-gradient(#000 30%, transparent);
   mask-image: linear-gradient(#000 30%, transparent);
 }
+/* Czat świadomie porzuca typografię książki: to rozmowa, więc font UI i dymki jak w Wiadomościach. */
 .rwin__chat {
   border-left: 1px solid var(--line);
-  background: #fafafd;
-  padding: 1rem;
+  background: #f5f5f7;
+  padding: 1rem .9rem;
   display: flex;
   flex-direction: column;
-  gap: .55rem;
+  gap: .5rem;
   min-width: 0;
 }
 .rwin__chatlabel {
-  font-size: .68rem;
-  font-weight: 700;
-  letter-spacing: .09em;
-  text-transform: uppercase;
-  color: #6b7185;
+  font-size: .74rem;
+  font-weight: 600;
+  text-align: center;
+  color: var(--ink-soft);
+  margin-bottom: .2rem;
 }
-.rmsg { font-size: .85rem; line-height: 1.45; border-radius: 11px; padding: .45rem .6rem; }
+.rmsg { font-size: .82rem; line-height: 1.5; border-radius: 16px; padding: .45rem .75rem; max-width: 88%; }
 .rmsg--q {
   align-self: flex-end;
-  max-width: 85%;
   background: var(--indigo);
   color: #fff;
-  border-bottom-right-radius: 4px;
+  border-bottom-right-radius: 5px;
 }
 .rmsg--a {
   align-self: flex-start;
-  background: #fff;
-  border: 1px solid var(--line);
-  border-bottom-left-radius: 4px;
+  background: #e9e9eb;
+  color: var(--ink);
+  border-bottom-left-radius: 5px;
 }
 .rchip {
   align-self: flex-start;
-  font-size: .78rem;
-  font-weight: 600;
-  color: var(--indigo-600);
-  background: #fff;
-  border: 1px solid #cdcef0;
-  border-radius: 999px;
-  padding: .3rem .65rem;
+  font-size: .76rem;
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 1.6em;
+  padding: .35rem .8rem;
 }
 .rwin__input {
   margin-top: auto;
-  font-size: .85rem;
+  display: flex;
+  align-items: center;
+  gap: .4rem;
+  font-size: .82rem;
   color: #6b7185;
-  background: #fff;
+  background: var(--paper);
   border: 1px solid var(--line);
-  border-radius: 10px;
-  padding: .5rem .65rem;
+  border-radius: 999px;
+  padding: .45rem .5rem .45rem .9rem;
+}
+.rwin__input > span:first-child { flex: 1; min-width: 0; }
+.rsend {
+  flex: none;
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--indigo);
+  color: #fff;
+  font-size: .8rem;
+  line-height: 1;
 }
 .reader__cap {
   font-size: .85rem;
@@ -1024,11 +1086,9 @@ section { padding-inline: clamp(1.25rem, 5vw, 3rem); }
 @media (max-width: 600px) {
   .gpop__body { grid-template-columns: 1fr; gap: .7rem; }
   .gpane--out { padding-left: 0; border-left: 0; padding-top: .8rem; border-top: 1px solid var(--line); }
-  .gpane--out::before { display: none; }
   .rwin__body { grid-template-columns: 1fr; }
   .rwin__chat { border-left: 0; border-top: 1px solid var(--line); }
-  .rwin__url { display: none; }
-  .rwin__pills { margin-left: 0; }
+  .rwin__dots { margin-right: 24px; }
 }
 
 /* ---------- Motion: entrance ----------
