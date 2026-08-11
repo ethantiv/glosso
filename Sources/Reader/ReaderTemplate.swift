@@ -217,10 +217,11 @@ enum ReaderTemplate {
       /* The same wrapped list before and during the conversation — `glossoAsk` already removes a chip once it has been
          asked, so the list shrinks on its own and doesn't need a second, truncated layout to squeeze into. */
       #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
+      /* 1.6em, not 999px: the browser clamps it to a pill up to two lines, and past that the corner stops eating the padding of the first and last line. */
       .glosso-chip { font-family: inherit; font-size: .82em; line-height: 1.4;
                      text-align: left; cursor: pointer; color: CanvasText;
                      background: Canvas; border: 1px solid var(--hairline);
-                     border-radius: 999px; padding: .4em .9em; }
+                     border-radius: 1.6em; padding: .4em .9em; }
       .glosso-chip:hover { background: color-mix(in srgb, CanvasText 6%, Canvas); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
       #glosso-chat-form { display: flex; gap: .5em; align-items: center; }
