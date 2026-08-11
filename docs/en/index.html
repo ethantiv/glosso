@@ -73,8 +73,9 @@
       <div class="gpop__bar">
         <div class="gpop__verbs">
           <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Translate</span>
-          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Summarize</span>
           <span class="gv gv--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Fix</span>
+          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>Reply</span>
+          <span class="gv"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Summarize</span>
         </div>
         <div class="gpop__acts">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="12" height="12" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -106,8 +107,8 @@
 <section class="capa" id="how">
   <div class="capa__inner">
     <header class="section__head">
-      <h2 class="section__title">One gesture, three jobs</h2>
-      <p class="section__lede">Select, tap ⌘C C and pick what happens to the text: fix it, summarize it or translate it. Select a link instead, and the <a href="#reader">reader opens with the whole article</a>.</p>
+      <h2 class="section__title">One gesture, four jobs</h2>
+      <p class="section__lede">Select, tap ⌘C C and pick what happens to the text: translate it, fix it, answer it or summarize it. Select a link instead, and the <a href="#reader">reader opens with the whole article</a>.</p>
     </header>
     <ol class="flow">
       <li class="flow__step"><span class="flow__n">1</span> Select text</li>
@@ -137,6 +138,13 @@
         </div>
         <p>English ↔ Polish, German, Russian, Spanish, Dutch, French. You can also leave the second language on automatic — Glosso detects it from the selection.</p>
       </div>
+      <div class="vcard" data-reveal>
+        <div class="vcard__head">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>
+          <h3>Reply</h3>
+        </div>
+        <p>Copy a message and Glosso drafts a few possible answers. Pick the one that fits and paste it back in place.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -158,7 +166,7 @@
           <li>Download <code>Glosso.zip</code> from <a href="https://github.com/ethantiv/glosso/releases/latest" rel="noopener">Releases</a>, unzip it and drag <strong>Glosso.app</strong> into Applications.</li>
           <li>On first launch macOS blocks the app (it's signed, but not notarized by Apple). Click <strong>Done</strong>, then open <strong>System Settings → Privacy &amp; Security</strong>, scroll down and click <strong>Open Anyway</strong>. You only do this once.</li>
           <li>Grant <strong>Accessibility</strong> when asked. It's the only permission the app needs.</li>
-          <li>The first-run wizard downloads the model and helps you pick your languages — including the app's primary language, Polish or English.</li>
+          <li>The first-run wizard downloads the model — or takes an API key if you pick a cloud engine — and helps you choose the primary and second language.</li>
         </ul>
       </div>
     </li>
@@ -182,9 +190,9 @@
 
 <section class="pillars" id="privacy">
   <div class="pillars__lead">
-    <h2>No cloud by default,<br>no subscription. Free.</h2>
+    <h2>No cloud by default,<br>and no subscription.</h2>
     <p>The language model (Gemma via Ollama) runs locally on <code>localhost</code>. No account, no monthly bill. Whatever you fix or translate never leaves your Mac.</p>
-    <p>If you'd rather not download a model, Settings can switch to free Google AI — Gemini Flash Lite or the same Gemma, on Google's servers and your own API key. The selected text then goes to Google. Local stays the default.</p>
+    <p>If you'd rather not download a model, Settings offers two cloud engines that run on your own API key: free Google AI (Gemini Flash Lite or the same Gemma) and Ollama Cloud with the bigger Gemma. The selected text then goes to that provider's servers. Local stays the default, and when a cloud quota runs out Glosso falls back to the model on your disk.</p>
   </div>
   <div class="pillars__list">
     <div class="pillar">
@@ -210,7 +218,8 @@
       <ul class="reader__list">
         <li>A summary up front, then the whole text with its images and captions.</li>
         <li>Translated by the local model, so the article never leaves your Mac.</li>
-        <li>Questions? Ask the article in the chat beside it.</li>
+        <li>A toolbar switch shows the original; clicking one paragraph slides its original in underneath.</li>
+        <li>Ask the article your questions in the chat beside it.</li>
         <li>Once translated, an article reopens instantly.</li>
       </ul>
     </div>
@@ -221,7 +230,7 @@
           <span class="rwin__dots" aria-hidden="true"></span>
           <span class="rwin__url">theverge.com · article</span>
           <span class="rwin__pills">
-            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2.06 12.35a1 1 0 0 1 0-.7 10.75 10.75 0 0 1 19.88 0 1 1 0 0 1 0 .7 10.75 10.75 0 0 1-19.88 0"/><circle cx="12" cy="12" r="3"/></svg>Original</span>
+            <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8h14l-3-3M21 16H7l3 3"/></svg>Original</span>
             <span class="rpill"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><path d="M21 3v5h-5"/></svg>Redo</span>
           </span>
         </div>
@@ -241,7 +250,7 @@
           </aside>
         </div>
       </figure>
-      <p class="reader__cap">The reader window: translation, the original one eye-icon away, and chat beside the text.</p>
+      <p class="reader__cap">The reader window: translation, the original one click away, and chat beside the text.</p>
     </div>
   </div>
 </section>
@@ -301,7 +310,7 @@
       </div>
       <div class="shot__cap">
         <h3>Editable source</h3>
-        <p>You can correct the captured text right in the panel and run the model again. There's also a tone switch: automatic, formal, casual.</p>
+        <p>You can correct the captured text right in the panel and run the model again. Next to it sits a tone switch — automatic, formal, casual — and a "What changed?" button that names what the switch did to the translation.</p>
       </div>
     </div>
 
@@ -318,7 +327,7 @@
       </div>
       <div class="shot__cap">
         <h3>A Fix that knows the rules</h3>
-        <p>Every change comes with a reason. Corrections of Polish text cite the actual rules of the <a href="https://rjp.pan.pl" rel="noopener">Polish Language Council</a>; English ones draw on a base of common mistakes.</p>
+        <p>Every change comes with a reason. Corrections of Polish text cite the actual rules of the <a href="https://rjp.pan.pl" rel="noopener">Polish Language Council</a>, English ones draw on a base of common mistakes. Past a few changes the pane splits into the diff and the clean text, and an eye button hides the markup.</p>
       </div>
     </div>
   </div>
