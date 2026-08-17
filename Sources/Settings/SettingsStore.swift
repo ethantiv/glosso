@@ -23,8 +23,8 @@ final class SettingsStore {
 
     @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let loginItem: any LoginItemManaging
-    @ObservationIgnored private let writeAPIKey: (String) -> Void
-    @ObservationIgnored private let writeOllamaAPIKey: (String) -> Void
+    @ObservationIgnored private let writeAPIKey: (String) -> Bool
+    @ObservationIgnored private let writeOllamaAPIKey: (String) -> Bool
     @ObservationIgnored private let readAPIKey: () -> String?
     @ObservationIgnored private let readOllamaAPIKey: () -> String?
     @ObservationIgnored private var googleKeyLoaded = false
@@ -63,15 +63,21 @@ final class SettingsStore {
     var apiKey: String {
         didSet {
             guard !loadingKeys, apiKey != oldValue else { return }
-            writeAPIKey(apiKey)
+            if !writeAPIKey(apiKey) { Self.notifyKeySaveFailure() }
         }
     }
 
     var ollamaAPIKey: String {
         didSet {
             guard !loadingKeys, ollamaAPIKey != oldValue else { return }
-            writeOllamaAPIKey(ollamaAPIKey)
+            if !writeOllamaAPIKey(ollamaAPIKey) { Self.notifyKeySaveFailure() }
         }
+    }
+
+    /// A silently dropped key would resurface only after relaunch, as `.missingAPIKey` with no hint why.
+    private static func notifyKeySaveFailure() {
+        SystemUserNotifier.post(loc("Nie udało się zapisać klucza API w pęku kluczy.",
+                                    "Couldn't save the API key to the Keychain."))
     }
 
     /// Pulls one key out of the Keychain, once, and only for the `SecureField` that is actually on screen. Nothing else
@@ -144,9 +150,9 @@ final class SettingsStore {
         loginItem: any LoginItemManaging = SMAppServiceLoginItem(),
         systemLanguages: [String] = Locale.preferredLanguages,
         readAPIKey: @escaping () -> String? = { APIKeyStore.read() },
-        writeAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0) },
+        writeAPIKey: @escaping (String) -> Bool = { APIKeyStore.save($0) },
         readOllamaAPIKey: @escaping () -> String? = { APIKeyStore.read(account: APIKeyStore.ollamaAccount) },
-        writeOllamaAPIKey: @escaping (String) -> Void = { APIKeyStore.save($0, account: APIKeyStore.ollamaAccount) }
+        writeOllamaAPIKey: @escaping (String) -> Bool = { APIKeyStore.save($0, account: APIKeyStore.ollamaAccount) }
     ) {
         self.defaults = defaults
         self.loginItem = loginItem

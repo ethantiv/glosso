@@ -150,7 +150,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        #expect(popup.errorMessage == loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", "Couldn't read the selection. Try again."))
     }
 
     @Test func trailingSnapshotAcceptsACopyThatPrecededTheCallbacks() async {
@@ -182,7 +182,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 5, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        #expect(popup.errorMessage == loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", "Couldn't read the selection. Try again."))
     }
 
     @Test func liveAXSelectionBeatsAStaleCopyInsideTheSnapshotWindow() async {
@@ -310,7 +310,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 7, at: .zero)   // equal, not above
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        #expect(popup.errorMessage == loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", "Couldn't read the selection. Try again."))
     }
 
     @Test func stopHaltsTheMonitor() {
@@ -458,7 +458,7 @@ import Testing
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(messages == ["Nie udało się odczytać zaznaczenia do poprawy."])
+        #expect(messages == [loc("Nie udało się odczytać zaznaczenia do poprawy.", "Couldn't read the selection to fix.")])
     }
 
     @Test func fixGrammarFallbackInTerminalCopiesToClipboard() async {
@@ -1163,7 +1163,7 @@ import Testing
         popup.onReplace?("Hello")
 
         #expect(replacer.replacedText == nil)
-        #expect(popup.errorMessage == "Aplikacja źródłowa się zmieniła — nie wklejono.")
+        #expect(popup.errorMessage == loc("Aplikacja źródłowa się zmieniła — nie wklejono.", "The source app changed — nothing was pasted."))
         #expect(popup.dismissCount == 0)
     }
 
@@ -1225,7 +1225,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Zaznaczenie nie zawiera tekstu do tłumaczenia.")
+        #expect(popup.errorMessage == loc("Zaznaczenie nie zawiera tekstu do tłumaczenia.", "The selection contains no text to translate."))
     }
 
     @Test func fallsBackToAXSelectionWhenClipboardNeverLands() async {
@@ -1272,7 +1272,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        #expect(popup.errorMessage == loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", "Couldn't read the selection. Try again."))
     }
 
     @Test func whitespaceOnlyAXSelectionIsTreatedAsFailure() async {
@@ -1287,7 +1287,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        #expect(popup.errorMessage == loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", "Couldn't read the selection. Try again."))
     }
 
     @Test func axFallbackBailsWhenFrontmostAppChanged() async {
@@ -1308,7 +1308,7 @@ import Testing
 
         #expect(ax.callCount == 0)
         #expect(llm.recorder.receivedText == nil)
-        #expect(popup.errorMessage == "Nie udało się pobrać zaznaczenia. Spróbuj ponownie.")
+        #expect(popup.errorMessage == loc("Nie udało się pobrać zaznaczenia. Spróbuj ponownie.", "Couldn't read the selection. Try again."))
     }
 
     @Test func axFallbackProceedsWhenFrontmostAppUnchanged() async {
@@ -1341,7 +1341,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(ax.callCount == 0)
-        #expect(popup.errorMessage == "Zaznaczenie nie zawiera tekstu do tłumaczenia.")
+        #expect(popup.errorMessage == loc("Zaznaczenie nie zawiera tekstu do tłumaczenia.", "The selection contains no text to translate."))
     }
 
     @Test func prefetchFillsTheOtherVerbsAfterTheForegroundResult() async {

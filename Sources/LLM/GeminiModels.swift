@@ -36,6 +36,9 @@ struct GeminiResponse: Decodable, Sendable {
     var candidates: [Candidate]?
     var usageMetadata: UsageMetadata?
     var promptFeedback: PromptFeedback?
+    /// An error envelope delivered with HTTP 200 — Gemini's shape for a failure that struck mid-stream.
+    /// Without this field it decodes as an all-nil chunk and the real cause dies as `.malformedStream`.
+    var error: GeminiErrorEnvelope.Failure?
 
     /// All text parts of the first candidate, concatenated.
     var text: String {
@@ -59,6 +62,16 @@ struct GeminiErrorEnvelope: Decodable, Sendable {
         var message: String?
         var status: String?
         var details: [Detail]?
+
+        /// The routing-layer error this in-band failure stands for, so a 200-wrapped 429/5xx still falls back.
+        var translationError: TranslationError {
+            if details?.contains(where: { $0.reason == "API_KEY_INVALID" }) == true { return .invalidAPIKey }
+            switch code {
+            case 429: return .rateLimited(nil)
+            case .some(500...599): return .cloudUnreachable
+            default: return .cloudError(message ?? status ?? "unknown error")
+            }
+        }
     }
 
     var error: Failure

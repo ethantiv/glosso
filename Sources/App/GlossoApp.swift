@@ -81,17 +81,7 @@ private struct LanguageMenus: View {
     @Bindable var store: SettingsStore
 
     var body: some View {
-        Picker(loc("Język główny", "Primary language"), selection: $store.primaryLanguage) {
-            ForEach(PrimaryLanguage.allCases, id: \.self) { language in
-                Text(language.displayName).tag(language)
-            }
-        }
-        Picker(loc("Drugi język", "Second language"), selection: $store.secondLanguage) {
-            Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
-            ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { language in
-                Text(language.displayName).tag(SecondLanguage?.some(language))
-            }
-        }
+        LanguagePickers(store: store)
     }
 }
 

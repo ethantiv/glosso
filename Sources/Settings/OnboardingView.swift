@@ -261,7 +261,11 @@ struct OnboardingView: View {
                 }
                 await refresh()
                 store.modelName = id
-            } catch {}
+            } catch {
+                // Reverting the row silently read as success; the user would move on with no model installed.
+                SystemUserNotifier.post(loc("Nie udało się pobrać modelu \(id). Sprawdź połączenie i spróbuj ponownie.",
+                                            "Couldn't download the model \(id). Check your connection and try again."))
+            }
             pulling[id] = nil
         }
     }

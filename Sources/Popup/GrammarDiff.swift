@@ -59,7 +59,13 @@ enum GrammarDiff {
                     }
                     i += 1
                 }
-                parts.append(.change(id: nextID, removed: removed, added: added))
+                // A whitespace-only change (the model reflowing "\n" into " ") is not a correction: rendered,
+                // it is an invisible tappable chunk, and enough of them flip splitFixView with no word changed.
+                if removed.allSatisfy(\.isWhitespace), added.allSatisfy(\.isWhitespace) {
+                    if !added.isEmpty { parts.append(.same(id: nextID, text: added)) }
+                } else {
+                    parts.append(.change(id: nextID, removed: removed, added: added))
+                }
             }
             nextID += 1
         }

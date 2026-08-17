@@ -25,17 +25,21 @@ enum APIKeyStore {
         return String(data: data, encoding: .utf8)
     }
 
-    static func save(_ key: String, account: String = googleAccount) {
+    /// False when the Keychain rejected the write (locked keychain, denied ACL prompt) — the caller must say so,
+    /// or the field keeps showing a key that will be gone after relaunch.
+    @discardableResult
+    static func save(_ key: String, account: String = googleAccount) -> Bool {
         let trimmed = key.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else { return delete(account: account) }
-        guard let data = trimmed.data(using: .utf8) else { return }
+        guard !trimmed.isEmpty else { delete(account: account); return true }
+        guard let data = trimmed.data(using: .utf8) else { return false }
         let attributes = [kSecValueData as String: data]
-        if SecItemUpdate(baseQuery(account) as CFDictionary, attributes as CFDictionary) == errSecItemNotFound {
-            var insert = baseQuery(account)
-            insert[kSecValueData as String] = data
-            insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
-            SecItemAdd(insert as CFDictionary, nil)
-        }
+        let updated = SecItemUpdate(baseQuery(account) as CFDictionary, attributes as CFDictionary)
+        if updated == errSecSuccess { return true }
+        guard updated == errSecItemNotFound else { return false }
+        var insert = baseQuery(account)
+        insert[kSecValueData as String] = data
+        insert[kSecAttrAccessible as String] = kSecAttrAccessibleAfterFirstUnlock
+        return SecItemAdd(insert as CFDictionary, nil) == errSecSuccess
     }
 
     static func delete(account: String = googleAccount) {

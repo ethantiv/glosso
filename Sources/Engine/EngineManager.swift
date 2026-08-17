@@ -21,8 +21,11 @@ actor EngineManager: EngineProviding {
     private let session: URLSession
     private let downloader: OllamaEngineDownloader
     private let box: EngineProcessBox
-    private var resolved: URL?
+    /// The resolved engine, kept with its base so liveness can be re-probed: the user can quit Ollama.app,
+    /// and a spawned `serve` can die — a cached URL served blindly would fail every call until relaunch.
+    private var resolved: (base: String, url: URL)?
     private var resolveTask: Task<URL, Error>?
+    private var ensureTask: Task<Void, Error>?
 
     private static let reuseBase = "http://localhost:11434"
 
@@ -35,19 +38,32 @@ actor EngineManager: EngineProviding {
     }
 
     func activeBaseURL() async throws -> URL {
-        if let resolved { return resolved }
+        if let resolved {
+            if await reachable(resolved.base) { return resolved.url }
+            self.resolved = nil
+        }
         if let resolveTask { return try await resolveTask.value }
         let task = Task { try await self.resolve() }
         resolveTask = task
         defer { resolveTask = nil }
         let url = try await task.value
-        resolved = url
         return url
     }
 
     func ensureEngine(progress: @escaping @Sendable (Double) -> Void) async throws {
+        // Idempotent for real: a live engine — reused *or already spawned* — must not be respawned,
+        // and a second concurrent caller joins the first instead of racing it past the reachability check.
+        if let resolved, await reachable(resolved.base) { return }
+        if let ensureTask { return try await ensureTask.value }
+        let task = Task { try await self.provision(progress: progress) }
+        ensureTask = task
+        defer { ensureTask = nil }
+        try await task.value
+    }
+
+    private func provision(progress: @escaping @Sendable (Double) -> Void) async throws {
         if await reachable(Self.reuseBase) {
-            resolved = Self.generate(Self.reuseBase)
+            resolved = (Self.reuseBase, Self.generate(Self.reuseBase))
             return
         }
         if OllamaEngineDownloader.installedBinary() == nil {
@@ -56,7 +72,7 @@ actor EngineManager: EngineProviding {
         guard let binary = OllamaEngineDownloader.installedBinary() else {
             throw TranslationError.engineUnavailable
         }
-        resolved = try await spawn(binary: binary)
+        _ = try await spawnAndRemember(binary: binary)
     }
 
     func status() async -> EngineStatus {
@@ -67,14 +83,23 @@ actor EngineManager: EngineProviding {
     }
 
     private func resolve() async throws -> URL {
-        if await reachable(Self.reuseBase) { return Self.generate(Self.reuseBase) }
+        if await reachable(Self.reuseBase) {
+            resolved = (Self.reuseBase, Self.generate(Self.reuseBase))
+            return Self.generate(Self.reuseBase)
+        }
         guard let binary = OllamaEngineDownloader.installedBinary() else {
             throw TranslationError.engineUnavailable
         }
-        return try await spawn(binary: binary)
+        return try await spawnAndRemember(binary: binary)
     }
 
-    private func spawn(binary: URL) async throws -> URL {
+    private func spawnAndRemember(binary: URL) async throws -> URL {
+        let (base, url) = try await spawn(binary: binary)
+        resolved = (base, url)
+        return url
+    }
+
+    private func spawn(binary: URL) async throws -> (base: String, url: URL) {
         let port = Self.freePort()
         let p = Process()
         p.executableURL = binary
@@ -94,7 +119,7 @@ actor EngineManager: EngineProviding {
             box.terminate()
             throw TranslationError.engineUnavailable
         }
-        return Self.generate(base)
+        return (base, Self.generate(base))
     }
 
     private func reachable(_ base: String) async -> Bool {

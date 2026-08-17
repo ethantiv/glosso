@@ -100,6 +100,13 @@ actor GeminiRateLimiter {
         }
     }
 
+    /// Releases a booked slot whose request never went out (connection failure, cancellation before send):
+    /// the minute window drops the reservation and the day gets its slot back.
+    func refund(ticket: Ticket) {
+        windows[ticket.model]?.removeAll { $0.ticket == ticket.id }
+        refundDaily(model: ticket.model)
+    }
+
     /// Replaces the estimate with Gemini's real `promptTokenCount`, so the minute is measured against what was actually spent.
     func settle(ticket: Ticket, actualTokens: Int?) {
         guard let actualTokens,

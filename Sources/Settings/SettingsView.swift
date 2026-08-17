@@ -64,17 +64,7 @@ struct SettingsView: View {
             }
 
             Section(loc("Ogólne", "General")) {
-                Picker(loc("Język główny", "Primary language"), selection: $store.primaryLanguage) {
-                    ForEach(PrimaryLanguage.allCases, id: \.self) { lang in
-                        Text(lang.displayName).tag(lang)
-                    }
-                }
-                Picker(loc("Drugi język", "Second language"), selection: $store.secondLanguage) {
-                    Text(loc("Automatyczny", "Automatic")).tag(SecondLanguage?.none)
-                    ForEach(SecondLanguage.allCases.filter { $0 != store.primaryLanguage.asSecond }, id: \.self) { lang in
-                        Text(lang.displayName).tag(SecondLanguage?.some(lang))
-                    }
-                }
+                LanguagePickers(store: store)
                 Toggle(loc("Uruchamiaj przy logowaniu", "Launch at login"), isOn: $store.launchAtLogin)
             }
 
@@ -187,7 +177,10 @@ struct SettingsView: View {
                 }
                 await loadModels()
                 store.modelName = model
-            } catch {}
+            } catch {
+                SystemUserNotifier.post(loc("Nie udało się pobrać modelu \(model). Sprawdź połączenie i spróbuj ponownie.",
+                                            "Couldn't download the model \(model). Check your connection and try again."))
+            }
             pulling[model] = nil
         }
     }

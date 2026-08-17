@@ -4,41 +4,41 @@ import Testing
 
 @Suite struct ReaderTemplateTests {
     @Test func unwrapLeavesPlainTextAlone() {
-        #expect(ReaderTemplate.unwrap("  Cześć <b>świecie</b> \n") == "Cześć <b>świecie</b>")
+        #expect(ModelOutput.unwrap("  Cześć <b>świecie</b> \n") == "Cześć <b>świecie</b>")
     }
 
     @Test func unwrapPeelsBareFences() {
-        #expect(ReaderTemplate.unwrap("```\n<p>Cześć</p>\n```") == "<p>Cześć</p>")
+        #expect(ModelOutput.unwrap("```\n<p>Cześć</p>\n```") == "<p>Cześć</p>")
     }
 
     @Test func unwrapPeelsLanguageTaggedFences() {
-        #expect(ReaderTemplate.unwrap("```html\n<p>Cześć</p>\n```") == "<p>Cześć</p>")
+        #expect(ModelOutput.unwrap("```html\n<p>Cześć</p>\n```") == "<p>Cześć</p>")
     }
 
     @Test func unwrapPeelsAnEchoedBlockWrapper() {
         // Flash Lite answers buildBlockTranslation with the prompt's own wrapper around the text.
-        #expect(ReaderTemplate.unwrap("<block> Mamy teraz automatyzację dowodów </block>")
+        #expect(ModelOutput.unwrap("<block> Mamy teraz automatyzację dowodów </block>")
                 == "Mamy teraz automatyzację dowodów")
     }
 
     @Test func unwrapPeelsATextOrArticleWrapper() {
-        #expect(ReaderTemplate.unwrap("<text>Streszczenie.</text>") == "Streszczenie.")
-        #expect(ReaderTemplate.unwrap("<article>\nOdpowiedź.\n</article>") == "Odpowiedź.")
+        #expect(ModelOutput.unwrap("<text>Streszczenie.</text>") == "Streszczenie.")
+        #expect(ModelOutput.unwrap("<article>\nOdpowiedź.\n</article>") == "Odpowiedź.")
     }
 
     @Test func unwrapPeelsAWrapperInsideAFence() {
-        #expect(ReaderTemplate.unwrap("```html\n<block>\n<p>Cześć</p>\n</block>\n```") == "<p>Cześć</p>")
+        #expect(ModelOutput.unwrap("```html\n<block>\n<p>Cześć</p>\n</block>\n```") == "<p>Cześć</p>")
     }
 
     @Test func unwrapPeelsAFenceInsideAWrapper() {
-        #expect(ReaderTemplate.unwrap("<block>```\n<p>Cześć</p>\n```</block>") == "<p>Cześć</p>")
+        #expect(ModelOutput.unwrap("<block>```\n<p>Cześć</p>\n```</block>") == "<p>Cześć</p>")
     }
 
     @Test func unwrapLeavesUnmatchedOrInnerTagsAlone() {
         // Peeling any of these would eat real article markup.
-        #expect(ReaderTemplate.unwrap("<block>Cześć") == "<block>Cześć")
-        #expect(ReaderTemplate.unwrap("<p><block>x</block></p>") == "<p><block>x</block></p>")
-        #expect(ReaderTemplate.unwrap("<em>a</em> i <em>b</em>") == "<em>a</em> i <em>b</em>")
+        #expect(ModelOutput.unwrap("<block>Cześć") == "<block>Cześć")
+        #expect(ModelOutput.unwrap("<p><block>x</block></p>") == "<p><block>x</block></p>")
+        #expect(ModelOutput.unwrap("<em>a</em> i <em>b</em>") == "<em>a</em> i <em>b</em>")
     }
 
     @Test func markdownRendersTheEmphasisModelsActuallyUse() {

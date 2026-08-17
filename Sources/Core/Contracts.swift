@@ -124,7 +124,6 @@ enum TranslationError: Error, Sendable, Equatable {
     case httpStatus(Int)
     case ollamaError(String)
     case malformedStream
-    case emptyInput
     case cancelled
     case engineUnavailable
     case cloudUnreachable
@@ -154,9 +153,6 @@ enum TranslationError: Error, Sendable, Equatable {
         case .malformedStream:
             loc("Otrzymałem nieprawidłową odpowiedź z modelu.",
                 "Received a malformed response from the model.")
-        case .emptyInput:
-            loc("Nic nie zaznaczono do tłumaczenia.",
-                "Nothing selected to translate.")
         case .cancelled:
             loc("Tłumaczenie przerwane.",
                 "Translation cancelled.")

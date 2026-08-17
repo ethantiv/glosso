@@ -47,7 +47,6 @@ final class PopupModel {
     var explanationRequestToken: Int = 0
 
     var fixReasonMode: Bool = false
-    var selectedFixChange: (before: String, after: String)? = nil
     var fixReasonContentHeight: CGFloat = 0
 
     var toneChange: (from: Formality, to: Formality, previous: String)? = nil
@@ -89,6 +88,24 @@ final class PopupModel {
         return value
     }
 
+    @ObservationIgnored private var sameRunsCache: (original: String, corrected: String, value: [Int: [FlowRun]])?
+
+    /// Pre-composed flow runs for the diff's unchanged spans, cached with the same key as `diffParts`:
+    /// composing them in the view body re-tokenized the whole text on every hover-driven re-eval.
+    var diffSameRuns: [Int: [FlowRun]] {
+        if let cache = sameRunsCache, cache.original == capturedSource, cache.corrected == text {
+            return cache.value
+        }
+        var runs: [Int: [FlowRun]] = [:]
+        for part in diffParts {
+            if case .same(let id, let sameText) = part {
+                runs[id] = FlowComposer.runs(Tokenizer.segments(sameText))
+            }
+        }
+        sameRunsCache = (capturedSource, text, runs)
+        return runs
+    }
+
     var diffChangeCount: Int {
         diffParts.count { if case .change = $0 { return true } else { return false } }
     }
@@ -115,7 +132,6 @@ final class PopupModel {
         altsLoading = false
         alternatives = []
         fixReasonMode = false
-        selectedFixChange = nil
         fixReasonContentHeight = 0
         closeExplanation()
     }
@@ -123,7 +139,6 @@ final class PopupModel {
     func openFixReason(id: Int, before: String, after: String) {
         selectedWordID = id
         fixReasonMode = true
-        selectedFixChange = (before, after)
         showingExplanation = true
         explanationText = ""
         explanationLoading = true
