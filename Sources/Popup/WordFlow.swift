@@ -83,10 +83,12 @@ enum FlowComposer {
     }
 }
 
-enum FlowItemKind {
+enum FlowItemKind: Equatable {
     case word
     case space
     case other
+    /// A whitespace gap carrying newline(s): the layout breaks the line here; `blank` adds a paragraph gap.
+    case lineBreak(blank: Bool)
 }
 
 struct FlowItemKindKey: LayoutValueKey {
@@ -118,8 +120,23 @@ struct FlowLayout: Layout {
         var x: CGFloat = 0, y: CGFloat = 0, lineHeight: CGFloat = 0, maxX: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            var size = subview.sizeThatFits(.unspecified)
             let kind = subview[FlowItemKindKey.self]
+
+            if case .lineBreak(let blank) = kind {
+                // The subview is a space, so its height is the line height even when the line is empty.
+                points.append(CGPoint(x: x, y: y))
+                sizes.append(.zero)
+                y += max(lineHeight, size.height) + lineSpacing + (blank ? size.height * 0.5 : 0)
+                x = 0
+                lineHeight = 0
+                continue
+            }
+            // A single token wider than the pane would otherwise be placed at full width and clipped —
+            // re-measure under the pane's width so the text wraps inside its own chunk.
+            if size.width > maxWidth, maxWidth.isFinite {
+                size = subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            }
 
             if x + size.width > maxWidth, x > 0 {
                 x = 0

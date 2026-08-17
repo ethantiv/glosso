@@ -35,7 +35,7 @@ final class GeminiClient: LLMClient, GenerationBackend {
         let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt), model: model)
         var attempt = 0
         while true {
-            let (data, response) = try await send(request)
+            let (data, response) = try await refundingOnUnsent(ticket) { try await send(request) }
             guard let http = response as? HTTPURLResponse else { throw TranslationError.cloudUnreachable }
 
             if http.statusCode != 200 {
@@ -49,6 +49,8 @@ final class GeminiClient: LLMClient, GenerationBackend {
             guard let decoded = try? JSONDecoder().decode(GeminiResponse.self, from: data) else {
                 throw TranslationError.malformedStream
             }
+            // A 200 body can still carry an in-band failure; surfacing it keeps a wrapped 429/5xx on the fallback path.
+            if let failure = decoded.error { throw failure.translationError }
             await limiter.settle(ticket: ticket, actualTokens: decoded.usageMetadata?.promptTokenCount)
             // A refusal must never read as a blank success. It arrives in two shapes:
             // per-candidate (SAFETY/RECITATION/PROHIBITED_CONTENT) and prompt-level,
@@ -79,6 +81,10 @@ final class GeminiClient: LLMClient, GenerationBackend {
                             return
                         }
                         guard let chunk = GeminiSSEParser.parse(line: line) else { continue }
+                        if let failure = chunk.error {
+                            continuation.finish(throwing: failure.translationError)
+                            return
+                        }
                         await limiter.settle(ticket: ticket, actualTokens: chunk.usageMetadata?.promptTokenCount)
                         if let refusal = chunk.promptRefusal {
                             continuation.finish(throwing: TranslationError.contentBlocked(refusal))
@@ -120,7 +126,7 @@ final class GeminiClient: LLMClient, GenerationBackend {
         let ticket = try await limiter.acquire(estimatedTokens: GeminiRateLimiter.estimateTokens(prompt), model: model)
         var attempt = 0
         while true {
-            let (bytes, response) = try await sendStream(request)
+            let (bytes, response) = try await refundingOnUnsent(ticket) { try await sendStream(request) }
             guard let http = response as? HTTPURLResponse else { throw TranslationError.cloudUnreachable }
             if http.statusCode == 200 { return (bytes, ticket) }
 
@@ -146,17 +152,31 @@ final class GeminiClient: LLMClient, GenerationBackend {
 
     private static func mapFailure(status: Int, body: Data) -> TranslationError {
         let envelope = try? JSONDecoder().decode(GeminiErrorEnvelope.self, from: body)
-        if envelope?.isInvalidKey == true || status == 403 { return .invalidAPIKey }
+        // 401 alongside 403: a revoked key surfaces as UNAUTHENTICATED and must reach the invalid-key fallback too.
+        if envelope?.isInvalidKey == true || status == 401 || status == 403 { return .invalidAPIKey }
         // A 5xx ("model is overloaded") is routine on the free tier and the local engine can serve it.
         if (500...599).contains(status) { return .cloudUnreachable }
         if let message = envelope?.message { return .cloudError(message) }
         return .httpStatus(status)
     }
 
+    /// A request that never left the machine (or was cancelled before sending) must give the day its slot back —
+    /// the same rule the limiter applies to a cancellation during its own minute-window wait.
+    private func refundingOnUnsent<T>(_ ticket: GeminiRateLimiter.Ticket, _ send: () async throws -> T) async throws -> T {
+        do {
+            return try await send()
+        } catch {
+            await limiter.refund(ticket: ticket)
+            throw error
+        }
+    }
+
     private func send(_ request: URLRequest) async throws -> (Data, URLResponse) {
         do {
             return try await session.data(for: request)
         } catch let error as URLError where error.code == .cancelled {
+            throw TranslationError.cancelled
+        } catch is CancellationError {
             throw TranslationError.cancelled
         } catch {
             throw TranslationError.cloudUnreachable
@@ -167,6 +187,8 @@ final class GeminiClient: LLMClient, GenerationBackend {
         do {
             return try await session.bytes(for: request)
         } catch let error as URLError where error.code == .cancelled {
+            throw TranslationError.cancelled
+        } catch is CancellationError {
             throw TranslationError.cancelled
         } catch {
             throw TranslationError.cloudUnreachable

@@ -376,7 +376,7 @@ import Testing
     }
 
     @Test func blockTranslationPromptForbidsEchoingTheWrapper() {
-        // A nicety, not the fix — ReaderTemplate.unwrap is what guarantees it.
+        // A nicety, not the fix — ModelOutput.unwrap is what guarantees it.
         let prompt = PromptBuilder.buildBlockTranslation(html: "Cześć", into: .polish)
 
         #expect(prompt.contains("without the <block></block> wrapper"))

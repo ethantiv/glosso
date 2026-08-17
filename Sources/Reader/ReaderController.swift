@@ -18,6 +18,8 @@ final class ReaderController: ReaderPresenting {
     private var chatHistory: [(question: String, answer: String)] = []
     private var chatPanelOpen = false
     private var chatWidthDelta: CGFloat = 0
+    // How far the open shifted origin.x left (window flush with the screen edge) — undone on close.
+    private var chatShiftX: CGFloat = 0
     // Destination of the in-flight chat resize animation, nil when settled.
     private var chatFrameTarget: NSRect?
     private var chatAnimSeq = 0
@@ -175,16 +177,22 @@ final class ReaderController: ReaderPresenting {
         "\(provider.displayName) · \(model)"
     }
 
-    nonisolated static func languageLabels(
-        primary: PrimaryLanguage, content: String
-    ) -> (translated: String, original: String)? {
-        let text = content
+    /// The one recognition recipe (tag strip, 40-char floor, 6000-char cap, 3 hypotheses) — `languageLabels`
+    /// and `isConfidently` both read from it, so a tuning change can't leave the two gates disagreeing.
+    nonisolated private static func languageHypotheses(in html: String) -> [NLLanguage: Double]? {
+        let text = html
             .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard text.count >= 40 else { return nil }
         let recognizer = NLLanguageRecognizer()
         recognizer.processString(String(text.prefix(6000)))
-        guard let (source, confidence) = recognizer.languageHypotheses(withMaximum: 3)
+        return recognizer.languageHypotheses(withMaximum: 3)
+    }
+
+    nonisolated static func languageLabels(
+        primary: PrimaryLanguage, content: String
+    ) -> (translated: String, original: String)? {
+        guard let (source, confidence) = Self.languageHypotheses(in: content)?
                 .max(by: { $0.value < $1.value }),
               confidence >= 0.8, source != primary.nl else { return nil }
         // "zh-Hans" → "ZH": the region/script tail is noise at pill size.
@@ -212,8 +220,8 @@ final class ReaderController: ReaderPresenting {
         var final = title
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
-            let translated = ReaderTemplate.unwrap(
-                (try? await llm.translateBlock(html: title, into: settings.primaryLanguage, model: settings.activeModel)) ?? "")
+            let translated = (try? await llm.translateBlock(
+                html: title, into: settings.primaryLanguage, model: settings.activeModel)) ?? ""
             if Task.isCancelled { return final }
             if !translated.isEmpty { final = translated }
         }
@@ -222,7 +230,11 @@ final class ReaderController: ReaderPresenting {
     }
 
     private func applyTitle(_ title: String, in webView: WKWebView) async {
+        // The window and webview are shared across runs — a superseded run resuming here after its await
+        // would paint the previous article's title onto the next one's page.
+        guard !Task.isCancelled else { return }
         _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetTitle", title))
+        guard !Task.isCancelled else { return }
         window?.title = title
     }
 
@@ -236,9 +248,8 @@ final class ReaderController: ReaderPresenting {
 
     private func summarize(_ text: String, in webView: WKWebView) async -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
-        guard let summary = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
+        guard let cleaned = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
         if Task.isCancelled { return "" }
-        let cleaned = ReaderTemplate.unwrap(summary)
         if !cleaned.isEmpty {
             _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetSummary", cleaned))
         }
@@ -334,11 +345,11 @@ final class ReaderController: ReaderPresenting {
                               "Translating… (\(done + 1)/\(translatable.count))"))
                 let translated: String
                 if let fromBatch = batched[block.id] {
-                    translated = ReaderTemplate.unwrap(fromBatch)
+                    translated = fromBatch
                 } else {
                     do {
-                        translated = ReaderTemplate.unwrap(
-                            try await llm.translateBlock(html: block.html, into: settings.primaryLanguage, model: settings.activeModel))
+                        translated = try await llm.translateBlock(
+                            html: block.html, into: settings.primaryLanguage, model: settings.activeModel)
                     } catch is CancellationError {
                         return nil
                     } catch TranslationError.cancelled {
@@ -381,13 +392,7 @@ final class ReaderController: ReaderPresenting {
     }
 
     private static func isConfidently(in primary: PrimaryLanguage, _ html: String) -> Bool {
-        let text = html
-            .replacingOccurrences(of: "<[^>]+>", with: " ", options: .regularExpression)
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard text.count >= 40 else { return false }
-        let recognizer = NLLanguageRecognizer()
-        recognizer.processString(text)
-        return (recognizer.languageHypotheses(withMaximum: 3)[primary.nl] ?? 0) >= 0.8
+        (Self.languageHypotheses(in: html)?[primary.nl] ?? 0) >= 0.8
     }
 
     private func setChatPanel(open: Bool, animated: Bool = true) {
@@ -399,12 +404,22 @@ final class ReaderController: ReaderPresenting {
             let target = min(frame.width + Self.chatPanelWidth, visible?.width ?? .greatestFiniteMagnitude)
             chatWidthDelta = target - frame.width
             frame.size.width = target
+            let before = frame.origin.x
             if let visible, frame.maxX > visible.maxX {
                 frame.origin.x = max(visible.minX, visible.maxX - frame.width)
             }
+            chatShiftX = before - frame.origin.x
         } else {
             frame.size.width -= chatWidthDelta
             chatWidthDelta = 0
+            // Undo the open's left shift, clamped to the screen — otherwise every open/close at the right
+            // edge walks the window left by a panel width.
+            frame.origin.x += chatShiftX
+            chatShiftX = 0
+            if let visible = window.screen?.visibleFrame {
+                frame.origin.x = min(frame.origin.x, visible.maxX - frame.width)
+                frame.origin.x = max(frame.origin.x, visible.minX)
+            }
         }
         if animated && !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion {
             let target = frame
@@ -416,7 +431,9 @@ final class ReaderController: ReaderPresenting {
                 context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
                 window.animator().setFrame(target, display: true)
             }, completionHandler: { [weak self] in
-                if self?.chatAnimSeq == seq { self?.chatFrameTarget = nil }
+                MainActor.assumeIsolated {
+                    if self?.chatAnimSeq == seq { self?.chatFrameTarget = nil }
+                }
             })
         } else {
             chatFrameTarget = nil
@@ -461,9 +478,9 @@ final class ReaderController: ReaderPresenting {
             let context = await self.chatContext(in: webView)
             do {
                 // ponytail: last 4 turns cap the prompt; raise if follow-ups lose thread
-                let answer = ReaderTemplate.unwrap(try await self.llm.askArticle(
+                let answer = try await self.llm.askArticle(
                     question: question, history: Array(self.chatHistory.suffix(4)), article: context,
-                    into: self.settings.primaryLanguage, model: self.settings.activeModel))
+                    into: self.settings.primaryLanguage, model: self.settings.activeModel)
                 if Task.isCancelled { return }
                 self.chatHistory.append((question, answer))
                 _ = try? await webView.evaluateStringResult(
@@ -501,7 +518,13 @@ final class ReaderController: ReaderPresenting {
         guard let webView else { return }
         let open = !chatPanelOpen
         setChatPanel(open: open)
-        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : ""), completionHandler: nil)
+        // The real width granted by the screen clamp — a fixed page margin squeezed the article by the full
+        // panel width even when the window could only grow a fraction of it. Below half the nominal width the
+        // measured value is unusable ("0px" is truthy in JS and would zero the panel out entirely, e.g. on an
+        // already-maximized window) — send nothing and let the page's 340px default overlay the article instead.
+        let usable = chatWidthDelta >= Self.chatPanelWidth * 0.5
+        let width = open && usable ? "\(Int(chatWidthDelta))px" : ""
+        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : "", width), completionHandler: nil)
         showChatItemOpen(open)
         if open, !questionsRequested {
             questionsRequested = true

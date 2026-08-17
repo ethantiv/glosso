@@ -11,11 +11,15 @@ func downloadModel(
     try await engine.ensureEngine(progress: { p in
         Task { @MainActor in progress(p * engineShare) }
     })
-    var latest = engineShare
+    // Summed across layers, keyed by each line's status (it carries the layer digest): a single layer's
+    // completed/total is not the pull — a small layer finishing first would show a full bar for the whole blob.
+    var layers: [String: (completed: Int64, total: Int64)] = [:]
     for try await step in modelManager.pull(model) {
         guard step.total > 0 else { continue }
-        let fraction = Double(step.completed) / Double(step.total)
-        latest = max(latest, engineShare + fraction * (1 - engineShare))
-        progress(latest)
+        layers[step.status] = (step.completed, step.total)
+        let completed = layers.values.reduce(Int64(0)) { $0 + $1.completed }
+        let total = layers.values.reduce(Int64(0)) { $0 + $1.total }
+        guard total > 0 else { continue }
+        progress(engineShare + Double(completed) / Double(total) * (1 - engineShare))
     }
 }

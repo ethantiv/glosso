@@ -179,6 +179,7 @@ final class AppCoordinator {
         actionCache.removeAll()
         lastSourcePID = sourcePID
         popup.present(at: point, formality: settings.formality)
+        var sawEmptyCopy = false
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { return }
             do {
@@ -187,9 +188,9 @@ final class AppCoordinator {
                 await route(text, at: point)
                 return
             } catch CaptureError.emptyOrNonText {
-                popup.showError(loc("Zaznaczenie nie zawiera tekstu do tłumaczenia.",
-                                    "The selection contains no text to translate."))
-                return
+                // A copying app clears and writes in two steps; a poll landing between them sees a risen
+                // changeCount with no string yet. Keep polling — only a timeout makes "no text" true.
+                sawEmptyCopy = true
             } catch CaptureError.nothingSelected {
                 // clipboard has not updated yet — keep polling.
             } catch {
@@ -200,6 +201,13 @@ final class AppCoordinator {
             try? await Task.sleep(for: .milliseconds(pollStepMs))
         }
         if Task.isCancelled { return }
+        // A copy landed and stayed non-text for the whole window — proof the selection isn't text.
+        // Deliberately no AX consultation here (see emptyOrNonTextSelectionDoesNotConsultAX).
+        if sawEmptyCopy {
+            popup.showError(loc("Zaznaczenie nie zawiera tekstu do tłumaczenia.",
+                                "The selection contains no text to translate."))
+            return
+        }
         if sourcePID == nil || sourcePID == frontmostPID(),
            let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
             if Task.isCancelled { return }
@@ -216,10 +224,20 @@ final class AppCoordinator {
                             "Couldn't read the selection. Try again."))
     }
 
+    private func frontmostIsTerminal() -> Bool {
+        frontmostBundleID().map { Self.terminalBundleIDs.contains($0) } ?? false
+    }
+
     func handleReplace(translation: String) {
         guard let sourcePID = lastSourcePID, sourcePID == frontmostPID() else {
             popup.showError(loc("Aplikacja źródłowa się zmieniła — nie wklejono.",
                                 "The source app changed — nothing was pasted."))
+            return
+        }
+        guard !frontmostIsTerminal() else {
+            copyToClipboard(translation)
+            popup.showError(loc("Terminal nie pozwala zastąpić zaznaczenia — tłumaczenie jest w schowku (Cmd+V).",
+                                "A terminal can't replace the selection — the translation is on the clipboard (Cmd+V)."))
             return
         }
         if let selection = axReader.selectedText(),
@@ -283,9 +301,13 @@ final class AppCoordinator {
         if Task.isCancelled { return }
         let corrected = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !corrected.isEmpty else { return }
-        if usedFallback {
-            let pasteable = freshSyntheticCopy
-                && (frontmostBundleID().map { !Self.terminalBundleIDs.contains($0) } ?? false)
+        // The terminal check covers the AX path too: Terminal/iTerm expose AXSelectedText, so a successful
+        // AX read must not become a licence to paste where Cmd+V appends at the prompt. The fallback path
+        // additionally demands a *known* non-terminal bundle — an unknown frontmost app is not worth the risk.
+        let bundleID = frontmostBundleID()
+        let isTerminal = bundleID.map { Self.terminalBundleIDs.contains($0) } ?? false
+        if usedFallback || isTerminal {
+            let pasteable = !isTerminal && (!usedFallback || (freshSyntheticCopy && bundleID != nil))
             guard pasteable else {
                 copyToClipboard(corrected)
                 notify(isTranslate
@@ -326,7 +348,8 @@ final class AppCoordinator {
 
     private func captureViaSyntheticCopy() async -> (text: String, fresh: Bool)? {
         let pasteboard = NSPasteboard.general
-        let original = pasteboard.string(forType: .string)
+        // Every flavor, not just the string: restoring only text would destroy a copied image or file list.
+        let original = PasteboardSnapshot.capture(pasteboard)
         let baseline = reader.currentChangeCount
         replacer.synthesizeCopy()
         var captured: String?
@@ -353,8 +376,7 @@ final class AppCoordinator {
             captured = try? reader.readSelection(baselineChangeCount: trailing)
             fresh = false
         }
-        pasteboard.clearContents()
-        if let original { pasteboard.setString(original, forType: .string) }
+        PasteboardSnapshot.restore(original, to: pasteboard)
         guard let captured else { return nil }
         return (captured, fresh)
     }
@@ -384,52 +406,56 @@ final class AppCoordinator {
         rerunLastCapture(text: text)
     }
 
-    func fetchAlternatives(word: String, translation: String) async -> [String] {
-        guard let capture = lastCapture else { return [] }
+    private typealias Capture = (text: String, point: CGPoint, action: Action, direction: TranslationDirection)
+
+    /// The shared scaffold of every per-word lookup: pause the prefetch around the call, resume it after.
+    private func pausingPrefetch<T: Sendable>(
+        _ fallback: T, _ op: (Capture) async throws -> T
+    ) async -> T {
+        guard let capture = lastCapture else { return fallback }
         prefetchTask?.cancel()
-        let result = (try? await llm.alternatives(
-            for: word, in: translation, source: capture.text,
-            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            model: settings.activeModel)) ?? []
+        let result = (try? await op(capture)) ?? fallback
         schedulePrefetch()
         return result
+    }
+
+    func fetchAlternatives(word: String, translation: String) async -> [String] {
+        await pausingPrefetch([]) { capture in
+            try await llm.alternatives(
+                for: word, in: translation, source: capture.text,
+                primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+                model: settings.activeModel)
+        }
     }
 
     func fetchExplanation(word: String, translation: String) async -> String {
-        guard let capture = lastCapture else { return "" }
-        prefetchTask?.cancel()
-        let result = (try? await llm.explain(
-            word: word, in: translation, source: capture.text,
-            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            model: settings.activeModel)) ?? ""
-        schedulePrefetch()
-        return result
+        await pausingPrefetch("") { capture in
+            try await llm.explain(
+                word: word, in: translation, source: capture.text,
+                primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+                model: settings.activeModel)
+        }
     }
 
     func fetchFixReason(before: String, after: String, corrected: String) async -> String {
-        guard let capture = lastCapture else { return "" }
-        prefetchTask?.cancel()
-        let englishRules = capture.direction == .toPrimary(.polish, .english)
-        let result = (try? await llm.explainFix(
-            error: before, correction: after, original: capture.text, corrected: corrected,
-            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            englishRules: englishRules,
-            style: capture.direction.supportsStyleFix,
-            model: settings.activeModel)) ?? ""
-        schedulePrefetch()
-        return result
+        await pausingPrefetch("") { capture in
+            try await llm.explainFix(
+                error: before, correction: after, original: capture.text, corrected: corrected,
+                primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+                englishRules: capture.direction == .toPrimary(.polish, .english),
+                style: capture.direction.supportsStyleFix,
+                model: settings.activeModel)
+        }
     }
 
     func fetchToneNote(previous: String, current: String, from: Formality, to: Formality) async -> String {
-        guard let capture = lastCapture else { return "" }
-        prefetchTask?.cancel()
-        let result = (try? await llm.explainRegister(
-            previous: previous, current: current, from: from, to: to,
-            source: capture.text,
-            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            model: settings.activeModel)) ?? ""
-        schedulePrefetch()
-        return result
+        await pausingPrefetch("") { capture in
+            try await llm.explainRegister(
+                previous: previous, current: current, from: from, to: to,
+                source: capture.text,
+                primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+                model: settings.activeModel)
+        }
     }
 
     func handlePickAlternative(original: String, chosen: String, translation: String) {
@@ -456,6 +482,9 @@ final class AppCoordinator {
     }
 
     private func stream(_ text: String, at point: CGPoint, action: Action) async {
+        // A cancelled predecessor must not paint: its synchronous prefix (update + a cached append/finish)
+        // would land after the successor's restartTranslation and corrupt the pane.
+        if Task.isCancelled { return }
         let detected = DirectionDetector.detect(text, primary: settings.primaryLanguage, second: settings.secondLanguage)
         lastCapture = (text, point, action, detected)
         let direction = action == .translate || action == .fixGrammar ? detected : .unknown
@@ -542,6 +571,7 @@ final class AppCoordinator {
         // Free against a resident local model, but the cloud meters every call: three guessed verbs per capture spend 4x the day's budget.
         guard settings.provider == .local else { return }
         guard let source = lastCapture?.text else { return }
+        let signature = currentCacheSignature()
         prefetchTask = Task { @MainActor [weak self] in
             guard let self else { return }
             try? await Task.sleep(for: .milliseconds(self.prefetchLingerMs))
@@ -549,15 +579,18 @@ final class AppCoordinator {
             for action in Action.allCases where action != .translate {
                 if Task.isCancelled { return }
                 if self.actionCache[action] != nil { continue }
-                await self.prefetchOne(action, source: source)
+                await self.prefetchOne(action, source: source, signature: signature)
             }
         }
     }
 
-    private func prefetchOne(_ action: Action, source: String) async {
+    /// `signature` pins the settings snapshot this prefetch runs under: a result generated after a mid-flight
+    /// model/language switch must not land in the cache under the old stamp.
+    private func prefetchOne(_ action: Action, source: String, signature: String) async {
         if action == .reply {
             guard let drafts = try? await llm.reply(to: source, model: settings.activeModel),
-                  !drafts.isEmpty, !Task.isCancelled else { return }
+                  !drafts.isEmpty, !Task.isCancelled,
+                  currentCacheSignature() == signature else { return }
             actionCache[.reply] = .replies(drafts)
             return
         }
@@ -573,6 +606,7 @@ final class AppCoordinator {
                 switch event {
                 case .token(let token): accumulated += token
                 case .finished(let reason):
+                    guard currentCacheSignature() == signature else { return }
                     actionCache[action] = .text(accumulated, truncated: reason == "length")
                 }
             }

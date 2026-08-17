@@ -121,7 +121,7 @@ import Testing
 
     @Test func freshInstallStaysOnTheLocalEngine() {
         // The cloud sends the selection off the machine, so it must be opt-in.
-        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in })
+        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in true })
         #expect(store.provider == .local)
         #expect(store.cloudModel == CloudModelCatalog.default.id)
         #expect(store.activeModel == store.modelName)
@@ -130,13 +130,13 @@ import Testing
     @Test func aFreshInstallDoesNotPersistTheCloudModel() {
         // Nothing written means a changed catalog default reaches everyone who never picked a model themselves.
         let defaults = transientDefaults()
-        _ = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        _ = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in true })
         #expect(defaults.object(forKey: "llm.cloudModel") == nil)
     }
 
     @Test func activeModelFollowsTheSelectedProvider() {
         // The engines name models differently; every LLM call reads activeModel, so the wrong side means "model not found".
-        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in })
+        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in true })
         store.modelName = "gemma4:26b-mlx"
         store.cloudModel = "gemma-4-31b-it"
 
@@ -147,11 +147,11 @@ import Testing
 
     @Test func persistsProviderAndCloudModelAcrossReload() {
         let defaults = transientDefaults()
-        let first = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        let first = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in true })
         first.provider = .cloud
         first.cloudModel = "gemma-4-26b-a4b-it"
 
-        let reloaded = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        let reloaded = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in true })
         #expect(reloaded.provider == .cloud)
         #expect(reloaded.cloudModel == "gemma-4-26b-a4b-it")
     }
@@ -159,14 +159,14 @@ import Testing
     @Test func unknownPersistedProviderFallsBackToLocal() {
         let defaults = transientDefaults()
         defaults.set("xx", forKey: "llm.provider")
-        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in })
+        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in true })
         #expect(store.provider == .local)
     }
 
     @Test func apiKeyIsWrittenToTheKeychainNotToDefaults() {
         let defaults = transientDefaults()
         let written = KeyBox()
-        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { written.value = $0 })
+        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { written.value = $0; return true })
 
         store.apiKey = "AIza-secret"
 
@@ -183,9 +183,9 @@ import Testing
         let store = SettingsStore(
             defaults: transientDefaults(),
             readAPIKey: { google.bump(); return "AIza-secret" },
-            writeAPIKey: { writes.value = $0 },
+            writeAPIKey: { writes.value = $0; return true },
             readOllamaAPIKey: { ollama.bump(); return "ollama-secret" },
-            writeOllamaAPIKey: { _ in }
+            writeOllamaAPIKey: { _ in true }
         )
         #expect(google.value == 0)
         #expect(ollama.value == 0)
@@ -208,8 +208,8 @@ import Testing
 
     @Test func activeModelFollowsTheOllamaCloudProvider() {
         // Three engines, three naming schemes: `gemma4:31b` means nothing to Gemini and `gemma-4-31b-it` means nothing to Ollama.
-        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in },
-                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { _ in })
+        let store = SettingsStore(defaults: transientDefaults(), readAPIKey: { nil }, writeAPIKey: { _ in true },
+                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { _ in true })
         store.modelName = "gemma4:26b-mlx"
         store.cloudModel = "gemma-4-31b-it"
 
@@ -222,16 +222,16 @@ import Testing
     @Test func aFreshInstallDoesNotPersistTheOllamaCloudModel() {
         // Same reason as the Gemini catalog: Ollama retires cloud models, and an unwritten key lets a new default reach everyone who never picked one.
         let defaults = transientDefaults()
-        _ = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in },
-                          readOllamaAPIKey: { nil }, writeOllamaAPIKey: { _ in })
+        _ = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in true },
+                          readOllamaAPIKey: { nil }, writeOllamaAPIKey: { _ in true })
         #expect(defaults.object(forKey: "llm.ollamaCloudModel") == nil)
     }
 
     @Test func theOllamaKeyIsWrittenToTheKeychainNotToDefaults() {
         let defaults = transientDefaults()
         let written = KeyBox()
-        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in },
-                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { written.value = $0 })
+        let store = SettingsStore(defaults: defaults, readAPIKey: { nil }, writeAPIKey: { _ in true },
+                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { written.value = $0; return true })
 
         store.ollamaAPIKey = "ollama-secret"
 
@@ -244,8 +244,8 @@ import Testing
         let google = KeyBox()
         let ollama = KeyBox()
         let store = SettingsStore(defaults: transientDefaults(),
-                                  readAPIKey: { nil }, writeAPIKey: { google.value = $0 },
-                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { ollama.value = $0 })
+                                  readAPIKey: { nil }, writeAPIKey: { google.value = $0; return true },
+                                  readOllamaAPIKey: { nil }, writeOllamaAPIKey: { ollama.value = $0; return true })
 
         store.apiKey = "AIza-secret"
         store.ollamaAPIKey = "ollama-secret"

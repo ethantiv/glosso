@@ -28,7 +28,23 @@ final class OllamaEngineDownloader: Sendable {
         let zip = tmp.appendingPathComponent("Ollama-darwin.zip")
         try await Self.downloadFile(from: Self.downloadURL, to: zip, progress: progress)
 
-        try Self.run("/usr/bin/unzip", ["-q", zip.path, "-d", tmp.path])
+        // ditto, not unzip: it preserves the metadata the signature covers (scripts/package.sh relies on the
+        // same property for our own zip), so a benign extraction artifact can't read as tampering.
+        try Self.run("/usr/bin/ditto", ["-x", "-k", zip.path, tmp.path])
+        // TLS protects the transfer; this protects against a swapped archive — the binary is about to be
+        // executed, so it must carry an intact signature from Ollama's own Developer ID team (a bare
+        // --verify would accept any ad-hoc re-sign). Team 3MU9H2V9Y9 = "Infra Technologies, Inc" (Ollama).
+        do {
+            try Self.run("/usr/bin/codesign", [
+                "--verify", "--deep", "--strict",
+                "-R=anchor apple generic and certificate leaf[subject.OU] = \"3MU9H2V9Y9\"",
+                tmp.appendingPathComponent("Ollama.app").path,
+            ])
+        } catch {
+            SystemUserNotifier.post(loc("Pobrany silnik nie przeszedł weryfikacji podpisu — instalacja przerwana.",
+                                        "The downloaded engine failed signature verification — install aborted."))
+            throw error
+        }
         let resources = tmp.appendingPathComponent("Ollama.app/Contents/Resources", isDirectory: true)
         guard fm.isExecutableFile(atPath: resources.appendingPathComponent("ollama").path) else {
             throw TranslationError.engineUnavailable

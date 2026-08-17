@@ -55,6 +55,9 @@ final class OllamaClient: LLMClient, GenerationBackend {
             (data, response) = try await session.data(for: request)
         } catch let error as URLError where error.code == .cancelled {
             throw TranslationError.cancelled
+        } catch is CancellationError {
+            // Not the catch-all: on a cloud instance `.cloudUnreachable` falls back, and a cancelled call must not.
+            throw TranslationError.cancelled
         } catch {
             throw Self.unreachable(isCloud: isCloud)
         }

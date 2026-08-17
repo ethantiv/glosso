@@ -28,7 +28,8 @@ enum ReplyParser {
     }
 
     private static func isSeparator(_ line: Substring) -> Bool {
-        let trimmed = line.trimmingCharacters(in: .whitespaces)
+        // `.whitespacesAndNewlines`, not `.whitespaces`: a CRLF answer leaves "\r" on the line and hides the separator.
+        let trimmed = line.trimmingCharacters(in: .whitespacesAndNewlines)
         return trimmed.count >= 3 && trimmed.allSatisfy { $0 == "-" }
     }
 }

@@ -76,6 +76,9 @@ struct PopupView: View {
             .environment(\.appearsActive, true)
             .scaleEffect(appeared ? 1 : 0.965)
             .opacity(appeared ? 1 : 0)
+            // Replaced content reshuffles segment ids and delivers no onHover(false) for removed views —
+            // without the reset a stale id paints a phantom highlight on an unrelated chunk.
+            .onChange(of: model.text) { hoverWordID = nil }
             .onAppear {
                 if reduceMotion {
                     appeared = true
@@ -522,14 +525,22 @@ struct PopupView: View {
                     }
                     .layoutValue(key: FlowItemKindKey.self, value: .word)
                 case .gap(_, let text, let isWhitespace):
-                    Text(isWhitespace ? " " : text)
-                        .font(PopupTheme.fontLead)
-                        .foregroundStyle(.primary)
-                        .layoutValue(key: FlowItemKindKey.self, value: isWhitespace ? .space : .other)
+                    gapView(text, isWhitespace: isWhitespace)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    /// A newline-bearing gap becomes a layout line break — collapsing it to " " glued paragraphs into one flow,
+    /// so what the pane showed disagreed with what Copy pasted.
+    private func gapView(_ text: String, isWhitespace: Bool) -> some View {
+        let breaks = isWhitespace ? text.count(where: \.isNewline) : 0
+        return Text(isWhitespace ? " " : text)
+            .font(PopupTheme.fontLead)
+            .foregroundStyle(.primary)
+            .layoutValue(key: FlowItemKindKey.self,
+                         value: breaks > 0 ? .lineBreak(blank: breaks > 1) : (isWhitespace ? .space : .other))
     }
 
     private func punctuation(_ text: String) -> some View {
@@ -626,8 +637,10 @@ struct PopupView: View {
         FlowLayout(lineSpacing: 5) {
             ForEach(model.diffParts) { part in
                 switch part {
-                case .same(_, let sameText):
-                    ForEach(FlowComposer.runs(Tokenizer.segments(sameText))) { run in
+                case .same(let id, _):
+                    // Runs come pre-composed from the model: rebuilding them here re-tokenized the whole
+                    // corrected text on every body re-eval, i.e. per mouse move while hovering.
+                    ForEach(model.diffSameRuns[id] ?? []) { run in
                         switch run {
                         case .chunk(_, let leading, let word, let trailing):
                             Text(leading + word.text + trailing)
@@ -635,10 +648,7 @@ struct PopupView: View {
                                 .foregroundStyle(.primary)
                                 .layoutValue(key: FlowItemKindKey.self, value: .word)
                         case .gap(_, let gapText, let isWhitespace):
-                            Text(isWhitespace ? " " : gapText)
-                                .font(PopupTheme.fontLead)
-                                .foregroundStyle(.primary)
-                                .layoutValue(key: FlowItemKindKey.self, value: isWhitespace ? .space : .other)
+                            gapView(gapText, isWhitespace: isWhitespace)
                         }
                     }
                 case .change(let id, let removed, let added):

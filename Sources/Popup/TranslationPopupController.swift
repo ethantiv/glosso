@@ -27,7 +27,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
     private var eventTap: CFMachPort?
     private var tapRunLoopSource: CFRunLoopSource?
     private var escMonitor: Any?
+    private var escLocalMonitor: Any?
     private var outsideClickMonitor: Any?
+    private var ownWindowClickMonitor: Any?
     private var closeObserver: NSObjectProtocol?
     private var moveObserver: NSObjectProtocol?
     private var sizeApplyScheduled = false
@@ -313,8 +315,12 @@ final class TranslationPopupController: TranslationPopupPresenting {
         guard size.width > 0, size.height > 0 else { return }
         size = CGSize(width: size.width.rounded(.up), height: size.height.rounded(.up))
         let margin = PopupView.shadowMargin
-        let screenFrame = (panel.screen?.visibleFrame ?? anchorScreenFrame)
+        // anchorScreenFrame first: before `orderFrontRegardless` the panel's frame still sits at (0,0), where
+        // `panel.screen` answers with the primary display and the clamp would drag the popup off the cursor's screen.
+        // The didMove observer keeps anchorScreenFrame current once the user drags the panel elsewhere.
+        let screenFrame = (anchorScreenFrame != .zero ? anchorScreenFrame : (panel.screen?.visibleFrame ?? .zero))
             .insetBy(dx: -margin, dy: -margin)
+        guard screenFrame.width > 0 else { return }
         let topLeft = PanelPositioning.clampedTopLeft(
             anchorTopLeft, panelSize: size, screenFrame: screenFrame
         )
@@ -403,6 +409,19 @@ final class TranslationPopupController: TranslationPopupPresenting {
                 self.model.closeDropdown()
             }
         }
+        // A global monitor never sees clicks landing in our own windows (Settings, the reader) — those need
+        // a local sibling, filtered so a click inside the panel or the dropdown keeps the dropdown open.
+        ownWindowClickMonitor = NSEvent.addLocalMonitorForEvents(
+            matching: [.leftMouseDown, .rightMouseDown]
+        ) { [weak self] event in
+            // The event is returned outside assumeIsolated: its result type must be Sendable, and NSEvent isn't.
+            MainActor.assumeIsolated {
+                guard let self, self.model.dropdownVisible,
+                      event.window !== self.panel, event.window !== self.dropdownPanel else { return }
+                self.model.closeDropdown()
+            }
+            return event
+        }
 
         let mask = CGEventMask(1) << CGEventType.keyDown.rawValue
         let tap = CGEvent.tapCreate(
@@ -454,19 +473,30 @@ final class TranslationPopupController: TranslationPopupPresenting {
         escMonitor = NSEvent.addGlobalMonitorForEvents(matching: .keyDown) { [weak self] event in
             MainActor.assumeIsolated {
                 guard let self else { return }
-                switch EscKeyHandling.action(
-                    keyCode: event.keyCode,
-                    modifiers: event.modifierFlags,
-                    dropdownVisible: self.model.dropdownVisible,
-                    explanationVisible: self.model.showingExplanation,
-                    fixReasonMode: self.model.fixReasonMode
-                ) {
-                case .passThrough: break
-                case .closeExplanation: self.model.closeExplanation()
-                case .closeDropdown: self.model.closeDropdown()
-                case .dismiss: self.dismiss()
-                }
+                _ = self.handleFallbackKeyDown(event)
             }
+        }
+        // The panel takes key on open and a global monitor never sees the app's own events, so without a local
+        // sibling Esc would be dead exactly when the tap is unavailable (secure keyboard entry).
+        escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
+            let handled = MainActor.assumeIsolated { self?.handleFallbackKeyDown(event) ?? false }
+            return handled ? nil : event
+        }
+    }
+
+    /// Shared by both fallback monitors; true when the key was consumed.
+    private func handleFallbackKeyDown(_ event: NSEvent) -> Bool {
+        switch EscKeyHandling.action(
+            keyCode: event.keyCode,
+            modifiers: event.modifierFlags,
+            dropdownVisible: model.dropdownVisible,
+            explanationVisible: model.showingExplanation,
+            fixReasonMode: model.fixReasonMode
+        ) {
+        case .passThrough: return false
+        case .closeExplanation: model.closeExplanation(); return true
+        case .closeDropdown: model.closeDropdown(); return true
+        case .dismiss: dismiss(); return true
         }
     }
 
@@ -480,18 +510,19 @@ final class TranslationPopupController: TranslationPopupPresenting {
             CFRunLoopRemoveSource(CFRunLoopGetMain(), tapRunLoopSource, .commonModes)
             self.tapRunLoopSource = nil
         }
-        if let escMonitor {
-            NSEvent.removeMonitor(escMonitor)
-            self.escMonitor = nil
+        for monitor in [escMonitor, escLocalMonitor, outsideClickMonitor, ownWindowClickMonitor].compactMap({ $0 }) {
+            NSEvent.removeMonitor(monitor)
         }
-        if let outsideClickMonitor {
-            NSEvent.removeMonitor(outsideClickMonitor)
-            self.outsideClickMonitor = nil
-        }
+        escMonitor = nil
+        escLocalMonitor = nil
+        outsideClickMonitor = nil
+        ownWindowClickMonitor = nil
     }
 
     private func screen(containing point: CGPoint) -> NSScreen {
-        for screen in NSScreen.screens where screen.frame.contains(point) {
+        // NSMouseInRect, not contains(_:): the cursor can rest exactly on a frame's max edge, which
+        // `contains` excludes — the mouse-location variant treats the top edge as inside.
+        for screen in NSScreen.screens where NSMouseInRect(point, screen.frame, false) {
             return screen
         }
         return NSScreen.main ?? NSScreen.screens.first ?? NSScreen()

@@ -39,34 +39,6 @@ enum ReaderTemplate {
         return packed
     }
 
-    /// Peels what a model wraps its answer in: a markdown fence and an echoed prompt wrapper, in either nesting order.
-    static func unwrap(_ text: String) -> String {
-        var current = text.trimmingCharacters(in: .whitespacesAndNewlines)
-        for _ in 0..<3 {
-            let before = current
-            current = peelWrapper(peelFence(current))
-            if current == before { break }
-        }
-        return current
-    }
-
-    private static func peelFence(_ text: String) -> String {
-        guard text.hasPrefix("```") else { return text }
-        var peeled = text.replacingOccurrences(
-            of: #"\A```[a-zA-Z]*\s*"#, with: "", options: .regularExpression)
-        peeled = peeled.replacingOccurrences(
-            of: #"\s*```\z"#, with: "", options: .regularExpression)
-        return peeled.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    /// Both ends anchored and the same tag required on both, so a legitimate inline tag can never be mistaken for a wrapper.
-    private static func peelWrapper(_ text: String) -> String {
-        let peeled = text.replacingOccurrences(
-            of: #"(?is)\A<\s*(block|text|article)\s*>\s*(.*?)\s*<\s*/\s*\1\s*>\z"#,
-            with: "$2", options: .regularExpression)
-        return peeled == text ? text : peeled.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
     /// Chat answers arrive with markdown emphasis whatever the prompt asks for; render the few marks models actually use.
     static func markdown(_ text: String) -> String {
         // Escaping first is what makes this safe: afterwards the only tags in the string are the ones we add ourselves.
@@ -182,7 +154,8 @@ enum ReaderTemplate {
                                  display: block; margin-bottom: .3em; }
       /* The one part of the page that deliberately leaves the "Dwugłos" typography behind: a conversation reads as a
          Messages thread, not as a critical apparatus. Hence the UI font here, and bubbles below. */
-      #glosso-chat-panel { position: fixed; top: 6px; right: 0; bottom: 0; width: 320px;
+      #glosso-chat-panel { position: fixed; top: 6px; right: 0; bottom: 0;
+                           width: calc(var(--glosso-chat-w, 340px) - 20px);
                            display: flex; flex-direction: column; gap: .9em;
                            transform: translateX(100%); visibility: hidden;
                            transition: transform .25s ease-in-out, visibility 0s .25s;
@@ -194,7 +167,7 @@ enum ReaderTemplate {
       body.glosso-chat-open #glosso-chat-panel { transform: none; visibility: visible;
                                                  transition: transform .25s ease-in-out,
                                                              visibility 0s; }
-      body.glosso-chat-open { margin-right: 340px; }
+      body.glosso-chat-open { margin-right: var(--glosso-chat-w, 340px); }
       /* Title case, not caps: HIG asks for it, and the panel isn't a section header in a book any more. */
       .glosso-chat-label { font-size: .78rem; font-weight: 600; text-align: center;
                            color: var(--ink-soft); }
@@ -259,10 +232,12 @@ enum ReaderTemplate {
     <script>
     function glossoSanitize(root) {
       for (const el of root.querySelectorAll('*')) {
+        // META can navigate (http-equiv=refresh) and BASE rewrites every relative URL on the page.
+        if (el.tagName === 'META' || el.tagName === 'BASE') { el.remove(); continue; }
         for (const attr of Array.from(el.attributes)) {
           const name = attr.name.toLowerCase();
           if (name.startsWith('on') || name === 'srcdoc') { el.removeAttribute(attr.name); continue; }
-          if (['href', 'src', 'data', 'xlink:href'].includes(name)
+          if (['href', 'src', 'data', 'xlink:href', 'action', 'formaction'].includes(name)
               && attr.value.trim().toLowerCase().startsWith('javascript:')) {
             el.removeAttribute(attr.name);
           }
@@ -389,9 +364,11 @@ enum ReaderTemplate {
       }
     }
     // Swift owns whether the panel is open — it animates the window's width to match, so the page only applies it.
-    function glossoSetChat(open) {
+    // `width` is the real growth the screen allowed, e.g. "297px"; empty keeps the 340px default.
+    function glossoSetChat(open, width) {
       // Swift passes "1"/"" — `call` JSON-encodes every argument as a string, so coerce before comparing.
       open = !!open;
+      if (width) { document.body.style.setProperty('--glosso-chat-w', width); }
       if (open === document.body.classList.contains('glosso-chat-open')) { return; }
       const cs = getComputedStyle(document.body);
       document.body.style.width = cs.width;

@@ -23,10 +23,13 @@ extension LLMClient where Self: GenerationBackend {
         return ReplyParser.parse(try await generate(prompt: prompt, model: model, timeout: nil, numPredict: nil))
     }
 
+    // The reader-facing methods unwrap here, once — Flash Lite echoes the prompt's own wrapper, and a call
+    // site that forgets to peel it renders a literal `<block>` and persists it into the cache.
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         let cap = max(256, html.utf8.count)
-        return try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
-                                  model: model, timeout: Self.longFormTimeout, numPredict: cap)
+        return ModelOutput.unwrap(
+            try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
+                               model: model, timeout: Self.longFormTimeout, numPredict: cap))
     }
 
     func translateBlocks(_ blocks: [(id: Int, html: String)], into primary: PrimaryLanguage, model: String) async throws -> [Int: String] {
@@ -36,17 +39,19 @@ extension LLMClient where Self: GenerationBackend {
         guard let parsed = BlockBatchParser.parse(answer, ids: blocks.map(\.id)) else {
             throw TranslationError.malformedStream
         }
-        return parsed
+        return parsed.mapValues(ModelOutput.unwrap)
     }
 
     func readerSummary(of text: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildReaderSummary(text: text, into: primary),
-                           model: model, timeout: Self.longFormTimeout, numPredict: 512)
+        ModelOutput.unwrap(
+            try await generate(prompt: PromptBuilder.buildReaderSummary(text: text, into: primary),
+                               model: model, timeout: Self.longFormTimeout, numPredict: 512))
     }
 
     func askArticle(question: String, history: [(question: String, answer: String)], article: String, into primary: PrimaryLanguage, model: String) async throws -> String {
-        try await generate(prompt: PromptBuilder.buildAskArticle(question: question, history: history, article: article, into: primary),
-                           model: model, timeout: Self.longFormTimeout, numPredict: 1024)
+        ModelOutput.unwrap(
+            try await generate(prompt: PromptBuilder.buildAskArticle(question: question, history: history, article: article, into: primary),
+                               model: model, timeout: Self.longFormTimeout, numPredict: 1024))
     }
 
     func articleQuestions(about article: String, into primary: PrimaryLanguage, model: String) async throws -> [String] {
