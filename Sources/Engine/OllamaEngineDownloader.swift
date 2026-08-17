@@ -29,6 +29,9 @@ final class OllamaEngineDownloader: Sendable {
         try await Self.downloadFile(from: Self.downloadURL, to: zip, progress: progress)
 
         try Self.run("/usr/bin/unzip", ["-q", zip.path, "-d", tmp.path])
+        // TLS protects the transfer; this protects against a corrupted or tampered archive — the binary is
+        // about to be executed, so it must still carry Ollama's intact code signature.
+        try Self.run("/usr/bin/codesign", ["--verify", "--deep", "--strict", tmp.appendingPathComponent("Ollama.app").path])
         let resources = tmp.appendingPathComponent("Ollama.app/Contents/Resources", isDirectory: true)
         guard fm.isExecutableFile(atPath: resources.appendingPathComponent("ollama").path) else {
             throw TranslationError.engineUnavailable
