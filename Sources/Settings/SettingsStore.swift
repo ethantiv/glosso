@@ -63,21 +63,32 @@ final class SettingsStore {
     var apiKey: String {
         didSet {
             guard !loadingKeys, apiKey != oldValue else { return }
-            if !writeAPIKey(apiKey) { Self.notifyKeySaveFailure() }
+            reportKeySave(succeeded: writeAPIKey(apiKey))
         }
     }
 
     var ollamaAPIKey: String {
         didSet {
             guard !loadingKeys, ollamaAPIKey != oldValue else { return }
-            if !writeOllamaAPIKey(ollamaAPIKey) { Self.notifyKeySaveFailure() }
+            reportKeySave(succeeded: writeOllamaAPIKey(ollamaAPIKey))
         }
     }
 
+    @ObservationIgnored private var keySaveFailureReported = false
+
     /// A silently dropped key would resurface only after relaunch, as `.missingAPIKey` with no hint why.
-    private static func notifyKeySaveFailure() {
+    /// The SecureField writes per keystroke, so only the ok→failed transition posts (with a fixed identifier),
+    /// or a persistently failing Keychain would mean one notification per typed character.
+    private func reportKeySave(succeeded: Bool) {
+        if succeeded {
+            keySaveFailureReported = false
+            return
+        }
+        guard !keySaveFailureReported else { return }
+        keySaveFailureReported = true
         SystemUserNotifier.post(loc("Nie udało się zapisać klucza API w pęku kluczy.",
-                                    "Couldn't save the API key to the Keychain."))
+                                    "Couldn't save the API key to the Keychain."),
+                                identifier: "glosso.keychain-save")
     }
 
     /// Pulls one key out of the Keychain, once, and only for the `SecureField` that is actually on screen. Nothing else

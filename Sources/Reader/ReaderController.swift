@@ -519,8 +519,11 @@ final class ReaderController: ReaderPresenting {
         let open = !chatPanelOpen
         setChatPanel(open: open)
         // The real width granted by the screen clamp — a fixed page margin squeezed the article by the full
-        // panel width even when the window could only grow a fraction of it.
-        let width = open ? "\(Int(chatWidthDelta))px" : ""
+        // panel width even when the window could only grow a fraction of it. Below half the nominal width the
+        // measured value is unusable ("0px" is truthy in JS and would zero the panel out entirely, e.g. on an
+        // already-maximized window) — send nothing and let the page's 340px default overlay the article instead.
+        let usable = chatWidthDelta >= Self.chatPanelWidth * 0.5
+        let width = open && usable ? "\(Int(chatWidthDelta))px" : ""
         webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : "", width), completionHandler: nil)
         showChatItemOpen(open)
         if open, !questionsRequested {
