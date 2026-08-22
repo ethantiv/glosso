@@ -171,6 +171,27 @@ enum ReaderTemplate {
       /* Title case, not caps: HIG asks for it, and the panel isn't a section header in a book any more. */
       .glosso-chat-label { font-size: .78rem; font-weight: 600; text-align: center;
                            color: var(--ink-soft); }
+      /* The chat and the saved-articles list share the one panel; Swift picks which body shows. */
+      #glosso-chat-body, #glosso-saved-body { display: flex; flex-direction: column;
+                                              gap: .9em; flex: 1; min-height: 0; }
+      body.glosso-saved-mode #glosso-chat-body { display: none; }
+      body:not(.glosso-saved-mode) #glosso-saved-body { display: none; }
+      #glosso-saved-list { flex: 1; overflow-y: auto; padding-right: .6em; }
+      .glosso-saved-row { display: flex; align-items: center; gap: .4em; margin-bottom: .45em; }
+      .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
+                           font-family: inherit; background: Canvas; color: CanvasText;
+                           border: 1px solid var(--hairline); border-radius: 10px;
+                           padding: .55em .8em; }
+      .glosso-saved-open:hover { background: color-mix(in srgb, CanvasText 6%, Canvas); }
+      .glosso-saved-title { display: block; font-size: .92em; line-height: 1.35;
+                            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .glosso-saved-meta { display: block; font-size: .78em; color: var(--ink-soft);
+                           margin-top: .15em; }
+      .glosso-saved-pin { flex: none; cursor: pointer; background: none; border: 0;
+                          font-size: 1em; padding: .2em; opacity: .35; }
+      .glosso-saved-pin.glosso-pinned { opacity: 1; }
+      #glosso-saved-empty { display: none; font-size: .85em; color: var(--ink-soft);
+                            text-align: center; margin-top: 1em; }
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
                               display: flex; flex-direction: column; }
       .glosso-chat-q, .glosso-chat-a { max-width: 88%; margin-bottom: .5em;
@@ -220,14 +241,21 @@ enum ReaderTemplate {
     <div id="glosso-summary"></div>
     <div id="glosso-content"></div>
     <div id="glosso-chat-panel">
-      <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
-      <div id="glosso-chat-messages"></div>
-      <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
-      <div id="glosso-chat-suggestions"></div>
-      <form id="glosso-chat-form">
-        <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
-        <button type="submit" class="glosso-send" aria-label="\(loc("Wyślij", "Send"))">↑</button>
-      </form>
+      <div id="glosso-chat-body">
+        <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
+        <div id="glosso-chat-messages"></div>
+        <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
+        <div id="glosso-chat-suggestions"></div>
+        <form id="glosso-chat-form">
+          <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
+          <button type="submit" class="glosso-send" aria-label="\(loc("Wyślij", "Send"))">↑</button>
+        </form>
+      </div>
+      <div id="glosso-saved-body">
+        <div class="glosso-chat-label">\(loc("Artykuły", "Articles"))</div>
+        <div id="glosso-saved-list"></div>
+        <div id="glosso-saved-empty">\(loc("Brak artykułów z ostatnich 7 dni.", "No articles from the last 7 days."))</div>
+      </div>
     </div>
     <script>
     function glossoSanitize(root) {
@@ -380,6 +408,47 @@ enum ReaderTemplate {
       }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
       if (open) { document.getElementById('glosso-chat-input').focus(); }
+    }
+    // An idempotent setter like glossoSetMode: Swift owns which body the shared panel shows.
+    function glossoPanelMode(mode) {
+      document.body.classList.toggle('glosso-saved-mode', mode === 'saved');
+    }
+    function glossoSetSaved(json) {
+      const box = document.getElementById('glosso-saved-list');
+      box.textContent = '';
+      let rows = [];
+      try { rows = JSON.parse(json); } catch (e) {}
+      document.getElementById('glosso-saved-empty').style.display = rows.length ? 'none' : 'block';
+      for (const row of rows) {
+        const item = document.createElement('div');
+        item.className = 'glosso-saved-row';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'glosso-saved-open';
+        const title = document.createElement('span');
+        title.className = 'glosso-saved-title';
+        title.textContent = row.title;
+        title.title = row.title;
+        const meta = document.createElement('span');
+        meta.className = 'glosso-saved-meta';
+        meta.textContent = row.host + ' · ' + row.date;
+        open.appendChild(title);
+        open.appendChild(meta);
+        open.addEventListener('click', function() {
+          window.webkit?.messageHandlers?.glosso?.postMessage({action: 'open', url: row.url});
+        });
+        const pin = document.createElement('button');
+        pin.type = 'button';
+        pin.className = 'glosso-saved-pin' + (row.pinned ? ' glosso-pinned' : '');
+        pin.textContent = '\\ud83d\\udccc';
+        pin.setAttribute('aria-label', row.pinned ? '\(loc("Odepnij", "Unpin"))' : '\(loc("Przypnij", "Pin"))');
+        pin.addEventListener('click', function() {
+          window.webkit?.messageHandlers?.glosso?.postMessage({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});
+        });
+        item.appendChild(open);
+        item.appendChild(pin);
+        box.appendChild(item);
+      }
     }
     function glossoSuggesting() {
       const spin = document.createElement('span');
