@@ -180,17 +180,19 @@ enum ReaderTemplate {
       /* A file listing, not a stack of cards: bare rows, the title reads as a link, and the hover
          reveals where the original lives. */
       .glosso-saved-row { display: flex; align-items: flex-start; gap: .4em;
-                          border-radius: 8px; padding: .35em .5em; margin-bottom: .1em; }
+                          border-radius: 8px; padding: .45em .5em; margin-bottom: .2em; }
       .glosso-saved-row:hover { background: color-mix(in srgb, CanvasText 5%, Canvas); }
       .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
                            font-family: inherit; background: none; color: CanvasText;
                            border: 0; padding: 0; }
-      .glosso-saved-title { display: block; font-size: .92em; line-height: 1.4;
-                            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      /* Full body size and up to two lines — a title cut mid-word at .92em was the panel's hardest read. */
+      .glosso-saved-title { display: -webkit-box; -webkit-line-clamp: 2;
+                            -webkit-box-orient: vertical; overflow: hidden;
+                            font-size: 1em; line-height: 1.45; }
       .glosso-saved-open:hover .glosso-saved-title { text-decoration: underline; }
-      .glosso-saved-meta { display: none; font-size: .75em; color: var(--ink-soft);
-                           margin-top: .1em; overflow: hidden; text-overflow: ellipsis;
-                           white-space: nowrap; }
+      .glosso-saved-meta { display: none; font-size: .82em; margin-top: .15em;
+                           color: color-mix(in srgb, CanvasText 68%, Canvas);
+                           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .glosso-saved-row:hover .glosso-saved-meta { display: block; }
       /* The pin is drawn, not typed: a stroke icon in currentColor keeps it in the panel's ink like the
          toolbar's SF Symbols. Unpinned rows reveal theirs on hover only, the way Finder hides row controls. */
