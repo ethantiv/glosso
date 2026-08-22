@@ -177,19 +177,30 @@ enum ReaderTemplate {
       body.glosso-saved-mode #glosso-chat-body { display: none; }
       body:not(.glosso-saved-mode) #glosso-saved-body { display: none; }
       #glosso-saved-list { flex: 1; overflow-y: auto; padding-right: .6em; }
-      .glosso-saved-row { display: flex; align-items: center; gap: .4em; margin-bottom: .45em; }
+      /* A file listing, not a stack of cards: bare rows, the title reads as a link, and the hover
+         reveals where the original lives. */
+      .glosso-saved-row { display: flex; align-items: flex-start; gap: .4em;
+                          border-radius: 8px; padding: .35em .5em; margin-bottom: .1em; }
+      .glosso-saved-row:hover { background: color-mix(in srgb, CanvasText 5%, Canvas); }
       .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
-                           font-family: inherit; background: Canvas; color: CanvasText;
-                           border: 1px solid var(--hairline); border-radius: 10px;
-                           padding: .55em .8em; }
-      .glosso-saved-open:hover { background: color-mix(in srgb, CanvasText 6%, Canvas); }
-      .glosso-saved-title { display: block; font-size: .92em; line-height: 1.35;
+                           font-family: inherit; background: none; color: CanvasText;
+                           border: 0; padding: 0; }
+      .glosso-saved-title { display: block; font-size: .92em; line-height: 1.4;
                             overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .glosso-saved-meta { display: block; font-size: .78em; color: var(--ink-soft);
-                           margin-top: .15em; }
+      .glosso-saved-open:hover .glosso-saved-title { text-decoration: underline; }
+      .glosso-saved-meta { display: none; font-size: .75em; color: var(--ink-soft);
+                           margin-top: .1em; overflow: hidden; text-overflow: ellipsis;
+                           white-space: nowrap; }
+      .glosso-saved-row:hover .glosso-saved-meta { display: block; }
+      /* The pin is drawn, not typed: a stroke icon in currentColor keeps it in the panel's ink like the
+         toolbar's SF Symbols. Unpinned rows reveal theirs on hover only, the way Finder hides row controls. */
       .glosso-saved-pin { flex: none; cursor: pointer; background: none; border: 0;
-                          font-size: 1em; padding: .2em; opacity: .35; }
-      .glosso-saved-pin.glosso-pinned { opacity: 1; }
+                          padding: .2em; margin-top: .1em; color: var(--ink-soft);
+                          display: flex; align-items: center; visibility: hidden; }
+      .glosso-saved-row:hover .glosso-saved-pin,
+      .glosso-saved-pin.glosso-pinned { visibility: visible; }
+      .glosso-saved-pin:hover { color: CanvasText; }
+      .glosso-saved-pin.glosso-pinned { color: var(--accent-ink); }
       #glosso-saved-empty { display: none; font-size: .85em; color: var(--ink-soft);
                             text-align: center; margin-top: 1em; }
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
@@ -428,10 +439,11 @@ enum ReaderTemplate {
         const title = document.createElement('span');
         title.className = 'glosso-saved-title';
         title.textContent = row.title;
-        title.title = row.title;
+        // The tooltip describes the original; the hover line below shows where it lives.
+        open.title = row.original && row.original !== row.title ? row.original : row.url;
         const meta = document.createElement('span');
         meta.className = 'glosso-saved-meta';
-        meta.textContent = row.host + ' · ' + row.date;
+        meta.textContent = row.url;
         open.appendChild(title);
         open.appendChild(meta);
         open.addEventListener('click', function() {
@@ -440,7 +452,10 @@ enum ReaderTemplate {
         const pin = document.createElement('button');
         pin.type = 'button';
         pin.className = 'glosso-saved-pin' + (row.pinned ? ' glosso-pinned' : '');
-        pin.textContent = '\\ud83d\\udccc';
+        pin.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">'
+          + '<path d="M5.5 1.75h5v4.75l1.75 2.25h-8.5l1.75-2.25z M8 8.75v5.5" '
+          + 'fill="' + (row.pinned ? 'currentColor' : 'none') + '" stroke="currentColor" '
+          + 'stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>';
         pin.setAttribute('aria-label', row.pinned ? '\(loc("Odepnij", "Unpin"))' : '\(loc("Przypnij", "Pin"))');
         pin.addEventListener('click', function() {
           window.webkit?.messageHandlers?.glosso?.postMessage({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});

@@ -71,7 +71,7 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             if flag { pinItem = item }
             return item
         case .glossoBrowse:
-            let item = button(identifier, symbol: "books.vertical",
+            let item = button(identifier, symbol: "tray",
                               label: loc("Przeglądaj", "Browse"),
                               action: #selector(toggleBrowse))
             if flag { browseItem = item }

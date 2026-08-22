@@ -215,7 +215,7 @@ final class ReaderController: ReaderPresenting {
             ? loc("Zamknij listę artykułów", "Close the article list")
             : loc("Przeglądaj", "Browse")
         toolbarProxy?.browseItem?.image = NSImage(
-            systemSymbolName: open ? "books.vertical.fill" : "books.vertical",
+            systemSymbolName: open ? "tray.fill" : "tray",
             accessibilityDescription: label)
         toolbarProxy?.browseItem?.label = label
         toolbarProxy?.browseItem?.toolTip = label
@@ -247,7 +247,7 @@ final class ReaderController: ReaderPresenting {
     }
 
     private struct SavedRow: Encodable {
-        let url, title, host, date: String
+        let url, title, original: String
         let pinned: Bool
     }
 
@@ -255,8 +255,7 @@ final class ReaderController: ReaderPresenting {
         let rows = saved.list().map { entry in
             SavedRow(url: entry.url.absoluteString,
                      title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
-                     host: entry.url.host() ?? "",
-                     date: entry.savedAt.formatted(date: .abbreviated, time: .omitted),
+                     original: entry.title,
                      pinned: entry.pinned == true)
         }
         let json = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
