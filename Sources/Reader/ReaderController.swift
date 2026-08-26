@@ -77,7 +77,12 @@ final class ReaderController: ReaderPresenting {
             do {
                 try await self.loadTemplate(in: webView, baseURL: url)
                 try await self.replay(entry, in: webView)
-            } catch {}
+            } catch is CancellationError {
+            } catch let error as ReaderError {
+                if !Task.isCancelled { self.setStatus(error.message) }
+            } catch {
+                if !Task.isCancelled { self.setStatus(ReaderError.fetchFailed.message) }
+            }
             // The template reload wiped the page — re-apply the open panel and its list.
             if !Task.isCancelled { self.pushPanelState(in: webView) }
         }
@@ -223,15 +228,21 @@ final class ReaderController: ReaderPresenting {
 
     func togglePinCurrentArticle() {
         guard let lastEntry, let currentURL else { return }
-        // The entry can expire between the translation and the click — re-save before flipping the flag.
-        if saved.load(currentURL) == nil { saved.save(lastEntry) }
-        saved.setPinned(!saved.isPinned(currentURL), for: currentURL)
-        refreshPinItem()
-        if panelContent == .saved, let webView { pushSavedList(in: webView) }
+        // Target computed from disk before load() can delete an expired file — and never from
+        // lastEntry, whose pinned is a snapshot the miss-path re-save below would otherwise resurrect.
+        let target = !saved.isPinned(currentURL)
+        if saved.load(currentURL) == nil {
+            var entry = lastEntry
+            entry.pinned = false
+            saved.save(entry)
+        }
+        setPinned(target, for: currentURL)
     }
 
     fileprivate func setPinned(_ on: Bool, for url: URL) {
         saved.setPinned(on, for: url)
+        // Keep the snapshot honest, or a later re-save writes the pre-toggle flag back.
+        if currentURL == url { lastEntry?.pinned = on }
         refreshPinItem()
         if let webView { pushSavedList(in: webView) }
     }
@@ -642,9 +653,13 @@ final class ReaderController: ReaderPresenting {
         // already-maximized window) — send nothing and let the page's 340px default overlay the article instead.
         let usable = chatWidthDelta >= Self.chatPanelWidth * 0.5
         let width = open && usable ? "\(Int(chatWidthDelta))px" : ""
+        // Mode before open — glossoSetChat's focus guard reads the class glossoPanelMode sets. On close the
+        // mode is not sent at all: glossoPanelMode('chat') would focus the input of the panel being hidden.
+        if open {
+            webView.evaluateJavaScript(
+                ReaderTemplate.call("glossoPanelMode", panelContent == .saved ? "saved" : "chat"), completionHandler: nil)
+        }
         webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : "", width), completionHandler: nil)
-        webView.evaluateJavaScript(
-            ReaderTemplate.call("glossoPanelMode", panelContent == .saved ? "saved" : "chat"), completionHandler: nil)
         showChatItemOpen(panelContent == .chat)
         showBrowseItemOpen(panelContent == .saved)
         switch panelContent {

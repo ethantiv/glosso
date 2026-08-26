@@ -420,11 +420,19 @@ enum ReaderTemplate {
         document.body.style.marginLeft = '';
       }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
-      if (open) { document.getElementById('glosso-chat-input').focus(); }
+      // Only when the chat body is the visible one — focusing a display:none input drops focus to <body>.
+      if (open && !document.body.classList.contains('glosso-saved-mode')) {
+        document.getElementById('glosso-chat-input').focus();
+      }
     }
     // An idempotent setter like glossoSetMode: Swift owns which body the shared panel shows.
     function glossoPanelMode(mode) {
-      document.body.classList.toggle('glosso-saved-mode', mode === 'saved');
+      const savedMode = mode === 'saved';
+      document.body.classList.toggle('glosso-saved-mode', savedMode);
+      // The saved→chat swap keeps the panel open, so glossoSetChat's focus never fires — do it here.
+      if (!savedMode && document.body.classList.contains('glosso-chat-open')) {
+        document.getElementById('glosso-chat-input').focus();
+      }
     }
     function glossoSetSaved(json) {
       const box = document.getElementById('glosso-saved-list');
@@ -458,6 +466,7 @@ enum ReaderTemplate {
           + '<path d="M5.5 1.75h5v4.75l1.75 2.25h-8.5l1.75-2.25z M8 8.75v5.5" '
           + 'fill="' + (row.pinned ? 'currentColor' : 'none') + '" stroke="currentColor" '
           + 'stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+        glossoSanitize(pin);
         pin.setAttribute('aria-label', row.pinned ? '\(loc("Odepnij", "Unpin"))' : '\(loc("Przypnij", "Pin"))');
         pin.addEventListener('click', function() {
           window.webkit?.messageHandlers?.glosso?.postMessage({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});

@@ -34,6 +34,9 @@ import Testing
         var entry = try JSONDecoder().decode(ReaderCache.Entry.self, from: Data(contentsOf: file))
         entry.savedAt = .now.addingTimeInterval(-interval)
         try JSONEncoder().encode(entry).write(to: file)
+        // The sweep pre-filters on mtime, so an aged entry must look aged on disk too.
+        try FileManager.default.setAttributes(
+            [.modificationDate: Date.now.addingTimeInterval(-interval)], ofItemAtPath: file.path)
     }
 
     @Test func saveThenLoadRoundTripsEveryField() {
