@@ -76,6 +76,9 @@ final class ReaderController: ReaderPresenting {
             guard let self else { return }
             do {
                 try await self.loadTemplate(in: webView, baseURL: url)
+                // The template reload wiped the page — restore the panel before any content paints,
+                // or the finished article jumps by a panel width after the replay.
+                if !Task.isCancelled { self.pushPanelState(in: webView) }
                 try await self.replay(entry, in: webView)
             } catch is CancellationError {
             } catch let error as ReaderError {
@@ -83,8 +86,6 @@ final class ReaderController: ReaderPresenting {
             } catch {
                 if !Task.isCancelled { self.setStatus(ReaderError.fetchFailed.message) }
             }
-            // The template reload wiped the page — re-apply the open panel and its list.
-            if !Task.isCancelled { self.pushPanelState(in: webView) }
         }
     }
 

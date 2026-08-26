@@ -42,10 +42,12 @@ struct SavedArticleStore: Sendable {
         sweepExpired()
     }
 
-    /// Flips the flag without touching `savedAt` — pinning is not a re-translation.
+    /// Flips the flag without touching `savedAt` — pinning is not a re-translation. Un-pinning an entry that
+    /// already outlived the TTL does restart it, or the click would silently destroy the article.
     func setPinned(_ on: Bool, for url: URL) {
         guard var entry = decode(fileURL(for: url)) else { return }
         entry.pinned = on
+        if !on, !isLive(entry) { entry.savedAt = .now }
         write(entry)
     }
 

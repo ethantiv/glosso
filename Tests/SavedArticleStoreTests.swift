@@ -87,6 +87,19 @@ import Testing
         #expect(!store.isPinned(entry.url))
     }
 
+    // Un-pinning must not silently destroy an article the TTL already outlived — it restarts the window.
+    @Test func unpinningAnExpiredEntryRestartsItsRetentionWindow() throws {
+        let entry = makeEntry(pinned: true)
+        store.save(entry)
+        try backdate(entry.url, by: 30 * 24 * 3600)
+
+        store.setPinned(false, for: entry.url)
+
+        let loaded = try #require(store.load(entry.url))
+        #expect(loaded.pinned == false)
+        #expect(abs(loaded.savedAt.timeIntervalSinceNow) < 60)
+    }
+
     @Test func expiredUnpinnedEntryIsDeletedOnLoad() throws {
         let entry = makeEntry()
         store.save(entry)
