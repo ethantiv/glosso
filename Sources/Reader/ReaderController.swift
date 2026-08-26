@@ -9,6 +9,10 @@ final class ReaderController: ReaderPresenting {
     private let settings: SettingsStore
     private let extractor = ArticleExtractor()
     private let cache = ReaderCache()
+    private let saved = SavedArticleStore()
+
+    /// What the shared side panel is showing; nil means closed. One state for both toolbar buttons.
+    enum PanelContent { case chat, saved }
 
     private var window: NSWindow?
     private var webView: WKWebView?
@@ -16,6 +20,7 @@ final class ReaderController: ReaderPresenting {
     private var suggestTask: Task<Void, Never>?
     private var askTask: Task<Void, Never>?
     private var chatHistory: [(question: String, answer: String)] = []
+    private var panelContent: PanelContent?
     private var chatPanelOpen = false
     private var chatWidthDelta: CGFloat = 0
     // How far the open shifted origin.x left (window flush with the screen edge) — undone on close.
@@ -40,6 +45,9 @@ final class ReaderController: ReaderPresenting {
     private var runSeq = 0
     // Set when RoutingLLMClient hands this article's calls to the local engine, so the footer stops claiming the cloud.
     private var localFallback = false
+    // The complete entry of what's on screen — set only where one provably exists, so the pin button
+    // can't act on a half-translated article. A `cache.load` probe here would lie past the 7-day TTL.
+    private var lastEntry: ReaderCache.Entry?
 
     init(llm: any LLMClient, settings: SettingsStore) {
         self.llm = llm
@@ -47,6 +55,42 @@ final class ReaderController: ReaderPresenting {
     }
 
     func show(_ url: URL) {
+        resetForArticle(url)
+        setPanelContent(nil)
+        let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
+        translationTask = Task { @MainActor [weak self] in
+            await self?.run(url: url, in: webView)
+        }
+    }
+
+    /// Opens an entry from the saved list: the same reset as `show()`, but the panel stays open (the user
+    /// is browsing from it) and the pipeline is a pure replay — zero fetch, zero LLM.
+    func showSavedArticle(_ url: URL) {
+        guard let entry = saved.load(url) else { return }
+        resetForArticle(url)
+        lastEntry = entry
+        refreshPinItem()
+        let title = entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle
+        let webView = ensureWindow(titled: title.isEmpty ? loc("Artykuł", "Article") : title)
+        translationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.loadTemplate(in: webView, baseURL: url)
+                // The template reload wiped the page — restore the panel before any content paints,
+                // or the finished article jumps by a panel width after the replay.
+                if !Task.isCancelled { self.pushPanelState(in: webView) }
+                try await self.replay(entry, in: webView)
+            } catch is CancellationError {
+            } catch let error as ReaderError {
+                if !Task.isCancelled { self.setStatus(error.message) }
+            } catch {
+                if !Task.isCancelled { self.setStatus(ReaderError.fetchFailed.message) }
+            }
+        }
+    }
+
+    /// The shared new-article reset; panel handling stays with the callers, which disagree about it.
+    private func resetForArticle(_ url: URL) {
         currentURL = url
         translationTask?.cancel()
         suggestTask?.cancel()
@@ -57,12 +101,8 @@ final class ReaderController: ReaderPresenting {
         statusText = ""
         mode = .translated
         toolbarProxy?.modeControl?.selectedSegment = ReaderMode.translated.rawValue
-        setChatPanel(open: false)
-        showChatItemOpen(false)
-        let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
-        translationTask = Task { @MainActor [weak self] in
-            await self?.run(url: url, in: webView)
-        }
+        lastEntry = nil
+        refreshPinItem()
     }
 
     func refreshCurrentArticle() {
@@ -73,13 +113,14 @@ final class ReaderController: ReaderPresenting {
 
     private func run(url: URL, in webView: WKWebView) async {
         do {
-            let watcher = NavigationWatcher()
-            webView.navigationDelegate = watcher
-            try await watcher.awaitNavigation(in: webView, timeout: .seconds(5)) {
-                webView.loadHTMLString(ReaderTemplate.html, baseURL: url)
-            }
+            try await loadTemplate(in: webView, baseURL: url)
             if let entry = cache.load(url, primary: settings.primaryLanguage) {
                 try await replay(entry, in: webView)
+                // A replay is not a new translation — the saved store's 7-day window is not refreshed.
+                if !Task.isCancelled {
+                    lastEntry = entry
+                    refreshPinItem()
+                }
                 return
             }
             runSeq += 1
@@ -101,18 +142,32 @@ final class ReaderController: ReaderPresenting {
             let translated = try await translate(blocks: blocks, in: webView)
             let (translatedTitle, summary) = await heading
             if let translations = translated, !Task.isCancelled {
-                cache.save(.init(
+                var entry = ReaderCache.Entry(
                     url: url, savedAt: .now, title: article.title,
                     translatedTitle: translatedTitle, byline: article.byline ?? "",
                     content: article.content, summary: summary, translations: translations,
-                    engine: currentEngineLabel),
-                    primary: settings.primaryLanguage)
+                    engine: currentEngineLabel)
+                cache.save(entry, primary: settings.primaryLanguage)
+                // Auto-save into the durable history, keeping whatever pin state the URL already had.
+                entry.pinned = saved.isPinned(url)
+                saved.save(entry)
+                lastEntry = entry
+                refreshPinItem()
+                if panelContent == .saved { pushSavedList(in: webView) }
             }
         } catch is CancellationError {
         } catch let error as ReaderError {
             if !Task.isCancelled { setStatus(error.message) }
         } catch {
             if !Task.isCancelled { setStatus(ReaderError.fetchFailed.message) }
+        }
+    }
+
+    private func loadTemplate(in webView: WKWebView, baseURL: URL) async throws {
+        let watcher = NavigationWatcher()
+        webView.navigationDelegate = watcher
+        try await watcher.awaitNavigation(in: webView, timeout: .seconds(5)) {
+            webView.loadHTMLString(ReaderTemplate.html, baseURL: baseURL)
         }
     }
 
@@ -159,6 +214,64 @@ final class ReaderController: ReaderPresenting {
             accessibilityDescription: label)
         toolbarProxy?.chatItem?.label = label
         toolbarProxy?.chatItem?.toolTip = label
+    }
+
+    private func showBrowseItemOpen(_ open: Bool) {
+        let label = open
+            ? loc("Zamknij listę artykułów", "Close the article list")
+            : loc("Przeglądaj", "Browse")
+        toolbarProxy?.browseItem?.image = NSImage(
+            systemSymbolName: open ? "tray.fill" : "tray",
+            accessibilityDescription: label)
+        toolbarProxy?.browseItem?.label = label
+        toolbarProxy?.browseItem?.toolTip = label
+    }
+
+    func togglePinCurrentArticle() {
+        guard let lastEntry, let currentURL else { return }
+        // Target computed from disk before load() can delete an expired file — and never from
+        // lastEntry, whose pinned is a snapshot the miss-path re-save below would otherwise resurrect.
+        let target = !saved.isPinned(currentURL)
+        if saved.load(currentURL) == nil {
+            var entry = lastEntry
+            entry.pinned = false
+            saved.save(entry)
+        }
+        setPinned(target, for: currentURL)
+    }
+
+    fileprivate func setPinned(_ on: Bool, for url: URL) {
+        saved.setPinned(on, for: url)
+        // Keep the snapshot honest, or a later re-save writes the pre-toggle flag back.
+        if currentURL == url { lastEntry?.pinned = on }
+        refreshPinItem()
+        if let webView { pushSavedList(in: webView) }
+    }
+
+    private func refreshPinItem() {
+        let pinned = currentURL.map(saved.isPinned) ?? false
+        let label = pinned ? loc("Odepnij artykuł", "Unpin article") : loc("Przypnij artykuł", "Pin article")
+        let item = toolbarProxy?.pinItem
+        item?.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "pin", accessibilityDescription: label)
+        item?.label = label
+        item?.toolTip = label
+        item?.isEnabled = lastEntry != nil
+    }
+
+    private struct SavedRow: Encodable {
+        let url, title, original: String
+        let pinned: Bool
+    }
+
+    private func pushSavedList(in webView: WKWebView) {
+        let rows = saved.list().map { entry in
+            SavedRow(url: entry.url.absoluteString,
+                     title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
+                     original: entry.title,
+                     pinned: entry.pinned == true)
+        }
+        let json = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetSaved", json), completionHandler: nil)
     }
 
     /// Who translated *this* text, kept in the window's subtitle — a cached replay can outlive a provider switch.
@@ -515,21 +628,52 @@ final class ReaderController: ReaderPresenting {
     }
 
     func toggleChatPanel() {
+        setPanelContent(panelContent == .chat ? nil : .chat)
+    }
+
+    func toggleBrowsePanel() {
+        setPanelContent(panelContent == .saved ? nil : .saved)
+    }
+
+    /// The one state machine for the shared panel: nil→content opens the window, content→nil closes it,
+    /// content→content only swaps what the page shows — the geometry never moves.
+    private func setPanelContent(_ content: PanelContent?) {
+        guard content != panelContent else { return }
+        panelContent = content
         guard let webView else { return }
-        let open = !chatPanelOpen
-        setChatPanel(open: open)
+        setChatPanel(open: content != nil)
+        pushPanelState(in: webView)
+    }
+
+    /// Re-applies the whole panel to the page — also after a template reload wiped it.
+    private func pushPanelState(in webView: WKWebView) {
+        let open = panelContent != nil
         // The real width granted by the screen clamp — a fixed page margin squeezed the article by the full
         // panel width even when the window could only grow a fraction of it. Below half the nominal width the
         // measured value is unusable ("0px" is truthy in JS and would zero the panel out entirely, e.g. on an
         // already-maximized window) — send nothing and let the page's 340px default overlay the article instead.
         let usable = chatWidthDelta >= Self.chatPanelWidth * 0.5
         let width = open && usable ? "\(Int(chatWidthDelta))px" : ""
+        // Mode before open — glossoSetChat's focus guard reads the class glossoPanelMode sets. On close the
+        // mode is not sent at all: glossoPanelMode('chat') would focus the input of the panel being hidden.
+        if open {
+            webView.evaluateJavaScript(
+                ReaderTemplate.call("glossoPanelMode", panelContent == .saved ? "saved" : "chat"), completionHandler: nil)
+        }
         webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : "", width), completionHandler: nil)
-        showChatItemOpen(open)
-        if open, !questionsRequested {
-            questionsRequested = true
-            webView.evaluateJavaScript(ReaderTemplate.call("glossoSuggesting"), completionHandler: nil)
-            suggestQuestions()
+        showChatItemOpen(panelContent == .chat)
+        showBrowseItemOpen(panelContent == .saved)
+        switch panelContent {
+        case .saved:
+            pushSavedList(in: webView)
+        case .chat:
+            if !questionsRequested {
+                questionsRequested = true
+                webView.evaluateJavaScript(ReaderTemplate.call("glossoSuggesting"), completionHandler: nil)
+                suggestQuestions()
+            }
+        case nil:
+            break
         }
     }
 
@@ -581,6 +725,7 @@ final class ReaderController: ReaderPresenting {
         suggestTask?.cancel()
         askTask?.cancel()
         chatHistory = []
+        panelContent = nil
         setChatPanel(open: false, animated: false)
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
@@ -599,9 +744,20 @@ private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-        // The toolbar owns refresh, the view switch and the chat panel now, so asking is all that's left to post up.
-        guard let dict = message.body as? [String: String], dict["action"] == "ask",
-              let question = dict["question"], !question.isEmpty else { return }
-        controller?.answer(question: question)
+        // The toolbar owns refresh, the view switch and the panel, so only in-page clicks post up.
+        guard let dict = message.body as? [String: String] else { return }
+        switch dict["action"] {
+        case "ask":
+            guard let question = dict["question"], !question.isEmpty else { return }
+            controller?.answer(question: question)
+        case "open":
+            guard let raw = dict["url"], let url = URL(string: raw) else { return }
+            controller?.showSavedArticle(url)
+        case "pin":
+            guard let raw = dict["url"], let url = URL(string: raw) else { return }
+            controller?.setPinned(dict["on"] == "1", for: url)
+        default:
+            break
+        }
     }
 }

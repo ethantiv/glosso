@@ -171,6 +171,40 @@ enum ReaderTemplate {
       /* Title case, not caps: HIG asks for it, and the panel isn't a section header in a book any more. */
       .glosso-chat-label { font-size: .78rem; font-weight: 600; text-align: center;
                            color: var(--ink-soft); }
+      /* The chat and the saved-articles list share the one panel; Swift picks which body shows. */
+      #glosso-chat-body, #glosso-saved-body { display: flex; flex-direction: column;
+                                              gap: .9em; flex: 1; min-height: 0; }
+      body.glosso-saved-mode #glosso-chat-body { display: none; }
+      body:not(.glosso-saved-mode) #glosso-saved-body { display: none; }
+      #glosso-saved-list { flex: 1; overflow-y: auto; padding-right: .6em; }
+      /* A file listing, not a stack of cards: bare rows, the title reads as a link, and the hover
+         reveals where the original lives. */
+      .glosso-saved-row { display: flex; align-items: flex-start; gap: .4em;
+                          border-radius: 8px; padding: .45em .5em; margin-bottom: .2em; }
+      .glosso-saved-row:hover { background: color-mix(in srgb, CanvasText 5%, Canvas); }
+      .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
+                           font-family: inherit; background: none; color: CanvasText;
+                           border: 0; padding: 0; }
+      /* Full body size and up to two lines — a title cut mid-word at .92em was the panel's hardest read. */
+      .glosso-saved-title { display: -webkit-box; -webkit-line-clamp: 2;
+                            -webkit-box-orient: vertical; overflow: hidden;
+                            font-size: 1em; line-height: 1.45; }
+      .glosso-saved-open:hover .glosso-saved-title { text-decoration: underline; }
+      .glosso-saved-meta { display: none; font-size: .82em; margin-top: .15em;
+                           color: color-mix(in srgb, CanvasText 68%, Canvas);
+                           overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .glosso-saved-row:hover .glosso-saved-meta { display: block; }
+      /* The pin is drawn, not typed: a stroke icon in currentColor keeps it in the panel's ink like the
+         toolbar's SF Symbols. Unpinned rows reveal theirs on hover only, the way Finder hides row controls. */
+      .glosso-saved-pin { flex: none; cursor: pointer; background: none; border: 0;
+                          padding: .2em; margin-top: .1em; color: var(--ink-soft);
+                          display: flex; align-items: center; visibility: hidden; }
+      .glosso-saved-row:hover .glosso-saved-pin,
+      .glosso-saved-pin.glosso-pinned { visibility: visible; }
+      .glosso-saved-pin:hover { color: CanvasText; }
+      .glosso-saved-pin.glosso-pinned { color: var(--accent-ink); }
+      #glosso-saved-empty { display: none; font-size: .85em; color: var(--ink-soft);
+                            text-align: center; margin-top: 1em; }
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
                               display: flex; flex-direction: column; }
       .glosso-chat-q, .glosso-chat-a { max-width: 88%; margin-bottom: .5em;
@@ -220,14 +254,21 @@ enum ReaderTemplate {
     <div id="glosso-summary"></div>
     <div id="glosso-content"></div>
     <div id="glosso-chat-panel">
-      <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
-      <div id="glosso-chat-messages"></div>
-      <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
-      <div id="glosso-chat-suggestions"></div>
-      <form id="glosso-chat-form">
-        <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
-        <button type="submit" class="glosso-send" aria-label="\(loc("Wyślij", "Send"))">↑</button>
-      </form>
+      <div id="glosso-chat-body">
+        <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
+        <div id="glosso-chat-messages"></div>
+        <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
+        <div id="glosso-chat-suggestions"></div>
+        <form id="glosso-chat-form">
+          <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
+          <button type="submit" class="glosso-send" aria-label="\(loc("Wyślij", "Send"))">↑</button>
+        </form>
+      </div>
+      <div id="glosso-saved-body">
+        <div class="glosso-chat-label">\(loc("Artykuły", "Articles"))</div>
+        <div id="glosso-saved-list"></div>
+        <div id="glosso-saved-empty">\(loc("Brak artykułów z ostatnich 7 dni.", "No articles from the last 7 days."))</div>
+      </div>
     </div>
     <script>
     function glossoSanitize(root) {
@@ -379,7 +420,61 @@ enum ReaderTemplate {
         document.body.style.marginLeft = '';
       }, 300);
       document.body.classList.toggle('glosso-chat-open', open);
-      if (open) { document.getElementById('glosso-chat-input').focus(); }
+      // Only when the chat body is the visible one — focusing a display:none input drops focus to <body>.
+      if (open && !document.body.classList.contains('glosso-saved-mode')) {
+        document.getElementById('glosso-chat-input').focus();
+      }
+    }
+    // An idempotent setter like glossoSetMode: Swift owns which body the shared panel shows.
+    function glossoPanelMode(mode) {
+      const savedMode = mode === 'saved';
+      document.body.classList.toggle('glosso-saved-mode', savedMode);
+      // The saved→chat swap keeps the panel open, so glossoSetChat's focus never fires — do it here.
+      if (!savedMode && document.body.classList.contains('glosso-chat-open')) {
+        document.getElementById('glosso-chat-input').focus();
+      }
+    }
+    function glossoSetSaved(json) {
+      const box = document.getElementById('glosso-saved-list');
+      box.textContent = '';
+      let rows = [];
+      try { rows = JSON.parse(json); } catch (e) {}
+      document.getElementById('glosso-saved-empty').style.display = rows.length ? 'none' : 'block';
+      for (const row of rows) {
+        const item = document.createElement('div');
+        item.className = 'glosso-saved-row';
+        const open = document.createElement('button');
+        open.type = 'button';
+        open.className = 'glosso-saved-open';
+        const title = document.createElement('span');
+        title.className = 'glosso-saved-title';
+        title.textContent = row.title;
+        // The tooltip describes the original; the hover line below shows where it lives.
+        open.title = row.original && row.original !== row.title ? row.original : row.url;
+        const meta = document.createElement('span');
+        meta.className = 'glosso-saved-meta';
+        meta.textContent = row.url;
+        open.appendChild(title);
+        open.appendChild(meta);
+        open.addEventListener('click', function() {
+          window.webkit?.messageHandlers?.glosso?.postMessage({action: 'open', url: row.url});
+        });
+        const pin = document.createElement('button');
+        pin.type = 'button';
+        pin.className = 'glosso-saved-pin' + (row.pinned ? ' glosso-pinned' : '');
+        pin.innerHTML = '<svg viewBox="0 0 16 16" width="14" height="14" aria-hidden="true">'
+          + '<path d="M5.5 1.75h5v4.75l1.75 2.25h-8.5l1.75-2.25z M8 8.75v5.5" '
+          + 'fill="' + (row.pinned ? 'currentColor' : 'none') + '" stroke="currentColor" '
+          + 'stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>';
+        glossoSanitize(pin);
+        pin.setAttribute('aria-label', row.pinned ? '\(loc("Odepnij", "Unpin"))' : '\(loc("Przypnij", "Pin"))');
+        pin.addEventListener('click', function() {
+          window.webkit?.messageHandlers?.glosso?.postMessage({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});
+        });
+        item.appendChild(open);
+        item.appendChild(pin);
+        box.appendChild(item);
+      }
     }
     function glossoSuggesting() {
       const spin = document.createElement('span');

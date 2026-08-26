@@ -14,7 +14,9 @@ enum ReaderMode: Int, CaseIterable, Sendable {
 
 extension NSToolbarItem.Identifier {
     static let glossoRefresh = NSToolbarItem.Identifier("glosso.refresh")
+    static let glossoPin = NSToolbarItem.Identifier("glosso.pin")
     static let glossoMode = NSToolbarItem.Identifier("glosso.mode")
+    static let glossoBrowse = NSToolbarItem.Identifier("glosso.browse")
     static let glossoChat = NSToolbarItem.Identifier("glosso.chat")
 }
 
@@ -25,11 +27,13 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
     /// One leading flexible space, then the group: a unified toolbar shares its row with the title and subtitle, so
     /// spreading the items across the whole width pushes the last one into the overflow menu.
     static let itemIdentifiers: [NSToolbarItem.Identifier] =
-        [.flexibleSpace, .glossoRefresh, .glossoMode, .glossoChat]
+        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoBrowse, .glossoChat]
 
     private weak var controller: ReaderController?
     private(set) var modeControl: NSSegmentedControl?
     private(set) var refreshItem: NSToolbarItem?
+    private(set) var pinItem: NSToolbarItem?
+    private(set) var browseItem: NSToolbarItem?
     private(set) var chatItem: NSToolbarItem?
 
     init(controller: ReaderController) {
@@ -57,6 +61,20 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             // Only remember the item that actually goes into the bar; a palette copy would take the mutations meant
             // for the live one.
             if flag { refreshItem = item }
+            return item
+        case .glossoPin:
+            let item = button(identifier, symbol: "pin",
+                              label: loc("Przypnij artykuł", "Pin article"),
+                              action: #selector(togglePin))
+            // Nothing to pin until a complete entry exists; the controller enables it.
+            item.isEnabled = false
+            if flag { pinItem = item }
+            return item
+        case .glossoBrowse:
+            let item = button(identifier, symbol: "tray",
+                              label: loc("Przeglądaj", "Browse"),
+                              action: #selector(toggleBrowse))
+            if flag { browseItem = item }
             return item
         case .glossoMode:
             let item = NSToolbarItem(itemIdentifier: identifier)
@@ -104,6 +122,14 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
 
     @objc private func modeChanged(_ sender: NSSegmentedControl) {
         controller?.setMode(ReaderMode(segmentIndex: sender.selectedSegment))
+    }
+
+    @objc private func togglePin() {
+        controller?.togglePinCurrentArticle()
+    }
+
+    @objc private func toggleBrowse() {
+        controller?.toggleBrowsePanel()
     }
 
     @objc private func toggleChat() {
