@@ -182,9 +182,10 @@ enum ReaderTemplate {
       .glosso-saved-row { display: flex; align-items: flex-start; gap: .4em;
                           border-radius: 8px; padding: .45em .5em; margin-bottom: .2em; }
       .glosso-saved-row:hover { background: color-mix(in srgb, CanvasText 5%, Canvas); }
+      /* font-size too: buttons don't inherit it, and WebKit's 13px default is what made the list read small. */
       .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
-                           font-family: inherit; background: none; color: CanvasText;
-                           border: 0; padding: 0; }
+                           font-family: inherit; font-size: inherit; background: none;
+                           color: CanvasText; border: 0; padding: 0; }
       /* Full body size and up to two lines — a title cut mid-word at .92em was the panel's hardest read. */
       .glosso-saved-title { display: -webkit-box; -webkit-line-clamp: 2;
                             -webkit-box-orient: vertical; overflow: hidden;
