@@ -16,7 +16,11 @@ final class SettingsStore {
         static let translateInPlaceChord = "shortcut.translateInPlace"
         static let hasCompletedOnboarding = "app.hasCompletedOnboarding"
         static let lastNotifiedVersion = "update.lastNotifiedVersion"
+        static let readerRetentionDays = "reader.retentionDays"
     }
+
+    /// The retention periods the reader's saved-list picker offers.
+    static let retentionChoices = [7, 30, 90]
 
     /// UserDefaults sentinel for the automatic second language (`nil` in code).
     private static let autoSecond = "auto"
@@ -148,6 +152,11 @@ final class SettingsStore {
         didSet { defaults.set(lastNotifiedVersion, forKey: Key.lastNotifiedVersion) }
     }
 
+    /// How long the reader keeps unpinned saved articles, in days — set from the saved-panel's picker.
+    var readerRetentionDays: Int {
+        didSet { defaults.set(readerRetentionDays, forKey: Key.readerRetentionDays) }
+    }
+
     var launchAtLogin: Bool {
         didSet {
             guard launchAtLogin != loginItem.isEnabled else { return }
@@ -198,6 +207,8 @@ final class SettingsStore {
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .translateInPlaceDefault
         self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)
         self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
+        let storedRetention = defaults.integer(forKey: Key.readerRetentionDays)
+        self.readerRetentionDays = Self.retentionChoices.contains(storedRetention) ? storedRetention : 7
         self.launchAtLogin = loginItem.isEnabled
     }
 

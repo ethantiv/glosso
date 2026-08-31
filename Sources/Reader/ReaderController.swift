@@ -9,7 +9,10 @@ final class ReaderController: ReaderPresenting {
     private let settings: SettingsStore
     private let extractor = ArticleExtractor()
     private let cache = ReaderCache()
-    private let saved = SavedArticleStore()
+    // Rebuilt per use — the struct is stateless (a directory and a TTL), and the TTL follows the setting live.
+    private var saved: SavedArticleStore {
+        SavedArticleStore(ttl: TimeInterval(settings.readerRetentionDays) * 24 * 3600)
+    }
 
     /// What the shared side panel is showing; nil means closed. One state for both toolbar buttons.
     enum PanelContent { case chat, saved }
@@ -240,6 +243,14 @@ final class ReaderController: ReaderPresenting {
         setPinned(target, for: currentURL)
     }
 
+    fileprivate func setRetention(days: Int) {
+        guard SettingsStore.retentionChoices.contains(days), days != settings.readerRetentionDays else { return }
+        settings.readerRetentionDays = days
+        // Shortening the period takes effect now, not at the next translation's sweep.
+        saved.sweep()
+        if let webView { pushSavedList(in: webView) }
+    }
+
     fileprivate func setPinned(_ on: Bool, for url: URL) {
         saved.setPinned(on, for: url)
         // Keep the snapshot honest, or a later re-save writes the pre-toggle flag back.
@@ -259,16 +270,26 @@ final class ReaderController: ReaderPresenting {
     }
 
     private struct SavedRow: Encodable {
-        let url, title, original: String
+        let url, title, original, age: String
         let pinned: Bool
+    }
+
+    nonisolated static func ageLabel(daysAgo: Int) -> String {
+        switch daysAgo {
+        case ..<1: loc("dzisiaj", "today")
+        case 1: loc("wczoraj", "yesterday")
+        default: loc("\(daysAgo) dni temu", "\(daysAgo) days ago")
+        }
     }
 
     private func pushSavedList(in webView: WKWebView) {
         let rows = saved.list().map { entry in
-            SavedRow(url: entry.url.absoluteString,
-                     title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
-                     original: entry.title,
-                     pinned: entry.pinned == true)
+            let days = Calendar.current.dateComponents([.day], from: entry.savedAt, to: .now).day ?? 0
+            return SavedRow(url: entry.url.absoluteString,
+                            title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
+                            original: entry.title,
+                            age: Self.ageLabel(daysAgo: days),
+                            pinned: entry.pinned == true)
         }
         let json = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
         webView.evaluateJavaScript(ReaderTemplate.call("glossoSetSaved", json), completionHandler: nil)
@@ -665,6 +686,9 @@ final class ReaderController: ReaderPresenting {
         showBrowseItemOpen(panelContent == .saved)
         switch panelContent {
         case .saved:
+            webView.evaluateJavaScript(
+                ReaderTemplate.call("glossoSetRetention", String(settings.readerRetentionDays)),
+                completionHandler: nil)
             pushSavedList(in: webView)
         case .chat:
             if !questionsRequested {
@@ -756,6 +780,9 @@ private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
         case "pin":
             guard let raw = dict["url"], let url = URL(string: raw) else { return }
             controller?.setPinned(dict["on"] == "1", for: url)
+        case "retention":
+            guard let days = dict["days"].flatMap(Int.init) else { return }
+            controller?.setRetention(days: days)
         default:
             break
         }

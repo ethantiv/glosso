@@ -144,6 +144,29 @@ import Testing
         #expect(urls == ["https://example.com/c", "https://example.com/b", "https://example.com/a"])
     }
 
+    @Test func longerRetentionKeepsAnEntryTheDefaultWouldExpire() throws {
+        let long = SavedArticleStore(directory: store.directory, ttl: 30 * 24 * 3600)
+        let entry = makeEntry()
+        long.save(entry)
+        try backdate(entry.url, by: 10 * 24 * 3600)
+
+        #expect(long.load(entry.url) != nil)
+        #expect(store.load(entry.url) == nil)
+    }
+
+    // Shortening the period deletes immediately via sweep(), not at the next translation.
+    @Test func sweepAppliesAShortenedRetentionAtOnce() throws {
+        let long = SavedArticleStore(directory: store.directory, ttl: 90 * 24 * 3600)
+        let entry = makeEntry()
+        long.save(entry)
+        try backdate(entry.url, by: 10 * 24 * 3600)
+
+        store.sweep()
+
+        let files = try FileManager.default.contentsOfDirectory(atPath: store.directory.path)
+        #expect(files.isEmpty)
+    }
+
     // The key deliberately carries no app version or language — a saved article survives updates.
     @Test func aSecondInstanceOverTheSameDirectoryLoadsTheEntry() {
         let entry = makeEntry()

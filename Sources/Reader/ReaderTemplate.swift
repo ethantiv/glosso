@@ -176,11 +176,17 @@ enum ReaderTemplate {
                                               gap: .9em; flex: 1; min-height: 0; }
       body.glosso-saved-mode #glosso-chat-body { display: none; }
       body:not(.glosso-saved-mode) #glosso-saved-body { display: none; }
+      .glosso-saved-header { display: flex; justify-content: space-between; align-items: center; }
+      .glosso-saved-header .glosso-chat-label { text-align: left; }
+      #glosso-retention { font-family: inherit; font-size: .78rem; color: var(--ink-soft);
+                          background: Canvas; border: 1px solid var(--hairline);
+                          border-radius: 1.6em; padding: .15em .5em; }
       #glosso-saved-list { flex: 1; overflow-y: auto; padding-right: .6em; }
       /* A file listing, not a stack of cards: bare rows, the title reads as a link, and the hover
          reveals where the original lives. */
       .glosso-saved-row { display: flex; align-items: flex-start; gap: .4em;
-                          border-radius: 8px; padding: .45em .5em; margin-bottom: .2em; }
+                          border-radius: 8px; padding: .55em .5em; }
+      .glosso-saved-row + .glosso-saved-row { border-top: 1px solid var(--hairline); }
       .glosso-saved-row:hover { background: color-mix(in srgb, CanvasText 5%, Canvas); }
       /* font-size too: buttons don't inherit it, and WebKit's 13px default is what made the list read small. */
       .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
@@ -191,10 +197,13 @@ enum ReaderTemplate {
                             -webkit-box-orient: vertical; overflow: hidden;
                             font-size: 1em; line-height: 1.45; }
       .glosso-saved-open:hover .glosso-saved-title { text-decoration: underline; }
-      .glosso-saved-meta { display: none; font-size: .82em; margin-top: .15em;
+      /* One meta line, two tenants: the age by default, the original's URL while hovered. */
+      .glosso-saved-meta { display: block; font-size: .82em; margin-top: .15em;
                            color: color-mix(in srgb, CanvasText 68%, Canvas);
                            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-      .glosso-saved-row:hover .glosso-saved-meta { display: block; }
+      .glosso-saved-row:hover .glosso-saved-age { display: none; }
+      .glosso-saved-url { display: none; }
+      .glosso-saved-row:hover .glosso-saved-url { display: inline; }
       /* The pin is drawn, not typed: a stroke icon in currentColor keeps it in the panel's ink like the
          toolbar's SF Symbols. Unpinned rows reveal theirs on hover only, the way Finder hides row controls. */
       .glosso-saved-pin { flex: none; cursor: pointer; background: none; border: 0;
@@ -266,9 +275,16 @@ enum ReaderTemplate {
         </form>
       </div>
       <div id="glosso-saved-body">
-        <div class="glosso-chat-label">\(loc("Artykuły", "Articles"))</div>
+        <div class="glosso-saved-header">
+          <div class="glosso-chat-label">\(loc("Artykuły", "Articles"))</div>
+          <select id="glosso-retention" aria-label="\(loc("Okres przechowywania", "Retention period"))">
+            <option value="7">\(loc("7 dni", "7 days"))</option>
+            <option value="30">\(loc("30 dni", "30 days"))</option>
+            <option value="90">\(loc("90 dni", "90 days"))</option>
+          </select>
+        </div>
         <div id="glosso-saved-list"></div>
-        <div id="glosso-saved-empty">\(loc("Brak artykułów z ostatnich 7 dni.", "No articles from the last 7 days."))</div>
+        <div id="glosso-saved-empty">\(loc("Brak zapisanych artykułów.", "No saved articles yet."))</div>
       </div>
     </div>
     <script>
@@ -426,6 +442,13 @@ enum ReaderTemplate {
         document.getElementById('glosso-chat-input').focus();
       }
     }
+    // An idempotent setter like glossoSetMode: Swift owns the retention choice; the page only shows it.
+    function glossoSetRetention(days) {
+      document.getElementById('glosso-retention').value = days;
+    }
+    document.getElementById('glosso-retention').addEventListener('change', function() {
+      window.webkit?.messageHandlers?.glosso?.postMessage({action: 'retention', days: this.value});
+    });
     // An idempotent setter like glossoSetMode: Swift owns which body the shared panel shows.
     function glossoPanelMode(mode) {
       const savedMode = mode === 'saved';
@@ -454,7 +477,14 @@ enum ReaderTemplate {
         open.title = row.original && row.original !== row.title ? row.original : row.url;
         const meta = document.createElement('span');
         meta.className = 'glosso-saved-meta';
-        meta.textContent = row.url;
+        const age = document.createElement('span');
+        age.className = 'glosso-saved-age';
+        age.textContent = row.age || '';
+        const link = document.createElement('span');
+        link.className = 'glosso-saved-url';
+        link.textContent = row.url;
+        meta.appendChild(age);
+        meta.appendChild(link);
         open.appendChild(title);
         open.appendChild(meta);
         open.addEventListener('click', function() {
