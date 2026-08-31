@@ -284,7 +284,11 @@ final class ReaderController: ReaderPresenting {
 
     private func pushSavedList(in webView: WKWebView) {
         let rows = saved.list().map { entry in
-            let days = Calendar.current.dateComponents([.day], from: entry.savedAt, to: .now).day ?? 0
+            // Calendar-day boundaries, not elapsed 24h spans — yesterday 23:00 must read "wczoraj" at 09:00.
+            let cal = Calendar.current
+            let days = cal.dateComponents([.day],
+                                          from: cal.startOfDay(for: entry.savedAt),
+                                          to: cal.startOfDay(for: .now)).day ?? 0
             return SavedRow(url: entry.url.absoluteString,
                             title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
                             original: entry.title,
