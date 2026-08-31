@@ -19,6 +19,18 @@ import Testing
         #expect(store.translateInPlaceChord == .translateInPlaceDefault)
     }
 
+    @Test func readerRetentionDefaultsPersistsAndNormalizes() {
+        let defaults = transientDefaults()
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.readerRetentionDays == 7)
+
+        store.readerRetentionDays = 30
+        #expect(SettingsStore(defaults: defaults).readerRetentionDays == 30)
+
+        defaults.set(11, forKey: "reader.retentionDays")
+        #expect(SettingsStore(defaults: defaults).readerRetentionDays == 7)
+    }
+
     // MARK: Primary language (internationalization)
 
     @Test func freshInstallSeedsPrimaryFromSystemLanguage() {

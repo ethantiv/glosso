@@ -13,6 +13,19 @@ import Testing
                     .contains("gemma4:31b"))
     }
 
+    @Test func ageLabelSpeaksBothLanguages() {
+        L10n.$override.withValue(.polish) {
+            #expect(ReaderController.ageLabel(daysAgo: 0) == "dzisiaj")
+            #expect(ReaderController.ageLabel(daysAgo: 1) == "wczoraj")
+            #expect(ReaderController.ageLabel(daysAgo: 5) == "5 dni temu")
+        }
+        L10n.$override.withValue(.english) {
+            #expect(ReaderController.ageLabel(daysAgo: 0) == "today")
+            #expect(ReaderController.ageLabel(daysAgo: 1) == "yesterday")
+            #expect(ReaderController.ageLabel(daysAgo: 5) == "5 days ago")
+        }
+    }
+
     // Local and the two clouds must be told apart at a glance: that is the whole point of the line.
     @Test func labelDistinguishesTheThreeProviders() {
         let labels = LLMProvider.allCases.map { ReaderController.engineLabel(provider: $0, model: "m") }

@@ -1,17 +1,25 @@
 import CryptoKit
 import Foundation
 
-/// Durable article history: every completed translation lands here for 7 days; a pinned entry stays until unpinned.
+/// Durable article history: every completed translation lands here for the configured retention (7 days by
+/// default, the panel offers 7/30/90); a pinned entry stays until unpinned.
 /// Unlike `ReaderCache`, the key carries no app version or language and the files live in Application Support —
 /// a saved article must survive updates and never be purged by the OS.
 struct SavedArticleStore: Sendable {
-    static let ttl: TimeInterval = 7 * 24 * 3600
-
     let directory: URL
+    /// Retention of unpinned entries; the reader passes the user's 7/30/90-day choice in.
+    let ttl: TimeInterval
 
     init(directory: URL = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask)[0]
-        .appendingPathComponent("Glosso/saved-articles", isDirectory: true)) {
+        .appendingPathComponent("Glosso/saved-articles", isDirectory: true),
+         ttl: TimeInterval = 7 * 24 * 3600) {
         self.directory = directory
+        self.ttl = ttl
+    }
+
+    /// Deletes what the current retention no longer covers — called when the user shortens the period.
+    func sweep() {
+        sweepExpired()
     }
 
     /// nil on miss or decode failure; an expired unpinned entry is deleted and reported as a miss.
@@ -27,7 +35,7 @@ struct SavedArticleStore: Sendable {
 
     /// The one retention rule — load, list and the sweep must agree on it.
     private func isLive(_ entry: ReaderCache.Entry) -> Bool {
-        entry.pinned == true || Date.now.timeIntervalSince(entry.savedAt) <= Self.ttl
+        entry.pinned == true || Date.now.timeIntervalSince(entry.savedAt) <= ttl
     }
 
     func isPinned(_ url: URL) -> Bool {
@@ -82,7 +90,7 @@ struct SavedArticleStore: Sendable {
         for file in files {
             guard let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?
                 .contentModificationDate,
-                Date.now.timeIntervalSince(modified) > Self.ttl else { continue }
+                Date.now.timeIntervalSince(modified) > ttl else { continue }
             guard let entry = decode(file), !isLive(entry) else { continue }
             try? fm.removeItem(at: file)
         }
