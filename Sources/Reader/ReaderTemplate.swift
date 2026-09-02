@@ -211,10 +211,10 @@ enum ReaderTemplate {
       .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
                            font-family: inherit; font-size: inherit; background: none;
                            color: var(--ink); border: 0; padding: 0; }
-      /* Full body size and up to two lines — a title cut mid-word at .92em was the panel's hardest read. */
+      /* Two lines, a step under the panel's body size — full size read as a second article column. */
       .glosso-saved-title { display: -webkit-box; -webkit-line-clamp: 2;
                             -webkit-box-orient: vertical; overflow: hidden;
-                            font-size: 1em; line-height: 1.45; }
+                            font-size: .88em; line-height: 1.4; }
       .glosso-saved-open:hover .glosso-saved-title { text-decoration: underline; }
       /* One meta line, two tenants: the age by default, the original's URL while hovered. */
       .glosso-saved-meta { display: block; font-size: .82em; margin-top: .15em;
