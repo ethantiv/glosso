@@ -107,14 +107,19 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
         }
     }
 
+    /// The one place an item's glyph and wording change — the toggles swap both when their state flips.
+    func set(_ item: NSToolbarItem?, symbol: String, label: String) {
+        item?.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
+        item?.label = label
+        item?.paletteLabel = label
+        item?.toolTip = label
+    }
+
     private func button(
         _ identifier: NSToolbarItem.Identifier, symbol: String, label: String, action: Selector
     ) -> NSToolbarItem {
         let item = NSToolbarItem(itemIdentifier: identifier)
-        item.image = NSImage(systemSymbolName: symbol, accessibilityDescription: label)
-        item.label = label
-        item.paletteLabel = label
-        item.toolTip = label
+        set(item, symbol: symbol, label: label)
         item.target = self
         item.action = action
         item.isBordered = true
