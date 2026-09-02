@@ -47,7 +47,7 @@ The panel opens under the cursor and streams the result as the model produces it
 
 ## Article reader
 
-Double-press Cmd+C on a bare link and instead of the popup you get a reader window: the article is extracted from the page, summarized in two or three sentences and translated block by block into your primary language. A toolbar switch flips the whole page between the translation and the original, and clicking a single translated paragraph slides its original underneath. A side chat answers questions about the article, with a few suggested ones to start. The window subtitle tracks progress and names the engine that did the work. Translated articles are cached for a week, so reopening the same link is instant.
+Double-press Cmd+C on a bare link and instead of the popup you get a reader window: the article is extracted from the page, summarized in two or three sentences and translated block by block into your primary language. A toolbar switch flips the whole page between the translation and the original, and clicking a single translated paragraph slides its original underneath. A side chat answers questions about the article, with a few suggested ones to start. The window subtitle tracks progress and names the engine that did the work. Translated articles are cached for a week, so reopening the same link is instant. A moon button in the toolbar turns on cinema mode, which dims everything on screen except the reader; the choice is remembered, and the dimming steps aside whenever you switch to another app. Every translation also lands in a saved-articles list (the tray button), kept for 7, 30, or 90 days by your choice; pinned articles never expire.
 
 ## In-place shortcuts
 

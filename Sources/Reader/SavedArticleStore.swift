@@ -42,10 +42,12 @@ struct SavedArticleStore: Sendable {
         decode(fileURL(for: url))?.pinned == true
     }
 
-    /// Stamps a fresh `savedAt` — the retention window starts at translation time.
+    /// Stamps a fresh `savedAt` — the retention window starts at translation time. A nil `pinned` keeps whatever
+    /// the stored entry has, so a re-translation can't silently unpin an article.
     func save(_ entry: ReaderCache.Entry) {
         var entry = entry
         entry.savedAt = .now
+        if entry.pinned == nil { entry.pinned = decode(fileURL(for: entry.url))?.pinned }
         write(entry)
         sweepExpired()
     }

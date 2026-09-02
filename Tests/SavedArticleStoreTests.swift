@@ -121,6 +121,27 @@ import Testing
         #expect(store.load(entry.url) != nil)
     }
 
+    @Test func pinnedEntrySurvivesShortenedRetentionSweep() throws {
+        let long = SavedArticleStore(directory: store.directory, ttl: 90 * 24 * 3600)
+        let entry = makeEntry(pinned: true)
+        long.save(entry)
+        try backdate(entry.url, by: 10 * 24 * 3600)
+
+        store.sweep()
+
+        #expect(store.load(entry.url)?.pinned == true)
+    }
+
+    // A re-translation saves an entry that says nothing about the pin — the stored flag must win.
+    @Test func saveWithoutPinKeepsTheStoredPin() {
+        let entry = makeEntry(pinned: true)
+        store.save(entry)
+
+        store.save(makeEntry(pinned: nil))
+
+        #expect(store.isPinned(entry.url))
+    }
+
     @Test func saveSweepsExpiredUnpinnedSiblings() throws {
         let old = makeEntry(url: "https://example.com/old")
         store.save(old)

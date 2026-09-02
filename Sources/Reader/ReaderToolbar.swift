@@ -16,6 +16,7 @@ extension NSToolbarItem.Identifier {
     static let glossoRefresh = NSToolbarItem.Identifier("glosso.refresh")
     static let glossoPin = NSToolbarItem.Identifier("glosso.pin")
     static let glossoMode = NSToolbarItem.Identifier("glosso.mode")
+    static let glossoCinema = NSToolbarItem.Identifier("glosso.cinema")
     static let glossoBrowse = NSToolbarItem.Identifier("glosso.browse")
     static let glossoChat = NSToolbarItem.Identifier("glosso.chat")
 }
@@ -27,12 +28,13 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
     /// One leading flexible space, then the group: a unified toolbar shares its row with the title and subtitle, so
     /// spreading the items across the whole width pushes the last one into the overflow menu.
     static let itemIdentifiers: [NSToolbarItem.Identifier] =
-        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoBrowse, .glossoChat]
+        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoCinema, .glossoBrowse, .glossoChat]
 
     private weak var controller: ReaderController?
     private(set) var modeControl: NSSegmentedControl?
     private(set) var refreshItem: NSToolbarItem?
     private(set) var pinItem: NSToolbarItem?
+    private(set) var cinemaItem: NSToolbarItem?
     private(set) var browseItem: NSToolbarItem?
     private(set) var chatItem: NSToolbarItem?
 
@@ -69,6 +71,12 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             // Nothing to pin until a complete entry exists; the controller enables it.
             item.isEnabled = false
             if flag { pinItem = item }
+            return item
+        case .glossoCinema:
+            let item = button(identifier, symbol: "moon",
+                              label: loc("Tryb kinowy", "Cinema mode"),
+                              action: #selector(toggleCinema))
+            if flag { cinemaItem = item }
             return item
         case .glossoBrowse:
             let item = button(identifier, symbol: "tray",
@@ -126,6 +134,10 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
 
     @objc private func togglePin() {
         controller?.togglePinCurrentArticle()
+    }
+
+    @objc private func toggleCinema() {
+        controller?.toggleCinemaMode()
     }
 
     @objc private func toggleBrowse() {

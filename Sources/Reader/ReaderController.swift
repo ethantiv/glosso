@@ -33,6 +33,11 @@ final class ReaderController: ReaderPresenting {
     private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
     private var toolbarProxy: ReaderToolbarProxy?
+    // One borderless black window per screen, ordered just under the reader while cinema mode is on.
+    private var dimmers: [NSWindow] = []
+    private var appObservers: [NSObjectProtocol] = []
+    // ponytail: one alpha for every screen; a slider only if someone asks for a lighter or darker room.
+    private static let cinemaAlpha: CGFloat = 0.55
     private var mode: ReaderMode = .translated
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
@@ -151,9 +156,9 @@ final class ReaderController: ReaderPresenting {
                     content: article.content, summary: summary, translations: translations,
                     engine: currentEngineLabel)
                 cache.save(entry, primary: settings.primaryLanguage)
-                // Auto-save into the durable history, keeping whatever pin state the URL already had.
-                entry.pinned = saved.isPinned(url)
+                // Auto-save into the durable history; the store keeps whatever pin state the URL already had.
                 saved.save(entry)
+                entry.pinned = saved.isPinned(url)
                 lastEntry = entry
                 refreshPinItem()
                 if panelContent == .saved { pushSavedList(in: webView) }
@@ -228,6 +233,54 @@ final class ReaderController: ReaderPresenting {
             accessibilityDescription: label)
         toolbarProxy?.browseItem?.label = label
         toolbarProxy?.browseItem?.toolTip = label
+    }
+
+    func toggleCinemaMode() {
+        settings.readerCinemaMode.toggle()
+        applyCinema()
+    }
+
+    /// Re-derives the dimming from the setting, the window and the app's activation — the one path for all three,
+    /// so a Cmd+Tab away drops the dimmers and a return brings them back without any per-event bookkeeping.
+    private func applyCinema() {
+        let on = settings.readerCinemaMode && window != nil && NSApp.isActive
+        showCinemaItemOn(settings.readerCinemaMode)
+        guard on, let window else {
+            dimmers.forEach { $0.orderOut(nil) }
+            window?.level = .normal
+            return
+        }
+        if dimmers.count != NSScreen.screens.count {
+            dimmers.forEach { $0.orderOut(nil) }
+            dimmers = NSScreen.screens.map { screen in
+                let dimmer = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+                dimmer.backgroundColor = .black.withAlphaComponent(Self.cinemaAlpha)
+                dimmer.isOpaque = false
+                dimmer.hasShadow = false
+                dimmer.isReleasedWhenClosed = false
+                dimmer.collectionBehavior = [.fullScreenAuxiliary, .stationary, .ignoresCycle]
+                dimmer.level = .floating
+                return dimmer
+            }
+        }
+        // Same level as the dimmers, so the relative order below sticks; the menu bar and Dock sit above both.
+        window.level = .floating
+        let fade = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        for (dimmer, screen) in zip(dimmers, NSScreen.screens) where !dimmer.isVisible {
+            dimmer.setFrame(screen.frame, display: false)
+            dimmer.alphaValue = fade ? 0 : 1
+            dimmer.order(.below, relativeTo: window.windowNumber)
+            if fade { dimmer.animator().alphaValue = 1 }
+        }
+        window.orderFront(nil)
+    }
+
+    private func showCinemaItemOn(_ on: Bool) {
+        let label = on ? loc("Wyłącz tryb kinowy", "Leave cinema mode") : loc("Tryb kinowy", "Cinema mode")
+        toolbarProxy?.cinemaItem?.image = NSImage(
+            systemSymbolName: on ? "moon.fill" : "moon", accessibilityDescription: label)
+        toolbarProxy?.cinemaItem?.label = label
+        toolbarProxy?.cinemaItem?.toolTip = label
     }
 
     func togglePinCurrentArticle() {
@@ -710,6 +763,7 @@ final class ReaderController: ReaderPresenting {
         window.title = title
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        applyCinema()
         return webView
     }
 
@@ -742,6 +796,23 @@ final class ReaderController: ReaderPresenting {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.windowWillClose() }
         }
+        let center = NotificationCenter.default
+        appObservers = [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification]
+            .map { name in
+                center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                    MainActor.assumeIsolated { self?.applyCinema() }
+                }
+            }
+        // A plugged or unplugged display: rebuild the dimmers to the new screen set instead of stretching the old ones.
+        appObservers.append(center.addObserver(
+            forName: NSApplication.didChangeScreenParametersNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.dimmers.forEach { $0.orderOut(nil) }
+                self?.dimmers = []
+                self?.applyCinema()
+            }
+        })
         self.window = window
         self.webView = webView
         return (window, webView)
@@ -757,6 +828,10 @@ final class ReaderController: ReaderPresenting {
         setChatPanel(open: false, animated: false)
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
+        appObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        appObservers = []
+        dimmers.forEach { $0.orderOut(nil) }
+        dimmers = []
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso")
         window = nil
         webView = nil
