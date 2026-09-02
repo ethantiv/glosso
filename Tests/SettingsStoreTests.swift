@@ -31,6 +31,15 @@ import Testing
         #expect(SettingsStore(defaults: defaults).readerRetentionDays == 7)
     }
 
+    @Test func readerCinemaModeDefaultsOnAndPersistsOff() {
+        let defaults = transientDefaults()
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.readerCinemaMode)
+
+        store.readerCinemaMode = false
+        #expect(!SettingsStore(defaults: defaults).readerCinemaMode)
+    }
+
     // MARK: Primary language (internationalization)
 
     @Test func freshInstallSeedsPrimaryFromSystemLanguage() {

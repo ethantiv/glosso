@@ -158,7 +158,7 @@ final class SettingsStore {
         didSet { defaults.set(readerRetentionDays, forKey: Key.readerRetentionDays) }
     }
 
-    /// Dims every screen outside the reader window — toggled from the reader's toolbar, remembered across launches.
+    /// Dims every screen outside the reader window — on by default, toggled from the reader's toolbar, remembered.
     var readerCinemaMode: Bool {
         didSet { defaults.set(readerCinemaMode, forKey: Key.readerCinemaMode) }
     }
@@ -215,7 +215,8 @@ final class SettingsStore {
         self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
         let storedRetention = defaults.integer(forKey: Key.readerRetentionDays)
         self.readerRetentionDays = Self.retentionChoices.contains(storedRetention) ? storedRetention : 7
-        self.readerCinemaMode = defaults.bool(forKey: Key.readerCinemaMode)
+        // On by default; `bool(forKey:)` can't tell "never set" from "switched off", hence the object read.
+        self.readerCinemaMode = defaults.object(forKey: Key.readerCinemaMode) as? Bool ?? true
         self.launchAtLogin = loginItem.isEnabled
     }
 

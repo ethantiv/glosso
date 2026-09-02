@@ -29,6 +29,7 @@ struct GlossoApp: App {
             }
             Divider()
             LanguageMenus(store: appDelegate.settings)
+            Button(loc("Biblioteka artykułów…", "Article library…")) { appDelegate.openLibrary() }
             Divider()
             if let update = appDelegate.appState.updateAvailable {
                 Button(loc("Dostępna nowa wersja \(update.version) — Pobierz do Downloads",
@@ -196,6 +197,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
     func openAccessibilitySettings() {
         ax.openSystemSettings()
+    }
+
+    /// The saved-articles list without a fresh capture — until now double Cmd+C over a URL was the only way in.
+    func openLibrary() {
+        articleReader?.showLibrary()
     }
 
     func showAbout() {

@@ -97,6 +97,24 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
+    /// Menu entry into the saved list: with nothing on screen it replays the newest entry (pinned first) so the
+    /// panel opens beside an article, not a blank sheet; an empty library gets the bare template and its empty note.
+    func showLibrary() {
+        if lastEntry == nil, let newest = saved.list().first {
+            showSavedArticle(newest.url)
+        } else if window == nil {
+            let webView = ensureWindow(titled: loc("Biblioteka", "Library"))
+            translationTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                try? await self.loadTemplate(in: webView, baseURL: URL(string: "about:blank")!)
+                if !Task.isCancelled { self.pushPanelState(in: webView) }
+            }
+        }
+        setPanelContent(.saved)
+        window?.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
+    }
+
     /// The shared new-article reset; panel handling stays with the callers, which disagree about it.
     private func resetForArticle(_ url: URL) {
         currentURL = url
