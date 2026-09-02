@@ -77,9 +77,10 @@ final class ReaderController: ReaderPresenting {
         guard let entry = saved.load(url) else { return }
         resetForArticle(url)
         lastEntry = entry
-        refreshPinItem()
         let title = entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle
         let webView = ensureWindow(titled: title.isEmpty ? loc("Artykuł", "Article") : title)
+        // After the window: the menu path arrives with no toolbar yet, and a fresh pin item starts disabled.
+        refreshPinItem()
         translationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
