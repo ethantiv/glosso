@@ -33,6 +33,11 @@ final class ReaderController: ReaderPresenting {
     private var chatAnimSeq = 0
     private static let chatPanelWidth: CGFloat = 340
     private var toolbarProxy: ReaderToolbarProxy?
+    // One borderless black window per screen, ordered just under the reader while cinema mode is on.
+    private var dimmers: [NSWindow] = []
+    private var appObservers: [NSObjectProtocol] = []
+    // ponytail: one alpha for every screen; a slider only if someone asks for a lighter or darker room.
+    private static let cinemaAlpha: CGFloat = 0.55
     private var mode: ReaderMode = .translated
     private var closeObserver: NSObjectProtocol?
     private var currentURL: URL?
@@ -72,9 +77,10 @@ final class ReaderController: ReaderPresenting {
         guard let entry = saved.load(url) else { return }
         resetForArticle(url)
         lastEntry = entry
-        refreshPinItem()
         let title = entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle
         let webView = ensureWindow(titled: title.isEmpty ? loc("Artykuł", "Article") : title)
+        // After the window: the menu path arrives with no toolbar yet, and a fresh pin item starts disabled.
+        refreshPinItem()
         translationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
@@ -90,6 +96,27 @@ final class ReaderController: ReaderPresenting {
                 if !Task.isCancelled { self.setStatus(ReaderError.fetchFailed.message) }
             }
         }
+    }
+
+    /// Menu entry into the saved list: with nothing on screen it replays the newest entry (pinned first) so the
+    /// panel opens beside an article, not a blank sheet; an empty library gets the bare template and its empty note.
+    func showLibrary() {
+        // Keyed on the window, not on `lastEntry`: that is nil for the whole of a running translation, and a
+        // replay here would cancel it.
+        if window == nil, let newest = saved.list().first {
+            showSavedArticle(newest.url)
+        } else if window == nil {
+            let webView = ensureWindow(titled: loc("Biblioteka", "Library"))
+            translationTask = Task { @MainActor [weak self] in
+                guard let self else { return }
+                do { try await self.loadTemplate(in: webView, baseURL: nil) }
+                catch { if !Task.isCancelled { self.setStatus(ReaderError.fetchFailed.message) } }
+                if !Task.isCancelled { self.pushPanelState(in: webView) }
+            }
+        } else {
+            _ = ensureWindow(titled: window?.title ?? "")
+        }
+        setPanelContent(.saved)
     }
 
     /// The shared new-article reset; panel handling stays with the callers, which disagree about it.
@@ -151,10 +178,8 @@ final class ReaderController: ReaderPresenting {
                     content: article.content, summary: summary, translations: translations,
                     engine: currentEngineLabel)
                 cache.save(entry, primary: settings.primaryLanguage)
-                // Auto-save into the durable history, keeping whatever pin state the URL already had.
-                entry.pinned = saved.isPinned(url)
-                saved.save(entry)
-                lastEntry = entry
+                // Auto-save into the durable history; the store keeps whatever pin state the URL already had.
+                lastEntry = saved.save(entry)
                 refreshPinItem()
                 if panelContent == .saved { pushSavedList(in: webView) }
             }
@@ -166,7 +191,7 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
-    private func loadTemplate(in webView: WKWebView, baseURL: URL) async throws {
+    private func loadTemplate(in webView: WKWebView, baseURL: URL?) async throws {
         let watcher = NavigationWatcher()
         webView.navigationDelegate = watcher
         try await watcher.awaitNavigation(in: webView, timeout: .seconds(5)) {
@@ -212,22 +237,60 @@ final class ReaderController: ReaderPresenting {
         let label = open
             ? loc("Zamknij pytania do artykułu", "Close the article chat")
             : loc("Zapytaj artykuł", "Ask the article")
-        toolbarProxy?.chatItem?.image = NSImage(
-            systemSymbolName: open ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right",
-            accessibilityDescription: label)
-        toolbarProxy?.chatItem?.label = label
-        toolbarProxy?.chatItem?.toolTip = label
+        toolbarProxy?.set(toolbarProxy?.chatItem,
+                          symbol: open ? "bubble.left.and.text.bubble.right.fill" : "bubble.left.and.text.bubble.right",
+                          label: label)
     }
 
     private func showBrowseItemOpen(_ open: Bool) {
         let label = open
             ? loc("Zamknij listę artykułów", "Close the article list")
             : loc("Przeglądaj", "Browse")
-        toolbarProxy?.browseItem?.image = NSImage(
-            systemSymbolName: open ? "tray.fill" : "tray",
-            accessibilityDescription: label)
-        toolbarProxy?.browseItem?.label = label
-        toolbarProxy?.browseItem?.toolTip = label
+        toolbarProxy?.set(toolbarProxy?.browseItem, symbol: open ? "tray.fill" : "tray", label: label)
+    }
+
+    func toggleCinemaMode() {
+        settings.readerCinemaMode.toggle()
+        applyCinema()
+    }
+
+    /// Re-derives the dimming from the setting, the window and the app's activation — the one path for all three,
+    /// so a Cmd+Tab away drops the dimmers and a return brings them back without any per-event bookkeeping.
+    private func applyCinema() {
+        showCinemaItemOn(settings.readerCinemaMode)
+        guard settings.readerCinemaMode, NSApp.isActive, let window, !window.isMiniaturized else {
+            dimmers.forEach { $0.orderOut(nil) }
+            return
+        }
+        if dimmers.count != NSScreen.screens.count {
+            dimmers.forEach { $0.orderOut(nil) }
+            dimmers = NSScreen.screens.map { screen in
+                let dimmer = NSWindow(contentRect: screen.frame, styleMask: .borderless, backing: .buffered, defer: false)
+                dimmer.backgroundColor = .black.withAlphaComponent(Self.cinemaAlpha)
+                dimmer.isOpaque = false
+                dimmer.hasShadow = false
+                dimmer.isReleasedWhenClosed = false
+                // Click-through: a click on another app activates it, and the resign-active path drops the dimmers.
+                dimmer.ignoresMouseEvents = true
+                dimmer.collectionBehavior = [.fullScreenAuxiliary, .stationary, .ignoresCycle]
+                return dimmer
+            }
+        }
+        // Normal level, ordered just under the reader: Settings, onboarding and the floating popup all stay
+        // above the dimmers on their own, and activation keeps an app's intra-level order.
+        let fade = !NSWorkspace.shared.accessibilityDisplayShouldReduceMotion
+        for (dimmer, screen) in zip(dimmers, NSScreen.screens) {
+            dimmer.setFrame(screen.frame, display: false)
+            guard !dimmer.isVisible else { continue }
+            dimmer.alphaValue = fade ? 0 : 1
+            dimmer.order(.below, relativeTo: window.windowNumber)
+            if fade { dimmer.animator().alphaValue = 1 }
+        }
+    }
+
+    private func showCinemaItemOn(_ on: Bool) {
+        toolbarProxy?.set(toolbarProxy?.cinemaItem, symbol: on ? "moon.fill" : "moon",
+                          label: on ? loc("Wyłącz tryb kinowy", "Leave cinema mode") : loc("Tryb kinowy", "Cinema mode"))
     }
 
     func togglePinCurrentArticle() {
@@ -262,11 +325,8 @@ final class ReaderController: ReaderPresenting {
     private func refreshPinItem() {
         let pinned = currentURL.map(saved.isPinned) ?? false
         let label = pinned ? loc("Odepnij artykuł", "Unpin article") : loc("Przypnij artykuł", "Pin article")
-        let item = toolbarProxy?.pinItem
-        item?.image = NSImage(systemSymbolName: pinned ? "pin.fill" : "pin", accessibilityDescription: label)
-        item?.label = label
-        item?.toolTip = label
-        item?.isEnabled = lastEntry != nil
+        toolbarProxy?.set(toolbarProxy?.pinItem, symbol: pinned ? "pin.fill" : "pin", label: label)
+        toolbarProxy?.pinItem?.isEnabled = lastEntry != nil
     }
 
     private struct SavedRow: Encodable {
@@ -710,6 +770,7 @@ final class ReaderController: ReaderPresenting {
         window.title = title
         window.makeKeyAndOrderFront(nil)
         NSApp.activate(ignoringOtherApps: true)
+        applyCinema()
         return webView
     }
 
@@ -742,6 +803,18 @@ final class ReaderController: ReaderPresenting {
         ) { [weak self] _ in
             MainActor.assumeIsolated { self?.windowWillClose() }
         }
+        let center = NotificationCenter.default
+        // Every input of `applyCinema` that can change under it: app activation, the reader in the Dock, and the
+        // screen set (a display plugged or unplugged rebuilds the dimmers; a Dock resize only refits them).
+        let appWide = [NSApplication.didBecomeActiveNotification, NSApplication.didResignActiveNotification,
+                       NSApplication.didChangeScreenParametersNotification].map { ($0, nil as NSWindow?) }
+        let perWindow = [NSWindow.didMiniaturizeNotification, NSWindow.didDeminiaturizeNotification]
+            .map { ($0, window as NSWindow?) }
+        appObservers = (appWide + perWindow).map { name, object in
+            center.addObserver(forName: name, object: object, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated { self?.applyCinema() }
+            }
+        }
         self.window = window
         self.webView = webView
         return (window, webView)
@@ -757,9 +830,16 @@ final class ReaderController: ReaderPresenting {
         setChatPanel(open: false, animated: false)
         if let closeObserver { NotificationCenter.default.removeObserver(closeObserver) }
         closeObserver = nil
+        appObservers.forEach { NotificationCenter.default.removeObserver($0) }
+        appObservers = []
+        dimmers.forEach { $0.orderOut(nil) }
+        dimmers = []
         webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso")
         window = nil
         webView = nil
+        // Or the next `showLibrary` skips the replay and the refresh item re-translates a closed article.
+        lastEntry = nil
+        currentURL = nil
     }
 }
 

@@ -17,6 +17,7 @@ final class SettingsStore {
         static let hasCompletedOnboarding = "app.hasCompletedOnboarding"
         static let lastNotifiedVersion = "update.lastNotifiedVersion"
         static let readerRetentionDays = "reader.retentionDays"
+        static let readerCinemaMode = "reader.cinemaMode"
     }
 
     /// The retention periods the reader's saved-list picker offers.
@@ -157,6 +158,11 @@ final class SettingsStore {
         didSet { defaults.set(readerRetentionDays, forKey: Key.readerRetentionDays) }
     }
 
+    /// Dims every screen outside the reader window — on by default, toggled from the reader's toolbar, remembered.
+    var readerCinemaMode: Bool {
+        didSet { defaults.set(readerCinemaMode, forKey: Key.readerCinemaMode) }
+    }
+
     var launchAtLogin: Bool {
         didSet {
             guard launchAtLogin != loginItem.isEnabled else { return }
@@ -209,6 +215,8 @@ final class SettingsStore {
         self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
         let storedRetention = defaults.integer(forKey: Key.readerRetentionDays)
         self.readerRetentionDays = Self.retentionChoices.contains(storedRetention) ? storedRetention : 7
+        // On by default; `bool(forKey:)` can't tell "never set" from "switched off", hence the object read.
+        self.readerCinemaMode = defaults.object(forKey: Key.readerCinemaMode) as? Bool ?? true
         self.launchAtLogin = loginItem.isEnabled
     }
 

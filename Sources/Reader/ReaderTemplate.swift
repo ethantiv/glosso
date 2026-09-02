@@ -80,9 +80,14 @@ enum ReaderTemplate {
       :root { color-scheme: light dark;
               /* Controls follow the user's accent; anything belonging to the article reads as ink, not a brand colour. */
               --accent: AccentColor;
-              --accent-ink: color-mix(in srgb, CanvasText 78%, Canvas);
-              --ink-soft: light-dark(#605D6C, #A29FB0);
-              --hairline: light-dark(#E6E4EA, #37343E);
+              /* Paper, not Canvas: a warm off-white page with warm ink, and sepia where the article annotates
+                 itself (links, the quote rule, the interlinear language tag). Controls keep the system accent. */
+              --paper: light-dark(#FBF7EF, #1C1A17);
+              --paper-2: light-dark(#F2ECE0, #262320);
+              --ink: light-dark(#2A2622, #E7E0D4);
+              --ink-soft: light-dark(#6B645B, #A39B8E);
+              --sepia: light-dark(#8A6A3E, #C8A46A);
+              --hairline: light-dark(#E4DDD0, #3A3631);
               /* The chat's filled surfaces. One definition because the question bubble and the send button sit next to
                  each other and any drift between them is visible. Darkened in both appearances, not only in light:
                  contrast is a property of the pair alone, and macOS's dark-mode accent is the lighter of the two, so
@@ -97,28 +102,39 @@ enum ReaderTemplate {
         :root { --chat-ink: contrast-color(var(--chat-accent)); }
       }
       #glosso-progress { position: fixed; top: 0; left: 0; right: 0; height: 6px;
-                         background: color-mix(in srgb, var(--accent) 22%, Canvas);
+                         background: color-mix(in srgb, var(--sepia) 18%, var(--paper));
                          z-index: 20; }
       #glosso-progress div { height: 100%; background: var(--accent);
                              transform-origin: left; transform: scaleX(1); }
+      html { background: var(--paper); }
       body { font-family: "Athelas", "Palatino", ui-serif, Georgia, serif;
              font-size: 18px; line-height: 1.72; max-width: 41em; margin: 0 auto;
-             padding: 2.2em 1.5em 4em; overflow-wrap: break-word; }
+             padding: 2.2em 1.5em 4em; overflow-wrap: break-word;
+             color: var(--ink); background: var(--paper); }
+      /* The grain of the sheet: one tiled noise, faint enough to read as texture and not as dirt. */
+      body::before { content: ""; position: fixed; inset: 0; pointer-events: none; z-index: 30;
+                     opacity: .05; mix-blend-mode: multiply;
+                     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Cfilter id='g'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='2' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 .6 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23g)'/%3E%3C/svg%3E"); }
+      @media (prefers-color-scheme: dark) { body::before { opacity: .08; mix-blend-mode: screen; } }
+      ::selection { background: color-mix(in srgb, var(--sepia) 28%, var(--paper)); }
+      #glosso-content h2, #glosso-content h3 { font-weight: 600; line-height: 1.25; margin: 1.8em 0 .6em; }
+      #glosso-content h2 { font-size: 1.35em; }
+      #glosso-content h3 { font-size: 1.12em; }
       h1#glosso-title { font-size: 2.5em; line-height: 1.18; margin: 0 auto .4em;
                         font-weight: 400; text-align: center; letter-spacing: 0; }
-      #glosso-fleuron { display: none; text-align: center; color: var(--accent-ink);
+      #glosso-fleuron { display: none; text-align: center; color: var(--sepia);
                         font-size: 1.1em; letter-spacing: .6em; margin: .4em 0; }
       #glosso-byline { text-align: center; font-variant-caps: small-caps;
                        letter-spacing: .12em; font-size: .95em;
                        color: var(--ink-soft); margin-bottom: 2.6em; }
-      #glosso-summary { border-top: 1px solid CanvasText;
-                        border-bottom: 1px solid CanvasText;
-                        padding: 1.1em .2em; margin: 0 0 2.8em;
+      #glosso-summary { border-top: 1px solid var(--ink);
+                        border-bottom: 1px solid var(--ink);
+                        padding: 1.1em 1em; margin: 0 0 2.8em; background: var(--paper-2);
                         font-size: .92em; line-height: 1.6; display: none; }
       #glosso-summary::before { content: "\(loc("Od tłumacza · TL;DR", "Translator's note · TL;DR"))";
                                 display: block; font-family: var(--ui-font);
                                 font-size: .68rem; font-weight: 600; letter-spacing: .2em;
-                                text-transform: uppercase; color: var(--accent-ink);
+                                text-transform: uppercase; color: var(--sepia);
                                 margin-bottom: .5em; }
       #glosso-content figcaption { font-family: var(--ui-font); text-align: center; }
       /* A circle with an arrow, like the Messages compose button. The word "Send" moves to aria-label: it never
@@ -127,7 +143,7 @@ enum ReaderTemplate {
                      width: 28px; height: 28px; flex: none; padding: 0; line-height: 1;
                      border-radius: 50%; cursor: pointer;
                      color: var(--chat-ink); background: var(--chat-accent); border: 0; }
-      img, video { max-width: 100%; height: auto; }
+      img, video { max-width: 100%; height: auto; border-radius: 2px; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
          ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
@@ -137,20 +153,23 @@ enum ReaderTemplate {
       figure { margin: 2.2em 0; }
       figcaption { font-size: .78em; opacity: .8; margin-top: .7em; }
       blockquote { margin: 1.8em 0; padding-left: 1.5em; text-align: left;
-                   border-left: 3px solid color-mix(in srgb, CanvasText 65%, Canvas);
+                   border-left: 3px solid var(--sepia); opacity: .92;
                    font-size: 1.08em; font-style: italic; line-height: 1.55; }
-      pre { overflow-x: auto; background: color-mix(in srgb, CanvasText 7%, Canvas);
-            padding: 1em; border-radius: 6px; font-size: .8em; text-align: left; }
+      pre { overflow-x: auto; background: var(--paper-2); border: 1px solid var(--hairline);
+            padding: 1em; border-radius: 4px; font-size: .8em; text-align: left; }
       code { font-family: ui-monospace, monospace; }
-      a { color: LinkText; }
+      /* A link is an annotation in the text, not browser chrome: ink-coloured, with a thin sepia underline. */
+      a { color: inherit; text-decoration: underline; text-decoration-color: var(--sepia);
+          text-decoration-thickness: 1px; text-underline-offset: .18em; }
+      a:hover { color: var(--sepia); }
       .glosso-pending { opacity: .45; }
       .glosso-dual { cursor: pointer; }
       .glosso-interlinear { margin: .5em 0 .2em 1.6em; font-style: italic;
                             font-size: .9em; line-height: 1.6; cursor: default;
-                            color: color-mix(in srgb, CanvasText 74%, Canvas); }
+                            color: var(--ink-soft); }
       .glosso-interlinear-lang { font-family: var(--ui-font); font-style: normal;
                                  font-size: .64rem; font-weight: 700; letter-spacing: .14em;
-                                 text-transform: uppercase; color: var(--accent-ink);
+                                 text-transform: uppercase; color: var(--sepia);
                                  display: block; margin-bottom: .3em; }
       /* The one part of the page that deliberately leaves the "Dwugłos" typography behind: a conversation reads as a
          Messages thread, not as a critical apparatus. Hence the UI font here, and bubbles below. */
@@ -159,7 +178,7 @@ enum ReaderTemplate {
                            display: flex; flex-direction: column; gap: .9em;
                            transform: translateX(100%); visibility: hidden;
                            transition: transform .25s ease-in-out, visibility 0s .25s;
-                           background: light-dark(#F5F5F7, #1F1F22);
+                           background: var(--paper-2); color: var(--ink);
                            font-family: var(--ui-font);
                            z-index: 5; box-sizing: border-box;
                            border-left: 1px solid var(--hairline);
@@ -179,7 +198,7 @@ enum ReaderTemplate {
       .glosso-saved-header { display: flex; justify-content: space-between; align-items: center; }
       .glosso-saved-header .glosso-chat-label { text-align: left; }
       #glosso-retention { font-family: inherit; font-size: .78rem; color: var(--ink-soft);
-                          background: Canvas; border: 1px solid var(--hairline);
+                          background: var(--paper); border: 1px solid var(--hairline);
                           border-radius: 1.6em; padding: .15em .5em; }
       #glosso-saved-list { flex: 1; overflow-y: auto; padding-right: .6em; }
       /* A file listing, not a stack of cards: bare rows, the title reads as a link, and the hover
@@ -187,19 +206,19 @@ enum ReaderTemplate {
       .glosso-saved-row { display: flex; align-items: flex-start; gap: .4em;
                           border-radius: 8px; padding: .55em .5em; }
       .glosso-saved-row + .glosso-saved-row { border-top: 1px solid var(--hairline); }
-      .glosso-saved-row:hover { background: color-mix(in srgb, CanvasText 5%, Canvas); }
+      .glosso-saved-row:hover { background: color-mix(in srgb, var(--ink) 5%, var(--paper-2)); }
       /* font-size too: buttons don't inherit it, and WebKit's 13px default is what made the list read small. */
       .glosso-saved-open { flex: 1; min-width: 0; text-align: left; cursor: pointer;
                            font-family: inherit; font-size: inherit; background: none;
-                           color: CanvasText; border: 0; padding: 0; }
-      /* Full body size and up to two lines — a title cut mid-word at .92em was the panel's hardest read. */
+                           color: var(--ink); border: 0; padding: 0; }
+      /* Two lines, a step under the panel's body size — full size read as a second article column. */
       .glosso-saved-title { display: -webkit-box; -webkit-line-clamp: 2;
                             -webkit-box-orient: vertical; overflow: hidden;
-                            font-size: 1em; line-height: 1.45; }
+                            font-size: .88em; line-height: 1.4; }
       .glosso-saved-open:hover .glosso-saved-title { text-decoration: underline; }
       /* One meta line, two tenants: the age by default, the original's URL while hovered. */
       .glosso-saved-meta { display: block; font-size: .82em; margin-top: .15em;
-                           color: color-mix(in srgb, CanvasText 68%, Canvas);
+                           color: var(--ink-soft);
                            overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
       .glosso-saved-row:hover .glosso-saved-age { display: none; }
       .glosso-saved-url { display: none; }
@@ -211,8 +230,8 @@ enum ReaderTemplate {
                           display: flex; align-items: center; visibility: hidden; }
       .glosso-saved-row:hover .glosso-saved-pin,
       .glosso-saved-pin.glosso-pinned { visibility: visible; }
-      .glosso-saved-pin:hover { color: CanvasText; }
-      .glosso-saved-pin.glosso-pinned { color: var(--accent-ink); }
+      .glosso-saved-pin:hover { color: var(--ink); }
+      .glosso-saved-pin.glosso-pinned { color: var(--sepia); }
       #glosso-saved-empty { display: none; font-size: .85em; color: var(--ink-soft);
                             text-align: center; margin-top: 1em; }
       #glosso-chat-messages { flex: 1; overflow-y: auto; padding-right: .6em;
@@ -223,11 +242,11 @@ enum ReaderTemplate {
       .glosso-chat-q { align-self: flex-end; border-bottom-right-radius: 5px;
                        background: var(--chat-accent); color: var(--chat-ink); }
       .glosso-chat-a { align-self: flex-start; border-bottom-left-radius: 5px;
-                       background: light-dark(#E9E9EB, #3A3A3C); color: CanvasText;
+                       background: light-dark(#E9E4DA, #3A3632); color: var(--ink);
                        white-space: pre-wrap; }
       /* A tinted bubble, not tinted text: red on the received-bubble gray is barely a signal. */
-      .glosso-chat-error { background: color-mix(in srgb, red 12%, Canvas);
-                           color: color-mix(in srgb, red 70%, CanvasText); }
+      .glosso-chat-error { background: color-mix(in srgb, red 12%, var(--paper));
+                           color: color-mix(in srgb, red 70%, var(--ink)); }
       #glosso-suggest-label { font-size: .72rem; font-weight: 600;
                               margin-bottom: -.45em; color: var(--ink-soft);
                               display: none; }
@@ -236,19 +255,19 @@ enum ReaderTemplate {
       #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
       /* 1.6em, not 999px: the browser clamps it to a pill up to two lines, and past that the corner stops eating the padding of the first and last line. */
       .glosso-chip { font-family: inherit; font-size: .82em; line-height: 1.4;
-                     text-align: left; cursor: pointer; color: CanvasText;
-                     background: Canvas; border: 1px solid var(--hairline);
+                     text-align: left; cursor: pointer; color: var(--ink);
+                     background: var(--paper); border: 1px solid var(--hairline);
                      border-radius: 1.6em; padding: .4em .9em; }
-      .glosso-chip:hover { background: color-mix(in srgb, CanvasText 6%, Canvas); }
+      .glosso-chip:hover { background: color-mix(in srgb, var(--ink) 6%, var(--paper)); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
       #glosso-chat-form { display: flex; gap: .5em; align-items: center; }
       #glosso-chat-input { flex: 1; font-family: inherit; font-size: .9em;
                            padding: .5em .9em; border-radius: 999px;
                            border: 1px solid var(--hairline);
-                           background: Canvas; color: CanvasText;
+                           background: var(--paper); color: var(--ink);
                            resize: none; max-height: 8em; overflow-y: auto; line-height: 1.4; }
       .glosso-spin { display: inline-block; width: 1em; height: 1em; border-radius: 50%;
-                     border: 2px solid color-mix(in srgb, CanvasText 25%, Canvas);
+                     border: 2px solid color-mix(in srgb, var(--ink) 25%, var(--paper));
                      border-top-color: transparent; animation: glosso-spin 1s linear infinite; }
       @keyframes glosso-spin { to { transform: rotate(360deg); } }
       @media (prefers-reduced-motion: reduce) {
@@ -277,7 +296,7 @@ enum ReaderTemplate {
       <div id="glosso-saved-body">
         <div class="glosso-saved-header">
           <div class="glosso-chat-label">\(loc("Artykuły", "Articles"))</div>
-          <select id="glosso-retention" aria-label="\(loc("Okres przechowywania", "Retention period"))">
+          <select id="glosso-retention" aria-label="\(loc("Okres przechowywania", "Retention period"))" title="\(loc("Przypięte artykuły nie wygasają.", "Pinned articles never expire."))">
             <option value="7">\(loc("7 dni", "7 days"))</option>
             <option value="30">\(loc("30 dni", "30 days"))</option>
             <option value="90">\(loc("90 dni", "90 days"))</option>
