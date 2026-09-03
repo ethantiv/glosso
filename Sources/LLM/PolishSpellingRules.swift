@@ -40,3 +40,5 @@ enum PolishSpellingRules {
 
     static let block: String = spellingBlock + "\n" + styleBlock
 }
+
+// Smoke test for the Fable review workflow; delete with the branch.
