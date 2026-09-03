@@ -38,4 +38,13 @@ import Testing
         // The id keys both the limits lookup and the limiter's per-model quota buckets.
         #expect(Set(CloudModelCatalog.models.map(\.id)).count == CloudModelCatalog.models.count)
     }
+
+    @Test func readerHumanizerIsLightOnlyForGoogleGemma() {
+        #expect(CloudModelCatalog.readerHumanizer(for: "gemma-4-31b-it") == .light)
+        #expect(CloudModelCatalog.readerHumanizer(for: "gemma-4-26b-a4b-it") == .light)
+        #expect(CloudModelCatalog.readerHumanizer(for: "gemini-3.5-flash-lite") == .full)
+        // Ollama Cloud and local ids never match the catalog and must not inherit the default entry's level.
+        #expect(CloudModelCatalog.readerHumanizer(for: "gemma4:31b") == .full)
+        #expect(CloudModelCatalog.readerHumanizer(for: "gemma4:26b-mlx") == .full)
+    }
 }
