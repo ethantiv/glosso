@@ -4,7 +4,7 @@ on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened]
     # Only review pushes that touch source/tests/build config. Docs-only PRs
-    # (CLAUDE.md, README) don't pay for a full Opus review.
+    # (CLAUDE.md, README) don't pay for a full Fable review.
     paths:
       - "Sources/**"
       - "Tests/**"
@@ -88,7 +88,7 @@ jobs:
             6. Post at most 8 comments in this run. If more than 8 novel, in-scope,
                non-duplicate findings remain, post only the highest-severity ones
                (Critical first, then High, then Medium) and drop the rest.
-          claude_args: '--allowed-tools "Bash" --model opus'
+          claude_args: '--allowed-tools "Bash" --model fable'
           allowed_bots: 'claude'
           # See https://github.com/anthropics/claude-code-action/blob/main/docs/usage.md
           # or https://code.claude.com/docs/en/cli-reference for available options
