@@ -26,4 +26,9 @@ import Testing
     @Test func leavesBareSentenceUnchanged() {
         #expect(ExplanationParser.clean("Forma dokonana wskazuje zakończoną czynność.") == "Forma dokonana wskazuje zakończoną czynność.")
     }
+
+    @Test func stripsTheStyleCardMarker() {
+        #expect(ExplanationParser.clean("Maj jest miesiącem (styl: pleonazmy).") == "Maj jest miesiącem.")
+        #expect(ExplanationParser.clean("Reguła (RJP 2.3).") == "Reguła (RJP 2.3).")
+    }
 }

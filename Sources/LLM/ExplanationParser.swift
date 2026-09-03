@@ -11,6 +11,6 @@ enum ExplanationParser {
             || (first == "„" && last == "\"") {
             trimmed = String(trimmed.dropFirst().dropLast()).trimmingCharacters(in: .whitespacesAndNewlines)
         }
-        return trimmed
+        return trimmed.replacing(#/\s*\(styl:[^)]*\)/#, with: "")
     }
 }
