@@ -54,7 +54,7 @@ The finished translation should read like a competent human wrote it: varied sen
     }
 
     private static func fixStyleDirective(_ formality: Formality) -> String {
-        " Additionally improve the style: within each sentence make the wording flow naturally in the text's own language — fix awkward word order, replace unnatural or redundant phrasing with what a native writer would use — but never merge, split or reorder sentences, never drop a fact the original states, and never change the meaning\(formality == .automatic ? ", tone" : "") or language."
+        " Additionally improve the style: within each sentence make the wording flow naturally in the text's own language — fix awkward word order, replace unnatural or redundant phrasing with what a native writer would use — but never merge, split or reorder sentences, never drop a fact the original states, and never change the meaning\(formality == .automatic ? ", tone" : "") or language. Act on clusters, not single instances: one passive clause, one participle, or one formal phrase is not a flaw and stays as written, and correct formal wording is never flattened — rewrite only where the heaviness or awkwardness plainly reads as unnatural in that language."
     }
 
     static func build(for text: String, action: Action, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, style: Bool) -> String {
