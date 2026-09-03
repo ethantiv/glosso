@@ -426,7 +426,8 @@ import Testing
         #expect(!prompt.contains("Structural patterns to avoid"))
         #expect(prompt.contains("Overused AI vocabulary"))
         #expect(prompt.contains("must not contain the character \";\""))
-        #expect(prompt.contains("Keep the register"))
+        // The register rule must sit under its own header, not as a bullet of the vocabulary ban list.
+        #expect(prompt.contains("Style rules:\n- Keep the register"))
     }
 
     @Test func batchTranslationPromptNamesTheSegWrapperInTheHumanizer() {

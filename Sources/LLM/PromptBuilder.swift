@@ -58,7 +58,9 @@ Punctuation and formatting — punctuate the translation from scratch in the tar
     private static func humanizeDirective(_ formality: Formality, level: Humanizer = .full, scope: String = "everything inside <text></text>") -> String {
         let register = formality == .automatic ? "\n- Keep the register: formal stays formal, casual stays casual — natural writing is not informal writing." : ""
         let header = " The result must remain a translation into the target language. Preserve the meaning, the facts, and the order of the argument — every claim, intensifier, and qualifier the original states must survive in the translation; the rules below change only wording, style, and punctuation, and make the translation read like natural, fluent writing by a skilled native writer of that language, free of the telltale signs of AI writing. Apply each rule through the target language's own equivalents of the examples."
-        let body = level == .full ? humanizerStructure + register + "\n\n" + humanizerVocabulary : humanizerVocabulary + register
+        let body = level == .full
+            ? humanizerStructure + register + "\n\n" + humanizerVocabulary
+            : "Style rules:" + register + "\n\n" + humanizerVocabulary
         let closer = "The finished translation should read like a competent human wrote it: varied sentence rhythm, plain verbs, ordinary target-language punctuation with not a single \";\" and no dash chains, none of the patterns above left in bulk, and no changed meaning. It must be a translation into the target language of \(scope), nothing else."
         return header + "\n\n" + body + "\n\n" + humanizerPunctuation + "\n\n" + closer
     }
