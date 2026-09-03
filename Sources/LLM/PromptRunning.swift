@@ -28,13 +28,13 @@ extension LLMClient where Self: GenerationBackend {
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {
         let cap = max(256, html.utf8.count)
         return ModelOutput.unwrap(
-            try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary),
+            try await generate(prompt: PromptBuilder.buildBlockTranslation(html: html, into: primary, humanizer: CloudModelCatalog.readerHumanizer(for: model)),
                                model: model, timeout: Self.longFormTimeout, numPredict: cap))
     }
 
     func translateBlocks(_ blocks: [(id: Int, html: String)], into primary: PrimaryLanguage, model: String) async throws -> [Int: String] {
         let cap = max(256, blocks.reduce(0) { $0 + $1.html.utf8.count + 32 })
-        let answer = try await generate(prompt: PromptBuilder.buildBatchTranslation(blocks: blocks, into: primary),
+        let answer = try await generate(prompt: PromptBuilder.buildBatchTranslation(blocks: blocks, into: primary, humanizer: CloudModelCatalog.readerHumanizer(for: model)),
                                         model: model, timeout: Self.longFormTimeout, numPredict: cap)
         guard let parsed = BlockBatchParser.parse(answer, ids: blocks.map(\.id)) else {
             throw TranslationError.malformedStream
