@@ -10,7 +10,7 @@ enum CloudModelCatalog {
         let limits: GeminiRateLimiter.Limits
         /// Article blocks per reader request. Per model, not per provider: the two here are bound by opposite things — see `batch(for:)`.
         let batch: Int
-        /// Reader humanizer level. Gemma's 16k TPM can't carry the ~600-token full directive on 30 requests a minute; Flash Lite's 250k can.
+        /// Reader humanizer level. Measured on Gemma 26B: the full directive adds ~1,040 prompt tokens per request, light ~720. Gemma's 16k TPM fits ~5 light batches a minute, ~4 full; Flash Lite's 250k doesn't notice either.
         let readerHumanizer: PromptBuilder.Humanizer
     }
 

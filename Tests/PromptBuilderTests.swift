@@ -413,6 +413,7 @@ import Testing
         #expect(prompt.contains("everything inside <block></block>, nothing else"))
         #expect(!prompt.contains("<text></text>"))
         #expect(prompt.contains("already Polish is output unchanged"))
+        #expect(prompt.contains("&nbsp;"))
         // The directive is part of the shared prefix; the block stays last so Ollama's KV cache can reuse the prefill.
         let directive = prompt.range(of: "Overused AI vocabulary")!.lowerBound
         let block = prompt.range(of: "<block>\nHello")!.lowerBound
@@ -431,7 +432,7 @@ import Testing
     @Test func batchTranslationPromptNamesTheSegWrapperInTheHumanizer() {
         let prompt = PromptBuilder.buildBatchTranslation(blocks: [(id: 1, html: "Hello")], into: .english, humanizer: .full)
 
-        #expect(prompt.contains("everything inside <seg></seg>, nothing else"))
+        #expect(prompt.contains("each returned in its own <seg> element with its id, nothing else"))
         #expect(prompt.contains("already English is output unchanged"))
         #expect(prompt.range(of: "Overused AI vocabulary")!.lowerBound < prompt.range(of: #"<seg id="1">"#)!.lowerBound)
     }
