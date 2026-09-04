@@ -143,7 +143,7 @@ enum ReaderTemplate {
                      width: 28px; height: 28px; flex: none; padding: 0; line-height: 1;
                      border-radius: 50%; cursor: pointer;
                      color: var(--chat-ink); background: var(--chat-accent); border: 0; }
-      img, video { max-width: 100%; height: auto; border-radius: 2px; }
+      img, video { display: block; margin-inline: auto; max-width: 100%; height: auto; border-radius: 2px; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
          ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
