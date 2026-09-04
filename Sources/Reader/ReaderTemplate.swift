@@ -143,7 +143,10 @@ enum ReaderTemplate {
                      width: 28px; height: 28px; flex: none; padding: 0; line-height: 1;
                      border-radius: 50%; cursor: pointer;
                      color: var(--chat-ink); background: var(--chat-accent); border: 0; }
-      img, video { display: block; margin-inline: auto; max-width: 100%; height: auto; border-radius: 2px; }
+      img, video { max-width: 100%; height: auto; border-radius: 2px; }
+      /* Centre only media standing alone in its block; an inline emoji or formula stays in its sentence. */
+      figure, p:has(> img:only-child), p:has(> a:only-child > img:only-child),
+      p:has(> video:only-child) { text-align: center; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
          ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
