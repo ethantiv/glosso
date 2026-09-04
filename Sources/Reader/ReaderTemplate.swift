@@ -144,9 +144,10 @@ enum ReaderTemplate {
                      border-radius: 50%; cursor: pointer;
                      color: var(--chat-ink); background: var(--chat-accent); border: 0; }
       img, video { max-width: 100%; height: auto; border-radius: 2px; }
-      /* Centre only media standing alone in its block; an inline emoji or formula stays in its sentence. */
-      figure, p:has(> img:only-child), p:has(> a:only-child > img:only-child),
-      p:has(> video:only-child) { text-align: center; }
+      /* .glosso-media marks a text-free block holding an image (set in glossoSetArticle), so an
+         inline emoji or formula keeps its sentence. Block display centres the bare img/video case. */
+      figure, .glosso-media { text-align: center; }
+      .glosso-media { display: block; margin-inline: auto; }
       /* Embedded players carry fixed width/height attributes and would overflow
          the column; cap them and let aspect-ratio keep the video shape.
          ponytail: 16:9 covers YouTube/Vimeo; a rare non-video iframe gets that
@@ -355,6 +356,7 @@ enum ReaderTemplate {
         // token ceiling and truncate; it stays untranslated instead. Split in
         // two if it ever bites.
         const translate = translatable && text.length > 0 && text.length < 4000;
+        if (text.length === 0 && el.matches('img, picture, video, :has(img, picture, video)')) { el.classList.add('glosso-media'); }
         if (translate) { el.classList.add('glosso-pending'); glosso.pending.add(id); }
         glosso.original[id] = el.innerHTML;
         blocks.push({id: id, html: el.innerHTML, translate: translate});
