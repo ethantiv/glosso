@@ -50,6 +50,9 @@ actor EngineManager: EngineProviding {
         return url
     }
 
+    /// The engine we already know about, without provisioning one: a poll must never spawn `ollama serve`.
+    func resolvedBaseURL() -> URL { resolved?.url ?? Self.generate(Self.reuseBase) }
+
     func ensureEngine(progress: @escaping @Sendable (Double) -> Void) async throws {
         // Idempotent for real: a live engine — reused *or already spawned* — must not be respawned,
         // and a second concurrent caller joins the first instead of racing it past the reachability check.

@@ -54,6 +54,23 @@ private final class URLRecorder: @unchecked Sendable {
         #expect(recorder.url?.path == "/api/tags")
     }
 
+    @Test func loadedModelsHitsPsAndParsesExpiry() async throws {
+        let recorder = URLRecorder()
+        MockTagsURLProtocol.handler = { request in
+            recorder.url = request.url
+            let body = #"{"models":[{"name":"gemma4:26b-mlx","expires_at":"2026-09-17T14:38:31.83753+02:00"}]}"#.data(using: .utf8)!
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, body)
+        }
+        defer { MockTagsURLProtocol.handler = nil }
+
+        let models = try await makeLister().loadedModels()
+
+        #expect(recorder.url?.path == "/api/ps")
+        #expect(models == [LoadedModel(name: "gemma4:26b-mlx",
+                                       expiresAt: ISO8601DateFormatter().date(from: "2026-09-17T12:38:31Z"))])
+    }
+
     @Test func theCloudListerAsksOllamasOwnHost() async throws {
         // The cloud catalog is not hardcoded — it is whatever ollama.com serves today, and that endpoint needs no key.
         let recorder = URLRecorder()
