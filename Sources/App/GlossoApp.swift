@@ -136,7 +136,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         let reader = SystemPasteboardReader()
         let llm = RoutingLLMClient(
-            local: OllamaClient(endpointProvider: Self.endpointProvider(engine)),
+            local: OllamaClient(
+                endpointProvider: Self.endpointProvider(engine),
+                keepAliveProvider: { [settings] in await MainActor.run { settings.keepAlive } }
+            ),
             cloud: GeminiClient(limiter: cloudLimiter),
             // The same client, only pointed at Ollama's host and signed — no limiter, because the cloud meters GPU time, not requests.
             ollamaCloud: OllamaClient(

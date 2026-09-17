@@ -17,11 +17,15 @@ final class SettingsStore {
         static let hasCompletedOnboarding = "app.hasCompletedOnboarding"
         static let lastNotifiedVersion = "update.lastNotifiedVersion"
         static let readerRetentionDays = "reader.retentionDays"
+        static let keepAliveMinutes = "llm.keepAliveMinutes"
         static let readerCinemaMode = "reader.cinemaMode"
     }
 
     /// The retention periods the reader's saved-list picker offers.
     static let retentionChoices = [7, 30, 90]
+
+    /// How long Ollama keeps the local model in memory after a request, in minutes; `-1` means indefinitely.
+    static let keepAliveChoices = [5, 15, 30, 60, 120, -1]
 
     /// UserDefaults sentinel for the automatic second language (`nil` in code).
     private static let autoSecond = "auto"
@@ -158,6 +162,14 @@ final class SettingsStore {
         didSet { defaults.set(readerRetentionDays, forKey: Key.readerRetentionDays) }
     }
 
+    /// Local engine only: the cloud hosts ignore `keep_alive`.
+    var keepAliveMinutes: Int {
+        didSet { defaults.set(keepAliveMinutes, forKey: Key.keepAliveMinutes) }
+    }
+
+    /// The `keep_alive` value Ollama accepts — a duration string, or `-1` for "never unload".
+    var keepAlive: String { keepAliveMinutes < 0 ? "-1" : "\(keepAliveMinutes)m" }
+
     /// Dims every screen outside the reader window — on by default, toggled from the reader's toolbar, remembered.
     var readerCinemaMode: Bool {
         didSet { defaults.set(readerCinemaMode, forKey: Key.readerCinemaMode) }
@@ -215,6 +227,8 @@ final class SettingsStore {
         self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
         let storedRetention = defaults.integer(forKey: Key.readerRetentionDays)
         self.readerRetentionDays = Self.retentionChoices.contains(storedRetention) ? storedRetention : 7
+        let storedKeepAlive = defaults.object(forKey: Key.keepAliveMinutes) as? Int ?? 60
+        self.keepAliveMinutes = Self.keepAliveChoices.contains(storedKeepAlive) ? storedKeepAlive : 60
         // On by default; `bool(forKey:)` can't tell "never set" from "switched off", hence the object read.
         self.readerCinemaMode = defaults.object(forKey: Key.readerCinemaMode) as? Bool ?? true
         self.launchAtLogin = loginItem.isEnabled

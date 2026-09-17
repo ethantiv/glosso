@@ -31,6 +31,20 @@ import Testing
         #expect(SettingsStore(defaults: defaults).readerRetentionDays == 7)
     }
 
+    @Test func keepAliveDefaultsPersistsAndNormalizes() {
+        let defaults = transientDefaults()
+        let store = SettingsStore(defaults: defaults)
+        #expect(store.keepAliveMinutes == 60)
+        #expect(store.keepAlive == "60m")
+
+        store.keepAliveMinutes = -1
+        #expect(store.keepAlive == "-1")
+        #expect(SettingsStore(defaults: defaults).keepAliveMinutes == -1)
+
+        defaults.set(7, forKey: "llm.keepAliveMinutes")
+        #expect(SettingsStore(defaults: defaults).keepAliveMinutes == 60)
+    }
+
     @Test func readerCinemaModeDefaultsOnAndPersistsOff() {
         let defaults = transientDefaults()
         let store = SettingsStore(defaults: defaults)

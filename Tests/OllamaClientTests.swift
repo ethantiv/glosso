@@ -75,6 +75,32 @@ import Testing
         }
     }
 
+    @Test func keepAliveProviderOverridesTheConfigValue() async throws {
+        let configuration = URLSessionConfiguration.ephemeral
+        configuration.protocolClasses = [MockURLProtocol.self]
+        let client = OllamaClient(session: URLSession(configuration: configuration), keepAliveProvider: { "5m" })
+        let captured = CapturedBody()
+        MockURLProtocol.handler = { request in
+            captured.store(request.httpBodyStream.map { stream in
+                stream.open()
+                defer { stream.close() }
+                var data = Data()
+                var buffer = [UInt8](repeating: 0, count: 4096)
+                while stream.hasBytesAvailable {
+                    let read = stream.read(&buffer, maxLength: buffer.count)
+                    if read <= 0 { break }
+                    data.append(contentsOf: buffer[0..<read])
+                }
+                return data
+            } ?? request.httpBody ?? Data())
+            let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
+            return (response, Data(#"{"response":"ok","done":true}"#.utf8))
+        }
+        defer { MockURLProtocol.handler = nil }
+        _ = try await client.generate(prompt: "p", model: "m")
+        #expect(String(decoding: captured.value, as: UTF8.self).contains(#""keep_alive":"5m""#))
+    }
+
     @Test func generateRequestEncodesNumPredictOnlyWhenSet() throws {
         let capped = try JSONEncoder().encode(GenerateRequest(config: .default, prompt: "p", stream: false, numPredict: 2048))
         #expect(String(decoding: capped, as: UTF8.self).contains(#""num_predict":2048"#))
@@ -416,4 +442,12 @@ private final class HeaderBox: @unchecked Sendable {
     func store(url: URL?, header: String?) { lock.withLock { storedURL = url; storedHeader = header } }
     var url: URL? { lock.withLock { storedURL } }
     var header: String? { lock.withLock { storedHeader } }
+}
+
+private final class CapturedBody: @unchecked Sendable {
+    private let lock = NSLock()
+    private var data = Data()
+
+    func store(_ new: Data) { lock.withLock { data = new } }
+    var value: Data { lock.withLock { data } }
 }

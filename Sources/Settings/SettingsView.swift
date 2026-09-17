@@ -16,6 +16,14 @@ struct SettingsView: View {
     @State private var quota: (used: Int, limit: Int)?
     @State private var catalogExpanded = true
 
+    static func keepAliveLabel(_ minutes: Int) -> String {
+        switch minutes {
+        case ..<0: loc("Zawsze", "Always")
+        case ..<60: loc("\(minutes) min", "\(minutes) min")
+        default: loc("\(minutes / 60) godz.", minutes == 60 ? "1 hour" : "\(minutes / 60) hours")
+        }
+    }
+
     /// The active pick is always in the list, even when it isn't installed yet — otherwise the picker blanks out and nothing on screen names the model in use.
     private var installedModelChoices: [String] {
         var ids = Set(models)
@@ -48,6 +56,11 @@ struct SettingsView: View {
                 Picker(loc("Aktywny model", "Active model"), selection: $store.modelName) {
                     ForEach(installedModelChoices, id: \.self) { id in
                         Text(displayName(forInstalled: id)).tag(id)
+                    }
+                }
+                Picker(loc("Trzymaj model w pamięci", "Keep model loaded"), selection: $store.keepAliveMinutes) {
+                    ForEach(SettingsStore.keepAliveChoices, id: \.self) { minutes in
+                        Text(Self.keepAliveLabel(minutes)).tag(minutes)
                     }
                 }
                 // Collapsed under a cloud engine: this is the fallback then, not the model the user picks day to day.

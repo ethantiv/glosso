@@ -61,6 +61,8 @@ Either cloud engine reveals a field for its API key ([free from Google AI Studio
 
 Google AI also shows today's request count, because that tier is metered. Glosso paces itself to each model's own limits: Gemma (the default) gets 30 requests and 16,000 input tokens per minute and 14,400 per day, Gemini Flash Lite 15 requests and 250,000 tokens per minute and 500 per day. It waits instead of getting rejected, counts each model's day separately, and hands the work to the local model when the quota runs out.
 
+**Keep model loaded** sets how long the local Ollama model stays in memory after the last request (5 minutes to 2 hours, or always; 1 hour by default). A longer value avoids the reload pause after a break, at the cost of RAM held while idle.
+
 A **Launch at login** toggle starts the app quietly in the menu bar. **Check for updates…** compares your version against the latest release and downloads the new `.zip` to `~/Downloads`; installing is still a manual drag.
 
 ## How it works

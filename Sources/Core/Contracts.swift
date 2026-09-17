@@ -197,7 +197,7 @@ struct LLMConfig: Sendable {
     static let `default` = LLMConfig(
         endpoint: URL(string: "http://localhost:11434/api/generate")!,
         model: "gemma4:26b-mlx",
-        keepAlive: "30m",
+        keepAlive: "60m",
         temperature: 0,
         think: false
     )

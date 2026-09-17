@@ -6,12 +6,27 @@ final class OllamaClient: LLMClient, GenerationBackend {
     private let endpointProvider: @Sendable () async throws -> URL
     /// Non-nil marks a cloud instance: it signs every request and reports failures as the cloud errors `RoutingLLMClient.fallsBack` accepts, so a dead key hands over to the local engine instead of surfacing a raw 401.
     private let keyProvider: (@Sendable () -> String?)?
+    /// Overrides `config.keepAlive` per request, so the Settings value applies without rebuilding the client.
+    private let keepAliveProvider: (@Sendable () async -> String)?
 
-    init(session: URLSession = .shared, config: LLMConfig = .default, endpointProvider: @escaping @Sendable () async throws -> URL = { LLMConfig.default.endpoint }, keyProvider: (@Sendable () -> String?)? = nil) {
+    init(session: URLSession = .shared, config: LLMConfig = .default, endpointProvider: @escaping @Sendable () async throws -> URL = { LLMConfig.default.endpoint }, keyProvider: (@Sendable () -> String?)? = nil, keepAliveProvider: (@Sendable () async -> String)? = nil) {
         self.session = session
         self.config = config
         self.endpointProvider = endpointProvider
         self.keyProvider = keyProvider
+        self.keepAliveProvider = keepAliveProvider
+    }
+
+    /// The base config with the live `keep_alive` applied.
+    private func liveConfig() async -> LLMConfig {
+        await Self.liveConfig(config, keepAliveProvider)
+    }
+
+    private static func liveConfig(_ base: LLMConfig, _ provider: (@Sendable () async -> String)?) async -> LLMConfig {
+        guard let provider else { return base }
+        var config = base
+        config.keepAlive = await provider()
+        return config
     }
 
     private var isCloud: Bool { keyProvider != nil }
@@ -49,6 +64,7 @@ final class OllamaClient: LLMClient, GenerationBackend {
     func generate(prompt: String, model: String, timeout: TimeInterval? = nil, numPredict: Int? = nil) async throws -> String {
         let key = try resolveKey()
         let endpoint = try await endpointProvider()
+        let config = await liveConfig()
         let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: false, endpoint: endpoint, key: key, timeout: timeout, numPredict: numPredict)
         let (data, response): (Data, URLResponse)
         do {
@@ -76,6 +92,7 @@ final class OllamaClient: LLMClient, GenerationBackend {
         let baseConfig = self.config
         let endpointProvider = self.endpointProvider
         let keyProvider = self.keyProvider
+        let keepAliveProvider = self.keepAliveProvider
         let isCloud = self.isCloud
 
         return AsyncThrowingStream { continuation in
@@ -83,7 +100,8 @@ final class OllamaClient: LLMClient, GenerationBackend {
                 do {
                     let key = try Self.resolveKey(keyProvider)
                     let endpoint = try await endpointProvider()
-                    let request = try Self.makeRequest(config: baseConfig, model: model, prompt: prompt, stream: true, endpoint: endpoint, key: key)
+                    let config = await Self.liveConfig(baseConfig, keepAliveProvider)
+                    let request = try Self.makeRequest(config: config, model: model, prompt: prompt, stream: true, endpoint: endpoint, key: key)
                     let (bytes, response) = try await session.bytes(for: request)
 
                     guard let http = response as? HTTPURLResponse else {
@@ -150,6 +168,7 @@ final class OllamaClient: LLMClient, GenerationBackend {
         guard !isCloud else { return }
         do {
             let endpoint = try await endpointProvider()
+            let config = await liveConfig()
             let request = try Self.makeRequest(config: config, model: model, prompt: "", stream: false, endpoint: endpoint, key: nil)
             _ = try await session.data(for: request)
         } catch {
