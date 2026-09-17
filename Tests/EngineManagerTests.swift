@@ -24,6 +24,12 @@ import Testing
         #expect(await engine.status() == .ready)
     }
 
+    @Test func resolvedBaseURLNeverProvisions() async {
+        // No handler installed: any request would fail, and a spawn would need a binary — neither happens.
+        let engine = EngineManager(session: makeSession())
+        #expect(await engine.resolvedBaseURL().absoluteString == "http://localhost:11434/api/generate")
+    }
+
     @Test func activeBaseURLReusesReachableOllama() async throws {
         reachableHandler()
         defer { MockURLProtocol.handler = nil }

@@ -10,6 +10,9 @@ struct GlossoApp: App {
         MenuBarExtra {
             if appDelegate.appState.listening {
                 Text(loc("Glosso · aktywny", "Glosso · active"))
+                if let model = appDelegate.appState.localModel {
+                    Text(model.label())
+                }
             } else if appDelegate.appState.accessibilityGranted {
                 Text(loc("Dostępność OK, ale nasłuch nie wystartował.",
                          "Accessibility OK, but the listener didn't start."))
@@ -47,7 +50,8 @@ struct GlossoApp: App {
             Button(loc("O aplikacji…", "About…")) { appDelegate.showAbout() }
             Button(loc("Zakończ", "Quit")) { NSApplication.shared.terminate(nil) }
         } label: {
-            Image(appDelegate.appState.updateAvailable != nil ? "MenuBarIconUpdate" : "MenuBarIcon")
+            Image(nsImage: MenuBarGlyph.image(update: appDelegate.appState.updateAvailable != nil,
+                                              model: appDelegate.appState.localModel))
                 .accessibilityLabel("Glosso")
         }
 
@@ -64,6 +68,30 @@ struct GlossoApp: App {
         .defaultSize(width: 520, height: 620)
         // .contentMinSize, not .contentSize: the window grows as far as the user wants, it just can't shrink below the form.
         .windowResizability(.contentMinSize)
+    }
+}
+
+/// A template image can't carry a second colour, so a dotted glyph is drawn non-template with `labelColor` for the glyph itself — that colour resolves at draw time, so it still follows the light/dark menu bar.
+enum MenuBarGlyph {
+    static func image(update: Bool, model: LocalModelStatus?) -> NSImage {
+        let base = NSImage(named: update ? "MenuBarIconUpdate" : "MenuBarIcon")!
+        guard let model else { return base }
+        let image = NSImage(size: base.size, flipped: false) { rect in
+            let tinted = base.copy() as! NSImage
+            tinted.isTemplate = false
+            tinted.draw(in: rect)
+            NSColor.labelColor.set()
+            rect.fill(using: .sourceIn)
+            let dot = NSRect(x: rect.maxX - 6, y: rect.minY, width: 6, height: 6)
+            NSGraphicsContext.current?.compositingOperation = .clear
+            NSBezierPath(ovalIn: dot.insetBy(dx: -1, dy: -1)).fill()
+            NSGraphicsContext.current?.compositingOperation = .sourceOver
+            (model == .idle ? NSColor.systemOrange : NSColor.systemGreen).setFill()
+            NSBezierPath(ovalIn: dot).fill()
+            return true
+        }
+        image.isTemplate = false
+        return image
     }
 }
 
@@ -104,9 +132,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     lazy var modelManager: OllamaModelManager = OllamaModelManager(endpointProvider: Self.endpointProvider(engine))
     /// The cloud's own /api/tags answers unauthenticated, so the model list needs no key and stays current as Ollama retires models.
     let ollamaCloudLister = OllamaModelLister(endpointProvider: { OllamaCloudCatalog.baseURL })
+    /// `resolvedBaseURL`, not `activeBaseURL`: a status poll must never spawn `ollama serve`.
+    lazy var loadedModelLister = OllamaModelLister(endpointProvider: Self.resolvedEndpointProvider(engine))
 
     nonisolated static func endpointProvider(_ engine: EngineManager) -> @Sendable () async throws -> URL {
         { try await engine.activeBaseURL() }
+    }
+
+    nonisolated static func resolvedEndpointProvider(_ engine: EngineManager) -> @Sendable () async throws -> URL {
+        { await engine.resolvedBaseURL() }
     }
     var ax: any AccessibilityAuthorizing = AXChecker()
     var coordinator: AppCoordinator?
@@ -182,6 +216,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         UNUserNotificationCenter.current().delegate = self
         checkForUpdates(announce: false)
+        pollLocalModel()
 
         activationObserver = NSWorkspace.shared.notificationCenter.addObserver(
             forName: NSWorkspace.didActivateApplicationNotification, object: nil, queue: .main
@@ -191,6 +226,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
 
         if !settings.hasCompletedOnboarding {
             onboarding.show()
+        }
+    }
+
+    /// ponytail: 5s localhost poll; hook AppCoordinator.consume's `.finished` if the dot's lag ever matters.
+    private func pollLocalModel() {
+        Task { [appState, settings, loadedModelLister] in
+            while !Task.isCancelled {
+                if settings.provider == .local {
+                    let loaded = (try? await loadedModelLister.loadedModels()) ?? []
+                    appState.localModel = .from(loaded: loaded, model: settings.modelName)
+                } else {
+                    appState.localModel = nil
+                }
+                try? await Task.sleep(for: .seconds(5))
+            }
         }
     }
 
