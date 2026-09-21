@@ -45,22 +45,22 @@ struct SavedArticleStore: Sendable {
     /// Stamps a fresh `savedAt` — the retention window starts at translation time. A nil `pinned` keeps whatever
     /// the stored entry has, so a re-translation can't silently unpin an article. Returns what was written.
     @discardableResult
-    func save(_ entry: ReaderCache.Entry) -> ReaderCache.Entry {
+    func save(_ entry: ReaderCache.Entry, sweeping: Bool = true) throws -> ReaderCache.Entry {
         var entry = entry
         entry.savedAt = .now
         if entry.pinned == nil { entry.pinned = decode(fileURL(for: entry.url))?.pinned }
-        write(entry)
-        sweepExpired()
+        try write(entry)
+        if sweeping { sweepExpired() }
         return entry
     }
 
     /// Flips the flag without touching `savedAt` — pinning is not a re-translation. Un-pinning an entry that
     /// already outlived the TTL does restart it, or the click would silently destroy the article.
-    func setPinned(_ on: Bool, for url: URL) {
+    func setPinned(_ on: Bool, for url: URL) throws {
         guard var entry = decode(fileURL(for: url)) else { return }
         entry.pinned = on
         if !on, !isLive(entry) { entry.savedAt = .now }
-        write(entry)
+        try write(entry)
     }
 
     /// Pinned first, then newest first. Expired entries are filtered, not deleted — the sweep owns deletion.
@@ -73,11 +73,24 @@ struct SavedArticleStore: Sendable {
         }
     }
 
-    private func write(_ entry: ReaderCache.Entry) {
-        try? FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
-        guard let data = try? JSONEncoder().encode(entry) else { return }
+    func metadata() -> [SavedArticleMetadata] {
+        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
+        return files.compactMap { file in
+            guard let data = try? Data(contentsOf: file) else { return nil }
+            return try? JSONDecoder().decode(SavedArticleMetadata.self, from: data)
+        }
+    }
+
+    func remove(_ url: URL) throws {
+        let file = fileURL(for: url)
+        if FileManager.default.fileExists(atPath: file.path) { try FileManager.default.removeItem(at: file) }
+    }
+
+    private func write(_ entry: ReaderCache.Entry) throws {
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(entry)
         // Atomic, because a truncated file silently loses a pinned entry with no recovery path.
-        try? data.write(to: fileURL(for: entry.url), options: .atomic)
+        try data.write(to: fileURL(for: entry.url), options: .atomic)
     }
 
     private func decode(_ file: URL) -> ReaderCache.Entry? {

@@ -7,12 +7,10 @@ import WebKit
 final class ReaderController: ReaderPresenting {
     private let llm: any LLMClient
     private let settings: SettingsStore
-    private let extractor = ArticleExtractor()
-    private let cache = ReaderCache()
-    // Rebuilt per use — the struct is stateless (a directory and a TTL), and the TTL follows the setting live.
-    private var saved: SavedArticleStore {
-        SavedArticleStore(ttl: TimeInterval(settings.readerRetentionDays) * 24 * 3600)
-    }
+    private let extractor: any ArticleExtracting
+    private let repository: ReaderRepository
+    private var activeContext: ReaderRunContext?
+    private var savedListTask: Task<Void, Never>?
 
     /// What the shared side panel is showing; nil means closed. One state for both toolbar buttons.
     enum PanelContent { case chat, saved }
@@ -59,33 +57,59 @@ final class ReaderController: ReaderPresenting {
     // can't act on a half-translated article. A `cache.load` probe here would lie past the 7-day TTL.
     private var lastEntry: ReaderCache.Entry?
 
-    init(llm: any LLMClient, settings: SettingsStore) {
+    init(llm: any LLMClient, settings: SettingsStore, repository: ReaderRepository = ReaderRepository(),
+         extractor: any ArticleExtracting = ArticleExtractor()) {
         self.llm = llm
         self.settings = settings
+        self.repository = repository
+        self.extractor = extractor
+    }
+
+    func makeRun(activate: Bool = true) -> ReaderRun {
+        let context = ReaderRunContext(settings: settings)
+        if activate { activeContext = context }
+        let session = documentSession
+        let client: any LLMClient
+        if let routing = llm as? RoutingLLMClient {
+            client = routing.scoped(to: context) { [weak self] error, _ in
+                Task { @MainActor [weak self] in
+                    guard let self else { return }
+                    if activate {
+                        guard self.activeContext?.id == context.id, self.translating else { return }
+                        self.localFallback = true
+                        self.setEngine(context.engineLabel(localFallback: true))
+                    } else if self.documentSession != session { return }
+                    SystemUserNotifier.post(error.userMessage)
+                }
+            }
+        } else { client = llm }
+        return ReaderRun(context: context, client: client)
     }
 
     func show(_ url: URL) {
         resetForArticle(url)
+        let run = makeRun()
         setPanelContent(nil)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
-            await self?.run(url: url, in: webView)
+            await self?.run(url: url, in: webView, run: run)
         }
     }
 
     /// Opens an entry from the saved list: the same reset as `show()`, but the panel stays open (the user
     /// is browsing from it) and the pipeline is a pure replay — zero fetch, zero LLM.
     func showSavedArticle(_ url: URL) {
-        guard let entry = saved.load(url) else { return }
         resetForArticle(url)
-        lastEntry = entry
-        let title = entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle
-        let webView = ensureWindow(titled: title.isEmpty ? loc("Artykuł", "Article") : title)
-        // After the window: the menu path arrives with no toolbar yet, and a fresh pin item starts disabled.
-        refreshPinItem()
+        _ = makeRun()
+        let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
+                try await self.repository.setRetention(days: self.settings.readerRetentionDays)
+                guard let entry = await self.repository.loadSaved(url), !Task.isCancelled else { return }
+                self.lastEntry = entry
+                self.window?.title = entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle
+                self.refreshPinItem()
                 try await self.loadTemplate(in: webView, baseURL: url)
                 // The template reload wiped the page — restore the panel before any content paints,
                 // or the finished article jumps by a panel width after the replay.
@@ -103,27 +127,37 @@ final class ReaderController: ReaderPresenting {
     /// Menu entry into the saved list: with nothing on screen it replays the newest entry (pinned first) so the
     /// panel opens beside an article, not a blank sheet; an empty library gets the bare template and its empty note.
     func showLibrary() {
-        // Keyed on the window, not on `lastEntry`: that is nil for the whole of a running translation, and a
-        // replay here would cancel it.
-        if window == nil, let newest = saved.list().first {
-            showSavedArticle(newest.url)
-        } else if window == nil {
-            let webView = ensureWindow(titled: loc("Biblioteka", "Library"))
-            translationTask = Task { @MainActor [weak self] in
-                guard let self else { return }
-                do { try await self.loadTemplate(in: webView, baseURL: nil) }
-                catch { if !Task.isCancelled { self.setStatus(ReaderError.fetchFailed.message) } }
-                if !Task.isCancelled { self.pushPanelState(in: webView) }
-            }
-        } else {
+        if window != nil {
             _ = ensureWindow(titled: window?.title ?? "")
+            setPanelContent(.saved)
+            return
         }
-        setPanelContent(.saved)
+        let webView = ensureWindow(titled: loc("Biblioteka", "Library"))
+        translationTask?.cancel()
+        translationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                try await self.repository.setRetention(days: self.settings.readerRetentionDays)
+                let entries = await self.repository.list()
+                try Task.checkCancellation()
+                if let newest = entries.first {
+                    self.showSavedArticle(newest.url)
+                    self.setPanelContent(.saved)
+                    return
+                }
+                try await self.loadTemplate(in: webView, baseURL: nil)
+                if !Task.isCancelled { self.setPanelContent(.saved); self.pushPanelState(in: webView) }
+            } catch { if !Task.isCancelled { self.reportStorageError() } }
+        }
     }
 
     /// The shared new-article reset; panel handling stays with the callers, which disagree about it.
     private func resetForArticle(_ url: URL) {
         documentSession = nil
+        activeContext = nil
+        runSeq += 1
+        translating = false
+        savedListTask?.cancel()
         currentURL = url
         translationTask?.cancel()
         suggestTask?.cancel()
@@ -139,15 +173,25 @@ final class ReaderController: ReaderPresenting {
     }
 
     func refreshCurrentArticle() {
-        guard let currentURL else { return }
-        cache.remove(currentURL, primary: settings.primaryLanguage)
-        show(currentURL)
+        guard let url = currentURL else { return }
+        resetForArticle(url)
+        let run = makeRun()
+        let webView = ensureWindow(titled: url.host() ?? "")
+        translationTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            await self.repository.removeCached(url, primary: run.context.primary)
+            guard !Task.isCancelled else { return }
+            await self.run(url: url, in: webView, run: run)
+        }
     }
 
-    private func run(url: URL, in webView: WKWebView) async {
+    func run(url: URL, in webView: WKWebView, run: ReaderRun) async {
         do {
             try await loadTemplate(in: webView, baseURL: url)
-            if let entry = cache.load(url, primary: settings.primaryLanguage) {
+            try await repository.setRetention(days: settings.readerRetentionDays)
+            let cached = await repository.cached(url, primary: run.context.primary)
+            try Task.checkCancellation()
+            if let entry = cached {
                 try await replay(entry, in: webView)
                 // A replay is not a new translation — the saved store's 7-day window is not refreshed.
                 if !Task.isCancelled {
@@ -156,7 +200,6 @@ final class ReaderController: ReaderPresenting {
                 }
                 return
             }
-            runSeq += 1
             let seq = runSeq
             translating = true
             defer { if runSeq == seq { translating = false } }
@@ -171,18 +214,23 @@ final class ReaderController: ReaderPresenting {
             if Task.isCancelled { return }
             // Title and summary paint into their own slots, so they have no business holding up the blocks —
             // they were the larger part of the wait to first paragraph on every engine but Flash Lite.
-            async let heading = translateHead(article.title, summarizing: head, in: webView)
-            let translated = try await translate(blocks: blocks, in: webView)
+            async let heading = translateHead(article.title, summarizing: head, in: webView, run: run)
+            let translated = try await translate(blocks: blocks, in: webView, run: run)
             let (translatedTitle, summary) = await heading
             if let translations = translated, !Task.isCancelled {
-                var entry = ReaderCache.Entry(
+                let entry = ReaderCache.Entry(
                     url: url, savedAt: .now, title: article.title,
                     translatedTitle: translatedTitle, byline: article.byline ?? "",
                     content: article.content, summary: summary, translations: translations,
                     engine: currentEngineLabel)
-                cache.save(entry, primary: settings.primaryLanguage)
-                // Auto-save into the durable history; the store keeps whatever pin state the URL already had.
-                lastEntry = saved.save(entry)
+                do {
+                    let stored = try await repository.save(entry, primary: run.context.primary)
+                    try Task.checkCancellation()
+                    lastEntry = stored
+                } catch {
+                    if !Task.isCancelled { reportStorageError() }
+                    return
+                }
                 refreshPinItem()
                 if panelContent == .saved { pushSavedList(in: webView) }
             }
@@ -235,7 +283,7 @@ final class ReaderController: ReaderPresenting {
         else { throw ReaderError.extractionFailed }
         // Always set both, never only on a hit: the control outlives the article, so a nil detection would otherwise
         // leave the previous article's codes claiming a language pair this one doesn't have.
-        let labels = Self.languageLabels(primary: settings.primaryLanguage, content: article.content)
+        let labels = Self.languageLabels(primary: activeContext?.primary ?? settings.primaryLanguage, content: article.content)
             ?? (loc("Tłumaczenie", "Translation"), loc("Oryginał", "Original"))
         toolbarProxy?.modeControl?.setLabel(labels.translated, forSegment: ReaderMode.translated.rawValue)
         toolbarProxy?.modeControl?.setLabel(labels.original, forSegment: ReaderMode.original.rawValue)
@@ -305,35 +353,41 @@ final class ReaderController: ReaderPresenting {
 
     func togglePinCurrentArticle() {
         guard let lastEntry, let currentURL else { return }
-        // Target computed from disk before load() can delete an expired file — and never from
-        // lastEntry, whose pinned is a snapshot the miss-path re-save below would otherwise resurrect.
-        let target = !saved.isPinned(currentURL)
-        if saved.load(currentURL) == nil {
-            var entry = lastEntry
-            entry.pinned = false
-            saved.save(entry)
-        }
-        setPinned(target, for: currentURL)
+        setPinned(lastEntry.pinned != true, for: currentURL)
     }
 
     fileprivate func setRetention(days: Int) {
         guard SettingsStore.retentionChoices.contains(days), days != settings.readerRetentionDays else { return }
         settings.readerRetentionDays = days
-        // Shortening the period takes effect now, not at the next translation's sweep.
-        saved.sweep()
-        if let webView { pushSavedList(in: webView) }
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do { try await self.repository.setRetention(days: days) }
+            catch { self.reportStorageError() }
+            if let webView = self.webView { self.pushSavedList(in: webView) }
+        }
     }
 
     fileprivate func setPinned(_ on: Bool, for url: URL) {
-        saved.setPinned(on, for: url)
-        // Keep the snapshot honest, or a later re-save writes the pre-toggle flag back.
-        if currentURL == url { lastEntry?.pinned = on }
-        refreshPinItem()
-        if let webView { pushSavedList(in: webView) }
+        let fallback = currentURL == url ? lastEntry : nil
+        let session = documentSession
+        Task { @MainActor [weak self] in
+            guard let self else { return }
+            do {
+                let stored = try await self.repository.setPinned(on, for: url, fallback: fallback)
+                guard self.documentSession == session else { return }
+                if self.currentURL == url { self.lastEntry = stored }
+                self.refreshPinItem()
+                if let webView = self.webView { self.pushSavedList(in: webView) }
+            } catch { if self.documentSession == session { self.reportStorageError() } }
+        }
+    }
+
+    private func reportStorageError() {
+        setStatus(loc("Nie udało się zapisać zmian w bibliotece.", "Could not save changes to the article library."))
     }
 
     private func refreshPinItem() {
-        let pinned = currentURL.map(saved.isPinned) ?? false
+        let pinned = lastEntry?.pinned == true
         let label = pinned ? loc("Odepnij artykuł", "Unpin article") : loc("Przypnij artykuł", "Pin article")
         toolbarProxy?.set(toolbarProxy?.pinItem, symbol: pinned ? "pin.fill" : "pin", label: label)
         toolbarProxy?.pinItem?.isEnabled = lastEntry != nil
@@ -353,20 +407,27 @@ final class ReaderController: ReaderPresenting {
     }
 
     private func pushSavedList(in webView: WKWebView) {
-        let rows = saved.list().map { entry in
-            // Calendar-day boundaries, not elapsed 24h spans — yesterday 23:00 must read "wczoraj" at 09:00.
-            let cal = Calendar.current
-            let days = cal.dateComponents([.day],
-                                          from: cal.startOfDay(for: entry.savedAt),
-                                          to: cal.startOfDay(for: .now)).day ?? 0
-            return SavedRow(url: entry.url.absoluteString,
-                            title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
-                            original: entry.title,
-                            age: Self.ageLabel(daysAgo: days),
-                            pinned: entry.pinned == true)
+        savedListTask?.cancel()
+        let session = documentSession
+        savedListTask = Task { @MainActor [weak self] in
+            guard let self else { return }
+            let entries = await self.repository.list()
+            guard !Task.isCancelled, self.documentSession == session else { return }
+            let rows = entries.map { entry in
+                // Calendar-day boundaries, not elapsed 24h spans — yesterday 23:00 must read "wczoraj" at 09:00.
+                let cal = Calendar.current
+                let days = cal.dateComponents([.day],
+                                              from: cal.startOfDay(for: entry.savedAt),
+                                              to: cal.startOfDay(for: .now)).day ?? 0
+                return SavedRow(url: entry.url.absoluteString,
+                                title: entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle,
+                                original: entry.title,
+                                age: Self.ageLabel(daysAgo: days),
+                                pinned: entry.pinned == true)
+            }
+            let json = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
+            webView.evaluateReaderJavaScript(ReaderTemplate.call("glossoSetSaved", json), completionHandler: nil)
         }
-        let json = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-        webView.evaluateReaderJavaScript(ReaderTemplate.call("glossoSetSaved", json), completionHandler: nil)
     }
 
     /// Who translated *this* text, kept in the window's subtitle — a cached replay can outlive a provider switch.
@@ -377,8 +438,8 @@ final class ReaderController: ReaderPresenting {
 
     /// What is serving this run — the local engine once `RoutingLLMClient` has handed the article over.
     private var currentEngineLabel: String {
-        Self.engineLabel(provider: localFallback ? .local : settings.provider,
-                         model: localFallback ? settings.modelName : settings.activeModel)
+        activeContext?.engineLabel(localFallback: localFallback) ??
+            Self.engineLabel(provider: settings.provider, model: settings.activeModel)
     }
 
     nonisolated static func engineLabel(provider: LLMProvider, model: String) -> String {
@@ -418,18 +479,18 @@ final class ReaderController: ReaderPresenting {
     /// issued the first block request is already queued ahead of it. Issuing both at once would let the summary — 41.7s
     /// for 91 tokens, measured there — win the single slot and hold up the first paragraph, which is the whole thing
     /// this concurrency exists to prevent.
-    private func translateHead(_ title: String, summarizing text: String, in webView: WKWebView) async -> (title: String, summary: String) {
-        let translated = await translateTitle(title, in: webView)
+    private func translateHead(_ title: String, summarizing text: String, in webView: WKWebView, run: ReaderRun) async -> (title: String, summary: String) {
+        let translated = await translateTitle(title, in: webView, run: run)
         if Task.isCancelled { return (translated, "") }
-        return (translated, await summarize(text, in: webView))
+        return (translated, await summarize(text, in: webView, run: run))
     }
 
-    private func translateTitle(_ title: String, in webView: WKWebView) async -> String {
+    private func translateTitle(_ title: String, in webView: WKWebView, run: ReaderRun) async -> String {
         var final = title
         let hasTitle = !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-        if hasTitle, !Self.isConfidently(in: settings.primaryLanguage, title) {
-            let translated = (try? await llm.translateBlock(
-                html: title, into: settings.primaryLanguage, model: settings.activeModel)) ?? ""
+        if hasTitle, !Self.isConfidently(in: run.context.primary, title) {
+            let translated = (try? await run.client.translateBlock(
+                html: title, into: run.context.primary, model: run.context.model)) ?? ""
             if Task.isCancelled { return final }
             if !translated.isEmpty { final = translated }
         }
@@ -454,9 +515,9 @@ final class ReaderController: ReaderPresenting {
             "document.getElementById('glosso-content').textContent.slice(0, 6000)")) ?? ""
     }
 
-    private func summarize(_ text: String, in webView: WKWebView) async -> String {
+    private func summarize(_ text: String, in webView: WKWebView, run: ReaderRun) async -> String {
         guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return "" }
-        guard let cleaned = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
+        guard let cleaned = try? await run.client.readerSummary(of: text, into: run.context.primary, model: run.context.model) else { return "" }
         if Task.isCancelled { return "" }
         if !cleaned.isEmpty {
             _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoSetSummary", cleaned))
@@ -500,10 +561,10 @@ final class ReaderController: ReaderPresenting {
                       "Waiting for the Google AI rate limit… (\(Int(seconds.rounded(.up))) s)"))
     }
 
-    private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView) async throws -> [Int: String]? {
+    private func translate(blocks: [ReaderTemplate.Block], in webView: WKWebView, run: ReaderRun) async throws -> [Int: String]? {
         var applied: [Int: String] = [:]
         let translatable = blocks.filter(\.translate)
-        if Self.isConfidently(in: settings.primaryLanguage,
+        if Self.isConfidently(in: run.context.primary,
                               String(translatable.map(\.html).joined(separator: " ").prefix(6000))) {
             for block in translatable {
                 if Task.isCancelled { return nil }
@@ -518,7 +579,7 @@ final class ReaderController: ReaderPresenting {
         var pending: [ReaderTemplate.Block] = []
         for block in translatable {
             if Task.isCancelled { return nil }
-            if Self.isConfidently(in: settings.primaryLanguage, block.html) {
+            if Self.isConfidently(in: run.context.primary, block.html) {
                 _ = try? await webView.evaluateReaderString(
                     ReaderTemplate.call("glossoApply", String(block.id), block.html))
                 applied[block.id] = block.html
@@ -531,7 +592,7 @@ final class ReaderController: ReaderPresenting {
         // The setting says cloud, but RoutingLLMClient may be quietly serving from Ollama, which holds the format far worse.
         var consecutiveBatchFailures = 0
         var done = translatable.count - pending.count
-        let batchSize = Self.batchSize(provider: settings.provider, model: settings.activeModel)
+        let batchSize = Self.batchSize(provider: run.context.provider, model: run.context.model)
         for batch in ReaderTemplate.batches(pending, maxCount: batchSize) {
             if Task.isCancelled { return nil }
             setStatus(loc("Tłumaczę… (\(done + 1)/\(translatable.count))",
@@ -540,9 +601,9 @@ final class ReaderController: ReaderPresenting {
             // Two batches in a row failing means whatever is answering can't hold the format; stop paying for the attempt.
             if batch.count > 1, consecutiveBatchFailures < 2 {
                 // A batch that throws or fails the round trip is discarded whole and costs no failure — its blocks retry one by one below.
-                batched = (try? await llm.translateBlocks(batch.map { (id: $0.id, html: $0.html) },
-                                                          into: settings.primaryLanguage,
-                                                          model: settings.activeModel)) ?? [:]
+                batched = (try? await run.client.translateBlocks(batch.map { (id: $0.id, html: $0.html) },
+                                                          into: run.context.primary,
+                                                          model: run.context.model)) ?? [:]
                 if Task.isCancelled { return nil }
                 consecutiveBatchFailures = batched.isEmpty ? consecutiveBatchFailures + 1 : 0
             }
@@ -556,8 +617,8 @@ final class ReaderController: ReaderPresenting {
                     translated = fromBatch
                 } else {
                     do {
-                        translated = try await llm.translateBlock(
-                            html: block.html, into: settings.primaryLanguage, model: settings.activeModel)
+                        translated = try await run.client.translateBlock(
+                            html: block.html, into: run.context.primary, model: run.context.model)
                     } catch is CancellationError {
                         return nil
                     } catch TranslationError.cancelled {
@@ -663,11 +724,12 @@ final class ReaderController: ReaderPresenting {
         suggestTask?.cancel()
         suggestTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            let request = self.makeRun(activate: false)
             let context = await self.chatContext(in: webView)
             var questions: [String] = []
             if !context.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-                questions = (try? await self.llm.articleQuestions(
-                    about: context, into: self.settings.primaryLanguage, model: self.settings.activeModel)) ?? []
+                questions = (try? await request.client.articleQuestions(
+                    about: context, into: request.context.primary, model: request.context.model)) ?? []
             }
             if Task.isCancelled { return }
             // Nothing came back — let the next open try again, the way the page's own flag used to.
@@ -683,12 +745,13 @@ final class ReaderController: ReaderPresenting {
         askTask?.cancel()
         askTask = Task { @MainActor [weak self] in
             guard let self else { return }
+            let request = self.makeRun(activate: false)
             let context = await self.chatContext(in: webView)
             do {
                 // ponytail: last 4 turns cap the prompt; raise if follow-ups lose thread
-                let answer = try await self.llm.askArticle(
+                let answer = try await request.client.askArticle(
                     question: question, history: Array(self.chatHistory.suffix(4)), article: context,
-                    into: self.settings.primaryLanguage, model: self.settings.activeModel)
+                    into: request.context.primary, model: request.context.model)
                 if Task.isCancelled { return }
                 self.chatHistory.append((question, answer))
                 _ = try? await webView.evaluateReaderString(
@@ -832,6 +895,8 @@ final class ReaderController: ReaderPresenting {
 
     private func windowWillClose() {
         documentSession = nil
+        activeContext = nil
+        savedListTask?.cancel()
         translationTask?.cancel()
         toolbarProxy = nil
         suggestTask?.cancel()

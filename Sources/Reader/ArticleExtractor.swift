@@ -14,8 +14,13 @@ enum ReaderError: Error {
 }
 
 @MainActor
-final class ArticleExtractor {
-    struct ExtractedArticle: Decodable {
+protocol ArticleExtracting {
+    func extract(from url: URL) async throws -> ArticleExtractor.ExtractedArticle
+}
+
+@MainActor
+final class ArticleExtractor: ArticleExtracting {
+    struct ExtractedArticle: Decodable, Sendable {
         var title: String
         var byline: String?
         var content: String

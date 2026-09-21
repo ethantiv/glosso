@@ -25,9 +25,9 @@ import Testing
         )
     }
 
-    @Test func saveThenLoadRoundTripsEveryField() {
+    @Test func saveThenLoadRoundTripsEveryField() throws {
         let entry = makeEntry()
-        cache.save(entry, primary: .polish)
+        try cache.save(entry, primary: .polish)
 
         let loaded = cache.load(entry.url, primary: .polish)
         #expect(loaded?.url == entry.url)
@@ -45,21 +45,21 @@ import Testing
     @Test func loadsAnEntryWithoutAnEngineLabel() throws {
         var entry = makeEntry()
         entry.engine = nil
-        cache.save(entry, primary: .polish)
+        try cache.save(entry, primary: .polish)
 
         let loaded = try #require(cache.load(entry.url, primary: .polish))
         #expect(loaded.engine == nil)
         #expect(loaded.translations == entry.translations)
     }
 
-    @Test func loadMissesForUnknownURL() {
-        cache.save(makeEntry(), primary: .polish)
+    @Test func loadMissesForUnknownURL() throws {
+        try cache.save(makeEntry(), primary: .polish)
         #expect(cache.load(URL(string: "https://example.com/other")!, primary: .polish) == nil)
     }
 
-    @Test func expiredEntryIsDeletedOnLoad() {
+    @Test func expiredEntryIsDeletedOnLoad() throws {
         let entry = makeEntry(savedAt: .now.addingTimeInterval(-8 * 24 * 3600))
-        cache.save(entry, primary: .polish)
+        try cache.save(entry, primary: .polish)
 
         #expect(cache.load(entry.url, primary: .polish) == nil)
         let files = try? FileManager.default.contentsOfDirectory(atPath: cache.directory.path)
@@ -68,14 +68,14 @@ import Testing
 
     @Test func saveSweepsExpiredSiblings() throws {
         let old = makeEntry(url: "https://example.com/old")
-        cache.save(old, primary: .polish)
+        try cache.save(old, primary: .polish)
         let oldFile = try #require(try FileManager.default
             .contentsOfDirectory(at: cache.directory, includingPropertiesForKeys: nil).first)
         try FileManager.default.setAttributes(
             [.modificationDate: Date.now.addingTimeInterval(-8 * 24 * 3600)],
             ofItemAtPath: oldFile.path)
 
-        cache.save(makeEntry(url: "https://example.com/new"), primary: .polish)
+        try cache.save(makeEntry(url: "https://example.com/new"), primary: .polish)
 
         #expect(cache.load(old.url, primary: .polish) == nil)
         #expect(cache.load(URL(string: "https://example.com/new")!, primary: .polish) != nil)
@@ -83,9 +83,9 @@ import Testing
         #expect(files.count == 1)
     }
 
-    @Test func removeDeletesEntryAndMissesUnknownURL() {
+    @Test func removeDeletesEntryAndMissesUnknownURL() throws {
         let entry = makeEntry()
-        cache.save(entry, primary: .polish)
+        try cache.save(entry, primary: .polish)
 
         cache.remove(URL(string: "https://example.com/absent")!, primary: .polish)
         #expect(cache.load(entry.url, primary: .polish) != nil)
@@ -94,27 +94,27 @@ import Testing
         #expect(cache.load(entry.url, primary: .polish) == nil)
     }
 
-    @Test func entryFromAnotherVersionMisses() {
+    @Test func entryFromAnotherVersionMisses() throws {
         let oldVersion = ReaderCache(directory: cache.directory, version: "0.6.0")
         let newVersion = ReaderCache(directory: cache.directory, version: "0.6.1")
         let entry = makeEntry()
-        oldVersion.save(entry, primary: .polish)
+        try oldVersion.save(entry, primary: .polish)
 
         #expect(newVersion.load(entry.url, primary: .polish) == nil)
         #expect(oldVersion.load(entry.url, primary: .polish) != nil)
     }
 
-    @Test func entryForAnotherPrimaryLanguageMisses() {
+    @Test func entryForAnotherPrimaryLanguageMisses() throws {
         let entry = makeEntry()
-        cache.save(entry, primary: .polish)
+        try cache.save(entry, primary: .polish)
 
         #expect(cache.load(entry.url, primary: .english) == nil)
         #expect(cache.load(entry.url, primary: .polish) != nil)
     }
 
     @Test func distinctURLsGetDistinctFiles() throws {
-        cache.save(makeEntry(url: "https://example.com/a"), primary: .polish)
-        cache.save(makeEntry(url: "https://example.com/b"), primary: .polish)
+        try cache.save(makeEntry(url: "https://example.com/a"), primary: .polish)
+        try cache.save(makeEntry(url: "https://example.com/b"), primary: .polish)
 
         let files = try FileManager.default.contentsOfDirectory(atPath: cache.directory.path)
         #expect(files.count == 2)

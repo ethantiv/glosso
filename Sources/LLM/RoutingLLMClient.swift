@@ -64,6 +64,14 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
         self.localReady = localReady
     }
 
+    /// A reader operation keeps the same routing decision while sharing transports and their limiter.
+    func scoped(to context: ReaderRunContext,
+                onFallback: @escaping @Sendable (TranslationError, Bool) -> Void) -> RoutingLLMClient {
+        RoutingLLMClient(local: local, cloud: cloud, ollamaCloud: ollamaCloud,
+                         provider: { context.provider }, localModel: { context.localModel },
+                         onFallback: onFallback, deadline: deadline, localReady: localReady)
+    }
+
     /// The backend serving this provider, or nil when the local engine already is the answer.
     private func cloudBackend(_ provider: LLMProvider) -> (any GenerationBackend)? {
         switch provider {
