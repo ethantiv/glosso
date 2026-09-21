@@ -32,7 +32,7 @@ scripts/test.sh     # run the tests
 scripts/package.sh  # build a signed .zip you can drop into /Applications
 ```
 
-Releases are built and published manually; this repository has no GitHub Actions workflows. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
+The release workflow builds and publishes a new version when `MARKETING_VERSION` is bumped and merged into `main`. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
 ## Using the popup
 

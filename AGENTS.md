@@ -25,7 +25,7 @@ Follow existing Swift style: four-space indentation, `UpperCamelCase` types, and
 Use Swift Testing (`@Suite`, `@Test`, `#expect`) and name suites/files `<Feature>Tests`. Keep default tests offline using injected fakes, mock networking, and deterministic clocks. Isolate temporary storage and clean up fixtures. Coverage collection is enabled; no numeric minimum is configured. Run offline tests before submitting and manually verify changed UI flows.
 
 ## Commit & Pull Request Guidelines
-Recent commits commonly use `fix:`, `test:`, `refactor:`, `docs:`, and `chore:` prefixes with concise imperative descriptions. Keep commits focused. PRs should explain the behavior change, link relevant issues, list validation performed, and include screenshots for visual changes. Checks and releases run locally; no GitHub Actions workflows are configured.
+Recent commits commonly use `fix:`, `test:`, `refactor:`, `docs:`, and `chore:` prefixes with concise imperative descriptions. Keep commits focused. PRs should explain the behavior change, link relevant issues, list validation performed, and include screenshots for visual changes. Run checks locally. The GitHub Actions release workflow builds and publishes a new version on pushes to `main` when `MARKETING_VERSION` has no existing release. Automated review workflows remain disabled.
 
 ## Security & Configuration
 Keep API keys in Keychain or test environment variables, never committed files. Preserve release signing identity; follow `docs/DISTRIBUTION.md` for certificate setup and packaging.

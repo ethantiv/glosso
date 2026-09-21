@@ -1,0 +1,105 @@
+name: Release
+
+# Auto-release on merge to main: when MARKETING_VERSION in project.yml names a
+# version with no GitHub Release yet, build a signed .zip and publish it (creating
+# the vX.Y.Z tag). Merges that don't bump the version are no-ops. To cut a release,
+# bump MARKETING_VERSION in the PR — merging it is the trigger.
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write # gh release create needs to write Releases
+
+jobs:
+  # Cheap gate so the expensive macOS job only runs when there's a new version.
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.v.outputs.tag }}
+      released: ${{ steps.v.outputs.released }}
+    steps:
+      - uses: actions/checkout@v5
+      - id: v
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION=$(sed -n 's/.*MARKETING_VERSION:[[:space:]]*"\(.*\)".*/\1/p' project.yml | head -1)
+          TAG="v$VERSION"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "released=true" >> "$GITHUB_OUTPUT"
+            echo "::notice::$TAG already released — nothing to do."
+          else
+            echo "released=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    needs: check
+    if: needs.check.outputs.released == 'false'
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Select latest Xcode
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: latest-stable
+
+      - name: Import signing certificate
+        env:
+          CERT_B64: ${{ secrets.SIGNING_CERT_P12_BASE64 }}
+          CERT_PW: ${{ secrets.SIGNING_CERT_PASSWORD }}
+        run: |
+          set -euo pipefail
+          CERT="$RUNNER_TEMP/cert.p12"
+          KEYCHAIN="$RUNNER_TEMP/build.keychain-db"
+          KPW="$(uuidgen)"
+
+          echo "$CERT_B64" | base64 --decode > "$CERT"
+          security create-keychain -p "$KPW" "$KEYCHAIN"
+          security set-keychain-settings -lut 21600 "$KEYCHAIN"
+          security unlock-keychain -p "$KPW" "$KEYCHAIN"
+          security import "$CERT" -P "$CERT_PW" -A -t cert -f pkcs12 -k "$KEYCHAIN" -T /usr/bin/codesign
+          security set-key-partition-list -S apple-tool:,apple: -k "$KPW" "$KEYCHAIN" >/dev/null
+          security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
+          # Trust the self-signed root for code signing so xcodebuild treats it as a
+          # valid identity. Export the cert via `security` (the runner's LibreSSL has
+          # no `openssl pkcs12 -legacy`).
+          security find-certificate -c "Glosso Self-Signed" -p "$KEYCHAIN" > "$RUNNER_TEMP/cert.pem"
+          sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
+          security find-identity -v -p codesigning
+
+      - name: Build & package
+        run: |
+          brew install xcodegen
+          scripts/package.sh
+
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          gh release create "$TAG" \
+            .build/release/Glosso.zip \
+            --title "$TAG" \
+            --generate-notes
+
+      # Repoint the landing page's direct .zip download links at the just-released
+      # tag. Pushing with the default GITHUB_TOKEN does not retrigger this workflow.
+      - name: Update download links on site
+        env:
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          set -euo pipefail
+          sed -i '' -E "s#releases/download/v[0-9]+\.[0-9]+\.[0-9]+/Glosso\.zip#releases/download/$TAG/Glosso.zip#g" docs/index.html docs/en/index.html
+          if git diff --quiet; then
+            echo "Download links already at $TAG — nothing to do."
+            exit 0
+          fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add docs/index.html docs/en/index.html
+          git commit -m "docs(site): point download links at $TAG"
+          git push origin HEAD:main
