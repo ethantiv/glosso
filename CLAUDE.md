@@ -16,7 +16,7 @@ The Xcode project is **generated** by XcodeGen and is git-ignored. Never edit `*
 scripts/gen.sh      # regenerate Glosso.xcodeproj from project.yml
 scripts/build.sh    # xcodegen generate + xcodebuild (Debug, arm64) → .build/dd/...
 scripts/run.sh      # build + open the app (look for the bubble icon in the menu bar)
-scripts/test.sh     # xcodebuild test → .build/TestResults.xcresult
+scripts/test.sh     # offline tests → a unique .build/TestResults-*.xcresult
 scripts/package.sh  # Release build + signature-preserving zip → .build/release/Glosso.zip
 ```
 
@@ -30,7 +30,7 @@ Live "Cannot find type X" / "No such module 'Testing'" diagnostics in the editor
 
 There are no GitHub Actions workflows. Run local tests and review changes explicitly; pushes and PRs do not trigger automated reviews or releases.
 
-The popup and the Settings window **are** screenshottable, via `screencapture -x shot.png` in Bash (needs `dangerouslyDisableSandbox`, plus a one-time Screen Recording grant for the Claude host — without it the call fails with `could not create image from display`), then `Read` on the file and `sips -c h w --cropOffset top left` to crop out the panel. The `computer-use` MCP is **not** the way: `request_access` cannot resolve `Glosso`/`com.mirek.glosso` at all (an `LSUIElement` agent isn't enumerated as an application) and its screenshots filter every non-allowlisted app at the compositor level, so the popup and even the menu-bar glyph are missing from the image while the panel is provably on screen. `osascript -e 'tell application "System Events" to tell process "Glosso" to …'` reads the panel's title, subrole, and geometry (for example `Tłumaczenie · EN → PL`, `AXSystemDialog`) — enough to assert direction detection and window size without a picture, though the SwiftUI children aren't exposed. To trigger a capture headlessly: type into TextEdit, `cmd+a`, then two `cmd+c` in one `computer_batch` (the ~0.3s window tolerates back-to-back synthetic presses). Dark mode is checkable without touching the user's system appearance: launch with `open --env GLOSSO_FORCE_DARK=1 .build/dd/…/Glosso.app`, which pins `NSApp.appearance` to `.darkAqua` for that run only (`AppDelegate.applicationDidFinishLaunching`). Reduce Transparency and Increase Contrast have no such hook — those are system settings, so ask the user to toggle them. All of that is **on request only**: the user verifies native UI changes manually, so after one finish with `scripts/run.sh` and say what to look at — no `screencapture`, no computer-use, no synthetic keystrokes unless asked for them. The **`docs/` landing is web**, though, so it *is* verifiable headlessly: serve it (`python3 -m http.server`, needs `dangerouslyDisableSandbox`) and drive agent-browser (`set viewport W H`, `screenshot --full`).
+Native Glosso UI is verified manually by the user. Do not launch Computer Use for Glosso, capture its UI, or synthesize UI test gestures. Use offline tests for automated verification and report what the user should check manually. This preference was reaffirmed on 2026-09-21; the user reported that the security/performance refactor worked without problems in manual testing. The `docs/` web landing may still be verified separately in a browser.
 
 Tests use the **Swift Testing** framework (`import Testing`, `@Test`, `@Suite`, `#expect`) — not XCTest. To run one suite or test, add `-only-testing`:
 
@@ -40,7 +40,7 @@ xcodebuild test -project Glosso.xcodeproj -scheme Glosso \
   -only-testing:GlossoTests/AppCoordinatorTests
 ```
 
-`scripts/test.sh` prints only a terse "done" — for pass/fail/skip counts run `xcrun xcresulttool get test-results summary --path .build/TestResults.xcresult`. To iterate on a `PromptBuilder` change against the real model without rebuilding the app, POST the built prompt straight to Ollama: `curl -s localhost:11434/api/generate -d '{"model":"gemma4:26b-mlx","prompt":"…","stream":false,"think":false,"options":{"temperature":0},"keep_alive":"30m"}' | jq -r .response` (needs `dangerouslyDisableSandbox`). Mirror the locked options so the output matches the app's.
+`scripts/test.sh` prints the unique result-bundle path; use that path with `xcrun xcresulttool get test-results summary --path <result.xcresult>` for pass/fail/skip counts. Use `--adhoc` for test-only ad hoc signing. To iterate on a `PromptBuilder` change against the real model without rebuilding the app, POST the built prompt straight to Ollama: `curl -s localhost:11434/api/generate -d '{"model":"gemma4:26b-mlx","prompt":"…","stream":false,"think":false,"options":{"temperature":0},"keep_alive":"30m"}' | jq -r .response` (needs `dangerouslyDisableSandbox`). Mirror the locked options so the output matches the app's.
 
 ## Architecture
 
@@ -80,6 +80,6 @@ App icon and the custom menu-bar glyph live in `Sources/Assets.xcassets/` (`AppI
 ## Tests
 
 - `Tests/` — fast unit tests, no network, using the fakes in `Tests/Support/`. One of them measures real AppKit layout rather than pure functions: `PopupLayoutTests` renders `PopupView` and `AlternativesDropdown` in an `NSHostingView` and asserts each reports a non-zero ideal size that doesn't change on a second pass. Both windows size themselves from that measurement, so an unstable one feeds `setFrame` a new rectangle every runloop turn and a zero one opens an invisible window — and nothing else in the suite would notice either. It used to also check the dropdown's height against a hand-written reservation; that reservation died with the in-window overlay, since a window measures itself.
-- `TestsIntegration/` — three live suites that all **silently skip (return early) when their backend isn't reachable**, so the suite stays green without a daemon or a key: `OllamaLiveTests` (`localhost:11434`), `OllamaCloudLiveTests` and `GeminiLiveTests` (skip without an API key in the Keychain).
+- `TestsIntegration/` — separate `GlossoLiveTests` target and `GlossoLive` scheme. Run explicitly with `scripts/test.sh --live local|ollama-cloud|google`; cloud keys come only from `OLLAMA_API_KEY` or `GEMINI_API_KEY`. Missing configuration or services fail the requested run. Default offline tests never use live services or Keychain.
 - `Tests/Support/MockURLProtocol.swift` stubs `URLSession` — that's how `OllamaClient`/`GeminiClient`/`UpdateChecker` are tested without network.
 - Every test/helper file needs `@testable import Glosso` to see our types, and `import Foundation` when it uses Foundation types (for example `TimeInterval`). Helpers under `Tests/Support/` are easy to forget.
