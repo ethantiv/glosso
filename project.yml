@@ -61,10 +61,28 @@ targets:
     platform: macOS
     sources:
       - path: Tests
-      - path: TestsIntegration
     dependencies:
       - target: Glosso
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso.tests
         GENERATE_INFOPLIST_FILE: YES
+  GlossoLiveTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: TestsIntegration
+    dependencies:
+      - target: Glosso
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso.live-tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  GlossoLive:
+    build:
+      targets:
+        Glosso: all
+    test:
+      targets:
+        - GlossoLiveTests

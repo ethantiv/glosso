@@ -38,6 +38,7 @@ import Testing
         #expect(TranslationDirection.fromPrimary(.polish, .german).label == "PL → DE")
         #expect(TranslationDirection.toPrimary(.polish, .german).label == "DE → PL")
         #expect(TranslationDirection.fromPrimary(.polish, .english).label == "PL → EN")
+        #expect(TranslationDirection.toPrimary(.polish, .english).label == "EN → PL")
         #expect(TranslationDirection.fromPrimary(.english, .polish).label == "EN → PL")
         #expect(TranslationDirection.toPrimary(.english, .german).label == "DE → EN")
         #expect(TranslationDirection.unknown.label == "…")
