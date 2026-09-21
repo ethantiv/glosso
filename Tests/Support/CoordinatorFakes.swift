@@ -333,6 +333,14 @@ final class FakePasteboardReader: PasteboardReading {
 @MainActor
 final class FakeAXSelectionReader: AXSelectionReading {
     var text: String?
+    var snapshotPID: pid_t = 42
+    var elementID = "editor"
+    var selectedRange = NSRange(location: 0, length: 7)
+    var snapshotAvailable = true
+    func snapshot() -> SelectionSnapshot? {
+        guard snapshotAvailable, let text = selectedText(), !text.isEmpty else { return nil }
+        return SelectionSnapshot(pid: snapshotPID, element: elementID as NSString, range: selectedRange, text: text)
+    }
     var texts: [String?] = []
     private(set) var callCount = 0
     func selectedText() -> String? {

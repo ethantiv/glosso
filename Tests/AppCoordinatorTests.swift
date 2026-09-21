@@ -6,6 +6,7 @@ import Testing
 
 @MainActor
 @Suite struct AppCoordinatorTests {
+    private let pasteboard = NSPasteboard.withUniqueName()
     private func makeSettings(model: String = "test-model", second: SecondLanguage = .english, formality: Formality = .automatic) -> SettingsStore {
         let defaults = UserDefaults(suiteName: "AppCoordinatorTests-\(UUID().uuidString)")!
         let store = SettingsStore(defaults: defaults)
@@ -34,7 +35,7 @@ import Testing
             articleReader: articleReader,
             pollStepMs: 1,
             pollMaxAttempts: 5,
-            prefetchLingerMs: prefetchLingerMs
+            prefetchLingerMs: prefetchLingerMs, pasteboard: pasteboard
         )
     }
 
@@ -268,7 +269,7 @@ import Testing
         let coordinator = AppCoordinator(
             llm: FakeLLMClient(), monitor: monitor,
             reader: FakePasteboardReader(), axReader: FakeAXSelectionReader(), popup: FakePopup(),
-            settings: makeSettings()
+            settings: makeSettings(), pasteboard: pasteboard
         )
         #expect(coordinator.start() == false)
     }
@@ -282,7 +283,7 @@ import Testing
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup,
-            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5
+            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5, pasteboard: pasteboard
         )
 
         coordinator.start()
@@ -321,7 +322,7 @@ import Testing
             reader: FakePasteboardReader(),
             axReader: FakeAXSelectionReader(),
             popup: FakePopup(),
-            settings: makeSettings()
+            settings: makeSettings(), pasteboard: pasteboard
         )
 
         coordinator.stop()
@@ -338,7 +339,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }
+            frontmostPID: { 42 }, pasteboard: pasteboard
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -359,7 +360,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: settings, replacer: replacer,
-            frontmostPID: { 42 }
+            frontmostPID: { 42 }, pasteboard: pasteboard
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -377,7 +378,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }
+            frontmostPID: { 42 }, pasteboard: pasteboard
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42, action: .translate)
@@ -399,7 +400,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -426,7 +427,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
         coordinator.trailingChangeCounts = [4]  // snapshot from before the selection
 
@@ -451,7 +452,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: FakeSelectionReplacer(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
         coordinator.trailingChangeCounts = [5]  // the snapshot already saw this copy
 
@@ -476,7 +477,7 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { "com.apple.Terminal" },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -486,10 +487,10 @@ import Testing
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(replacer.replacedText == nil)   // no paste — would append in a terminal
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
-    @Test func fixGrammarFreshCopyInNonTerminalPastesInPlace() async {
+    @Test func fixGrammarFreshCopyInNonTerminalCopiesWithoutVerifiedTarget() async {
         let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = nil                     // AX read yields nothing
@@ -504,17 +505,18 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { "com.microsoft.VSCode" },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(llm.recorder.receivedText == "teh cat")
-        #expect(replacer.replacedText == "the cat")
-        #expect(messages.isEmpty)
+        #expect(replacer.replacedText == nil)
+        #expect(pasteboard.string(forType: .string) == "the cat")
+        #expect(messages.count == 1)
     }
 
-    @Test func fixGrammarEmptyAXReadThroughoutStillPastesInPlace() async {
+    @Test func fixGrammarEmptyAXReadThroughoutStillCopiesWithoutVerifiedTarget() async {
         let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = ""                      // non-nil empty, before and after
@@ -529,13 +531,14 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { "com.microsoft.VSCode" },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
-        #expect(replacer.replacedText == "the cat")
-        #expect(messages.isEmpty)
+        #expect(replacer.replacedText == nil)
+        #expect(pasteboard.string(forType: .string) == "the cat")
+        #expect(messages.count == 1)
     }
 
     @Test func fixGrammarUnknownBundleIDCopiesToClipboard() async {
@@ -553,14 +556,14 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { nil },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(replacer.replacedText == nil)
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
     @Test func fixGrammarCopiesToClipboardWhenSelectionCollapsed() async {
@@ -574,7 +577,7 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 42 },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -582,7 +585,7 @@ import Testing
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(replacer.replacedText == nil)   // no paste — would insert at cursor
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
     @Test func fixGrammarFallsBackToClipboardWhenAppChanged() async {
@@ -596,14 +599,14 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 99 },           // now a different app than the captured PID
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(replacer.replacedText == nil)
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
     @Test func stopDismissesAVisiblePopup() async {
@@ -1128,11 +1131,14 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let replacer = FakeSelectionReplacer()
+        let ax = FakeAXSelectionReader()
+        ax.text = reader.text
+        ax.snapshotPID = 123
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
-            axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
+            axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
 
         coordinator.start()
@@ -1155,7 +1161,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }   // a different app is frontmost now
+            frontmostPID: { 999 }, pasteboard: pasteboard // a different app is frontmost now
         )
 
         coordinator.start()
@@ -1163,7 +1169,8 @@ import Testing
         popup.onReplace?("Hello")
 
         #expect(replacer.replacedText == nil)
-        #expect(popup.errorMessage == loc("Aplikacja źródłowa się zmieniła — nie wklejono.", "The source app changed — nothing was pasted."))
+        #expect(popup.errorMessage != nil)
+        #expect(pasteboard.string(forType: .string) == "Hello")
         #expect(popup.dismissCount == 0)
     }
 
@@ -1180,7 +1187,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
 
         coordinator.start()
@@ -1188,7 +1195,8 @@ import Testing
         popup.onReplace?("Hello")
 
         #expect(replacer.replacedText == nil)
-        #expect(popup.errorMessage == "Brak zaznaczenia do zastąpienia.")
+        #expect(popup.errorMessage != nil)
+        #expect(pasteboard.string(forType: .string) == "Hello")
         #expect(popup.dismissCount == 0)
     }
 
@@ -1201,11 +1209,12 @@ import Testing
         let replacer = FakeSelectionReplacer()
         let ax = FakeAXSelectionReader()
         ax.text = "Dzień dobry"
+        ax.snapshotPID = 123
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
 
         coordinator.start()
@@ -1244,7 +1253,7 @@ import Testing
         #expect(popup.errorMessage == nil)
     }
 
-    @Test func clipboardTakesPrecedenceAndAXIsNotConsulted() async {
+    @Test func clipboardTakesPrecedenceOverTheSafetySnapshot() async {
         let llm = FakeLLMClient()
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = 0
@@ -1257,7 +1266,7 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == "Hello")
-        #expect(ax.callCount == 0)
+        #expect(ax.callCount == 1)
     }
 
     @Test func presentsErrorWhenClipboardAndAXBothFail() async {
@@ -1301,7 +1310,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }   // the app focused *now* differs from the source below
+            frontmostPID: { 999 }, pasteboard: pasteboard // the app focused *now* differs from the source below
         )
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
@@ -1322,7 +1331,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
