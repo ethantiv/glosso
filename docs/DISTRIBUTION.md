@@ -24,18 +24,22 @@ security find-identity -v -p codesigning   # must list "Glosso Self-Signed"
 > tccutil reset Accessibility com.mirek.glosso
 > ```
 
+### 2. Add CI secrets
+
+Export the certificate **with its private key** to a `.p12` (Keychain Access → select the cert + key → Export → `.p12`, set a password). Then in the GitHub repo, add **Settings → Secrets and variables → Actions**:
+
+- `SIGNING_CERT_P12_BASE64` — `base64 -i cert.p12 | pbcopy`
+- `SIGNING_CERT_PASSWORD` — the `.p12` password
+
+The `.p12`/`.pem`/`.cer` files are git-ignored; never commit them.
+
 ## Cutting a release
 
-There are no GitHub Actions workflows. Merging a PR does not build, review, tag, or publish a release.
+1. In a PR, bump `MARKETING_VERSION` in `project.yml` (e.g. `0.2.0`).
+2. Merge the PR to `main`. The `Release` workflow sees that `v0.2.0` has no release yet, builds, signs, and publishes `Glosso.zip` — creating the `v0.2.0` tag. Merges that don't change the version are no-ops (a cheap pre-check skips the macOS build).
+3. The in-app update check (menu bar → "Dostępna nowa wersja …") points users at the release page.
 
-1. Bump `MARKETING_VERSION` in `project.yml` in the release PR and run the local offline tests.
-2. After merging, check out the intended release commit and build with the stable signing certificate:
-   `CI=1 scripts/package.sh`. The existing `CI=1` switch skips installation and launching on the maintainer's Mac.
-3. Create a GitHub Release manually with tag `v<MARKETING_VERSION>` targeting that commit, and attach `.build/release/Glosso.zip`.
-4. Update any pinned download links in `docs/index.html` and `docs/en/index.html` to the published tag.
-5. Verify that the in-app update check points to the new release.
-
-Signing material stays in the maintainer's Keychain. The `.p12`/`.pem`/`.cer` files remain git-ignored; never commit them.
+Bumping the version *is* the release trigger — no manual tagging.
 
 The repository must be **public** so the unauthenticated GitHub API (`releases/latest`) and the release asset download work for everyone.
 
