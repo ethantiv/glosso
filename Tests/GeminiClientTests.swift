@@ -9,7 +9,7 @@ import Testing
         http.configure(configuration)
         return GeminiClient(
             session: URLSession(configuration: configuration),
-            limiter: limiter ?? GeminiRateLimiter(store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!)),
+            limiter: limiter ?? GeminiRateLimiter(store: DefaultsRef(TestDefaults())),
             keyProvider: { key },
             sleep: { _ in }
         )
@@ -148,10 +148,10 @@ import Testing
         }
     }
 
-    @Test func overloadedServerLooksLikeAnUnreachableCloud() async {
+    @Test(arguments: [500, 502, 503, 504]) func overloadedServerLooksLikeAnUnreachableCloud(status: Int) async {
         // 503 "model is overloaded" is routine on the free tier; only the errors RoutingLLMClient
         // treats as fallbackable keep the local engine as an escape hatch.
-        respond(503, #"{"error":{"code":503,"message":"The model is overloaded.","status":"UNAVAILABLE"}}"#)
+        respond(status, #"{"error":{"code":503,"message":"The model is overloaded.","status":"UNAVAILABLE"}}"#)
         defer { http.handler = nil }
 
         await #expect(throws: TranslationError.cloudUnreachable) {
@@ -172,7 +172,7 @@ import Testing
 
     @Test func aRefusedRequestSpendsNoQuota() async {
         // The key is checked on this machine, so the daily counter must not move for a call Google never saw.
-        let limiter = GeminiRateLimiter(store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!))
+        let limiter = GeminiRateLimiter(store: DefaultsRef(TestDefaults()))
         http.handler = { _ in
             Issue.record("no request should be sent without an API key")
             throw URLError(.unknown)

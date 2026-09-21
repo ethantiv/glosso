@@ -32,7 +32,7 @@ struct SettingsLayoutTests {
         for provider in LLMProvider.allCases {
             // No-op key readers: the cloud sections' SecureFields read the Keychain on appear, which on a re-signed
             // build pops the login-password dialog and stalls the run. The measured layout is the same either way.
-            let store = SettingsStore(defaults: UserDefaults(suiteName: UUID().uuidString)!,
+            let store = SettingsStore(defaults: TestDefaults(),
                                       systemLanguages: ["pl-PL"],
                                       readAPIKey: { nil },
                                       readOllamaAPIKey: { nil })
@@ -43,7 +43,7 @@ struct SettingsLayoutTests {
                 cloudLister: StubLister(),
                 engine: StubEngine(),
                 modelManager: StubModelManager(),
-                limiter: GeminiRateLimiter(store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!))
+                limiter: GeminiRateLimiter(store: DefaultsRef(TestDefaults()))
             ))
             // In a window, or SwiftUI never lays the scroll content out and the document view measures zero.
             let window = NSWindow(contentRect: CGRect(x: 0, y: 0, width: 520, height: 2000),

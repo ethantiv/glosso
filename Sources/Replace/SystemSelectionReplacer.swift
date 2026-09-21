@@ -10,18 +10,21 @@ final class SystemSelectionReplacer: SelectionReplacing {
     // 1s tolerates apps that dequeue the synthetic Cmd+V late; raise it if a slow Electron target still pastes stale.
     private let restoreDelay: Duration
     private let pasteboard: NSPasteboard
+    private let sleep: @Sendable (Duration) async throws -> Void
     private let sendKey: ((CGKeyCode) -> Void)?
 
     init(pasteboard: NSPasteboard = .general, restoreDelay: Duration = .seconds(1),
-         sendKey: ((CGKeyCode) -> Void)? = nil) {
+         sendKey: ((CGKeyCode) -> Void)? = nil,
+         sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) }) {
         self.pasteboard = pasteboard
         self.restoreDelay = restoreDelay
         self.sendKey = sendKey
+        self.sleep = sleep
     }
 
     /// Survives across overlapping calls: the second replace must keep the *user's* clipboard, not translation #1.
     private var savedItems: [NSPasteboardItem]?
-    private var restoreTask: Task<Void, Never>?
+    private(set) var restoreTask: Task<Void, Never>?
 
     func replace(with text: String) {
         let pasteboard = self.pasteboard
@@ -34,8 +37,10 @@ final class SystemSelectionReplacer: SelectionReplacing {
         let writtenChangeCount = pasteboard.changeCount
         synthesize(keyCode: vKeyCode)
 
+        let sleep = self.sleep
+        let delay = restoreDelay
         restoreTask = Task { @MainActor [weak self] in
-            try? await Task.sleep(for: self?.restoreDelay ?? .seconds(1))
+            try? await sleep(delay)
             guard let self, !Task.isCancelled else { return }
             defer { self.savedItems = nil }
             let pasteboard = self.pasteboard

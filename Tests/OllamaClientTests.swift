@@ -334,10 +334,10 @@ import Testing
         }
     }
 
-    @Test func aRejectedKeyIsReportedAsInvalidNotAsAnOllamaError() async {
+    @Test(arguments: [401, 403]) func aRejectedKeyIsReportedAsInvalidNotAsAnOllamaError(status: Int) async {
         // The cloud answers 401 with {"error":"Unauthorized"}, which would decode into `.ollamaError` — and that never falls back.
         http.handler = { request in
-            (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+            (HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
              #"{"error":"Unauthorized"}"#.data(using: .utf8)!)
         }
         defer { http.handler = nil }
@@ -347,9 +347,9 @@ import Testing
         }
     }
 
-    @Test func aRejectedKeyStopsTheStreamWithInvalidKeyToo() async {
+    @Test(arguments: [401, 403]) func aRejectedKeyStopsTheStreamWithInvalidKeyToo(status: Int) async {
         http.handler = { request in
-            (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+            (HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
              (#"{"error":"Unauthorized"}"# + "\n").data(using: .utf8)!)
         }
         defer { http.handler = nil }

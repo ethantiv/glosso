@@ -32,10 +32,10 @@ final class AppCoordinator {
         "dev.warp.Warp-Stable", "co.zeit.hyper",
     ]
 
-    private var captureTask: Task<Void, Never>?
+    private(set) var captureTask: Task<Void, Never>?
     private var fixTask: Task<Void, Never>?
 
-    private var prefetchTask: Task<Void, Never>?
+    private(set) var prefetchTask: Task<Void, Never>?
 
     private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
     private var actionCache: [Action: ActionResult] = [:]

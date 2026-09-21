@@ -3,11 +3,11 @@ import Testing
 @testable import Glosso
 
 @Suite struct SavedArticleStoreTests {
+    private let directory = TestDirectory()
     private let store: SavedArticleStore
 
     init() {
-        store = SavedArticleStore(directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true))
+        store = SavedArticleStore(directory: directory.url)
     }
 
     private func makeEntry(url: String = "https://example.com/article",

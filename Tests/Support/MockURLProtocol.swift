@@ -13,7 +13,7 @@ final class HTTPFixture: @unchecked Sendable {
         configuration.protocolClasses = [MockURLProtocol.self]
         configuration.httpAdditionalHeaders = [MockURLProtocol.fixtureHeader: id]
     }
-    deinit { MockURLProtocol.handlers.withLock { $0.removeValue(forKey: id) } }
+    deinit { _ = MockURLProtocol.handlers.withLock { $0.removeValue(forKey: id) } }
 }
 
 final class MockURLProtocol: URLProtocol {

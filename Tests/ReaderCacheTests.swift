@@ -3,11 +3,11 @@ import Testing
 @testable import Glosso
 
 @Suite struct ReaderCacheTests {
+    private let directory = TestDirectory()
     private let cache: ReaderCache
 
     init() {
-        cache = ReaderCache(directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true))
+        cache = ReaderCache(directory: directory.url)
     }
 
     private func makeEntry(url: String = "https://example.com/article",

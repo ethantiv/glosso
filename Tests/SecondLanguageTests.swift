@@ -34,14 +34,17 @@ import Testing
     }
 
     // The popup arrow reads the pair off both sides' codes.
-    @Test func directionLabelsUseTheLanguageCodes() {
-        #expect(TranslationDirection.fromPrimary(.polish, .german).label == "PL → DE")
-        #expect(TranslationDirection.toPrimary(.polish, .german).label == "DE → PL")
-        #expect(TranslationDirection.fromPrimary(.polish, .english).label == "PL → EN")
-        #expect(TranslationDirection.toPrimary(.polish, .english).label == "EN → PL")
-        #expect(TranslationDirection.fromPrimary(.english, .polish).label == "EN → PL")
-        #expect(TranslationDirection.toPrimary(.english, .german).label == "DE → EN")
-        #expect(TranslationDirection.unknown.label == "…")
+    @Test(arguments: [
+        (TranslationDirection.fromPrimary(.polish, .german), "PL → DE"),
+        (.toPrimary(.polish, .german), "DE → PL"),
+        (.fromPrimary(.polish, .english), "PL → EN"),
+        (.toPrimary(.polish, .english), "EN → PL"),
+        (.fromPrimary(.english, .polish), "EN → PL"),
+        (.toPrimary(.english, .german), "DE → EN"),
+        (.unknown, "…"),
+    ])
+    func directionLabelsUseTheLanguageCodes(direction: TranslationDirection, label: String) {
+        #expect(direction.label == label)
     }
 
     @Test func primaryCounterpartFlipsThePair() {

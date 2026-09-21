@@ -3,7 +3,7 @@ import Testing
 @testable import Glosso
 
 @MainActor
-@Suite struct SelectionReplacementTests {
+@Suite(.timeLimit(.minutes(1))) struct SelectionReplacementTests {
     @Test(arguments: ["pid", "element", "range", "text", "missing"])
     func changedTargetIsNeverReplaced(change: String) {
         let original = SelectionSnapshot(pid: 42, element: "editor" as NSString,
@@ -28,15 +28,44 @@ import Testing
         let llm = FakeLLMClient(events: events, error: kind == "error" ? .malformedStream : nil)
         let ax = FakeAXSelectionReader(); ax.text = "original"
         let replacer = FakeSelectionReplacer()
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let defaults = TestDefaults()
         var messages: [String] = []
         let coordinator = AppCoordinator(llm: llm, monitor: FakeHotkeyMonitor(), reader: FakePasteboardReader(),
             axReader: ax, popup: FakePopup(), settings: SettingsStore(defaults: defaults), replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard, notify: { messages.append($0) })
+            frontmostPID: { 42 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) })
         await coordinator.fixGrammarInPlace(sourcePID: 42)
         #expect(replacer.replacedText == nil)
         #expect(pasteboard.changeCount == baseline)
         #expect(!messages.isEmpty)
+    }
+
+    @Test(arguments: ["cancel", "changed", "missing", "success"])
+    func suspendedShortcutVerifiesTargetAndCompletion(outcome: String) async {
+        let board = NSPasteboard.withUniqueName()
+        defer { board.releaseGlobally() }
+        board.setString("original clipboard", forType: .string)
+        let baseline = board.changeCount
+        let gate = StreamGate()
+        let llm = FakeLLMClient(events: [.token("complete result"), .finished(doneReason: nil)], gate: gate)
+        let ax = FakeAXSelectionReader(); ax.text = "original"
+        let replacer = FakeSelectionReplacer()
+        let coordinator = AppCoordinator(llm: llm, monitor: FakeHotkeyMonitor(), reader: FakePasteboardReader(),
+            axReader: ax, popup: FakePopup(), settings: SettingsStore(defaults: TestDefaults()), replacer: replacer,
+            frontmostPID: { 42 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: board, notify: { _ in })
+        defer { coordinator.stop() }
+        let task = Task { await coordinator.fixGrammarInPlace(sourcePID: 42) }
+        await llm.streamStarted.wait()
+        if outcome == "cancel" { task.cancel() }
+        if outcome == "changed" { ax.text = "different selection" }
+        if outcome == "missing" { ax.snapshotAvailable = false }
+        gate.release()
+        await task.value
+        #expect(replacer.replacedText == (outcome == "success" ? "complete result" : nil))
+        if outcome == "changed" || outcome == "missing" {
+            #expect(board.string(forType: .string) == "complete result")
+        } else {
+            #expect(board.changeCount == baseline)
+        }
     }
 
     @Test func ollamaExplicitFinishWithoutReasonIsComplete() {
@@ -50,12 +79,16 @@ import Testing
         let pasteboard = NSPasteboard.withUniqueName()
         defer { pasteboard.releaseGlobally() }
         pasteboard.setString("original", forType: .string)
-        let replacer = SystemSelectionReplacer(pasteboard: pasteboard, restoreDelay: .milliseconds(10), sendKey: { _ in })
+        let clock = ManualTestClock()
+        let replacer = SystemSelectionReplacer(pasteboard: pasteboard, restoreDelay: .milliseconds(10),
+            sendKey: { _ in }, sleep: { try await clock.sleep(for: $0) })
         replacer.replace(with: "translated")
         pasteboard.clearContents()
         pasteboard.setString("translated", forType: .string)
         let userChange = pasteboard.changeCount
-        try await Task.sleep(for: .milliseconds(40))
+        await clock.waitForSleepers(1)
+        await clock.advance(by: .milliseconds(10))
+        await replacer.restoreTask?.value
         #expect(pasteboard.changeCount == userChange)
         #expect(pasteboard.string(forType: .string) == "translated")
     }
@@ -67,9 +100,13 @@ import Testing
         item.setString("original", forType: .string)
         item.setData(Data([1, 2, 3]), forType: .rtf)
         pasteboard.writeObjects([item])
-        let replacer = SystemSelectionReplacer(pasteboard: pasteboard, restoreDelay: .milliseconds(10), sendKey: { _ in })
+        let clock = ManualTestClock()
+        let replacer = SystemSelectionReplacer(pasteboard: pasteboard, restoreDelay: .milliseconds(10),
+            sendKey: { _ in }, sleep: { try await clock.sleep(for: $0) })
         replacer.replace(with: "translated")
-        try await Task.sleep(for: .milliseconds(40))
+        await clock.waitForSleepers(1)
+        await clock.advance(by: .milliseconds(10))
+        await replacer.restoreTask?.value
         #expect(pasteboard.string(forType: .string) == "original")
         #expect(pasteboard.data(forType: .rtf) == Data([1, 2, 3]))
     }

@@ -3,7 +3,12 @@ import Testing
 @testable import Glosso
 
 private final class URLRecorder: @unchecked Sendable {
-    var url: URL?
+    private let lock = NSLock()
+    private var stored: URL?
+    var url: URL? {
+        get { lock.withLock { stored } }
+        set { lock.withLock { stored = newValue } }
+    }
 }
 
 @Suite struct OllamaModelListerTests {
