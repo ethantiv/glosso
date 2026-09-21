@@ -83,6 +83,41 @@ import WebKit
         #expect(try await web.evaluateReaderString("document.querySelector('strong').textContent") == "Translated")
     }
 
+    @Test func savedLibraryRendersRowsAndRefreshesPinState() async throws {
+        let web = try await makeWeb()
+        let rows = #"[{"url":"https://example.com/one","title":"First","original":"Original","age":"Today","pinned":false},{"url":"https://example.com/two","title":"Second","pinned":true}]"#
+        _ = try await web.evaluateReaderString(ReaderTemplate.call("glossoSetSaved", rows))
+        #expect(try await web.evaluateReaderString("String(document.querySelectorAll('.glosso-saved-row').length)") == "2")
+        #expect(try await web.evaluateReaderString("document.querySelector('.glosso-saved-title').textContent") == "First")
+        #expect(try await web.evaluateReaderString("String(document.querySelectorAll('.glosso-saved-pin svg').length)") == "2")
+        #expect(try await web.evaluateReaderString("String(document.querySelectorAll('.glosso-pinned').length)") == "1")
+        _ = try await web.evaluateReaderString(ReaderTemplate.call("glossoSetSaved", "[]"))
+        #expect(try await web.evaluateReaderString("String(document.querySelectorAll('.glosso-saved-row').length)") == "0")
+        #expect(try await web.evaluateReaderString("document.querySelector('#glosso-saved-empty').style.display") == "block")
+    }
+
+    @Test func responsiveImagesRetainValidatedSourcesIncludingOnReplay() async throws {
+        let web = try await makeWeb()
+        var html = #"<picture><source media="(min-width: 800px)" srcset="/wide.webp 800w, /large.webp 1600w"><img srcset="../small.jpg 1x, /large.jpg 2x" sizes="100vw"></picture>"#
+        for _ in 0..<2 {
+            _ = try await web.evaluateReaderString(ReaderTemplate.call("glossoSetArticle", "T", "", html))
+            #expect(try await web.evaluateReaderString("document.querySelector('#glosso-content img').getAttribute('srcset')") == "https://example.com/small.jpg 1x, https://example.com/large.jpg 2x")
+            #expect(try await web.evaluateReaderString("document.querySelector('#glosso-content source').getAttribute('srcset')") == "https://example.com/wide.webp 800w, https://example.com/large.webp 1600w")
+            html = try #require(await web.evaluateReaderString("document.querySelector('#glosso-content').innerHTML"))
+        }
+    }
+
+    @Test func srcsetRejectsUnsafeCandidatesAndPreservesRasterDataURLs() async throws {
+        let web = try await makeWeb()
+        let html = #"<img srcset="javascript:alert(1) 1x, file:///tmp/image.png 2x, data:text/html,bad 3x, data:image/svg+xml,bad 4x, /bad.png nope, /good.png 5x"><img srcset="data:image/png;base64,iVBORw0KGgo= 1x, /fallback.png 2x"><img srcset="/plain.png, /double.png 2x"><img srcset="javascript:alert(1) 1x, file:///tmp/x 2x">"#
+        _ = try await web.evaluateReaderString(ReaderTemplate.call("glossoSetArticle", "T", "", html))
+        #expect(try await web.evaluateReaderString("document.querySelectorAll('#glosso-content img')[0].getAttribute('srcset')") == "https://example.com/good.png 5x")
+        let raster = try await web.evaluateReaderString("document.querySelectorAll('#glosso-content img')[1].getAttribute('srcset')")
+        #expect(raster == "data:image/png;base64,iVBORw0KGgo= 1x, https://example.com/fallback.png 2x")
+        #expect(try await web.evaluateReaderString("document.querySelectorAll('#glosso-content img')[2].getAttribute('srcset')") == "https://example.com/plain.png, https://example.com/double.png 2x")
+        #expect(try await web.evaluateReaderString("document.querySelectorAll('#glosso-content img')[3].getAttribute('srcset')") == nil)
+    }
+
     @Test func pageWorldCannotAccessReaderFunctions() async throws {
         let web = try await makeWeb()
         #expect(try await web.evaluateStringResult("typeof glossoSetArticle") == "undefined")

@@ -510,7 +510,6 @@ enum ReaderTemplate {
           + '<path d="M5.5 1.75h5v4.75l1.75 2.25h-8.5l1.75-2.25z M8 8.75v5.5" '
           + 'fill="' + (row.pinned ? 'currentColor' : 'none') + '" stroke="currentColor" '
           + 'stroke-width="1.3" stroke-linejoin="round" stroke-linecap="round"/></svg>';
-        glossoSanitize(pin);
         pin.setAttribute('aria-label', row.pinned ? '\(loc("Odepnij", "Unpin"))' : '\(loc("Przypnij", "Pin"))');
         pin.addEventListener('click', function() {
           glossoPost({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});
