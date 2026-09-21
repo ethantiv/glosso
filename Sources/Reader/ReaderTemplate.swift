@@ -75,6 +75,7 @@ enum ReaderTemplate {
     <html>
     <head>
     <meta charset="utf-8">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; media-src http: https:; frame-src https://dailymotion.com https://www.dailymotion.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.player.vimeo.com https://v.qq.com https://www.v.qq.com https://player.twitch.tv https://www.player.twitch.tv; object-src 'none'; base-uri 'none'; form-action 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       :root { color-scheme: light dark;
@@ -310,21 +311,11 @@ enum ReaderTemplate {
         <div id="glosso-saved-empty">\(loc("Brak zapisanych artykułów.", "No saved articles yet."))</div>
       </div>
     </div>
-    <script>
-    function glossoSanitize(root) {
-      for (const el of root.querySelectorAll('*')) {
-        // META can navigate (http-equiv=refresh) and BASE rewrites every relative URL on the page.
-        if (el.tagName === 'META' || el.tagName === 'BASE') { el.remove(); continue; }
-        for (const attr of Array.from(el.attributes)) {
-          const name = attr.name.toLowerCase();
-          if (name.startsWith('on') || name === 'srcdoc') { el.removeAttribute(attr.name); continue; }
-          if (['href', 'src', 'data', 'xlink:href', 'action', 'formaction'].includes(name)
-              && attr.value.trim().toLowerCase().startsWith('javascript:')) {
-            el.removeAttribute(attr.name);
-          }
-        }
-      }
+    </body>
+    </html>
+    """
     }
+    static var script: String { """
     const glosso = {
       mode: 'translated',
       original: {},          // id -> original innerHTML
@@ -344,8 +335,7 @@ enum ReaderTemplate {
       heading.classList.add('glosso-pending');
       document.getElementById('glosso-byline').textContent = byline || '';
       const content = document.getElementById('glosso-content');
-      content.innerHTML = html;
-      glossoSanitize(content);
+      glossoSetHTML(content, html);
       const SKIP = ['IMG', 'HR', 'TABLE', 'PRE', 'VIDEO', 'IFRAME'];
       const blocks = [];
       const register = function(el, translatable) {
@@ -385,8 +375,7 @@ enum ReaderTemplate {
       const el = document.querySelector('[data-glosso-id="' + id + '"]');
       if (!el) { return; }
       const had = Array.from(el.querySelectorAll('img'));
-      el.innerHTML = html;
-      glossoSanitize(el);
+      glossoSetHTML(el, html);
       const have = new Set(Array.from(el.querySelectorAll('img')).map(img => img.getAttribute('src')));
       for (const img of had) {
         if (!have.has(img.getAttribute('src'))) { el.appendChild(img); }
@@ -471,7 +460,7 @@ enum ReaderTemplate {
       document.getElementById('glosso-retention').value = days;
     }
     document.getElementById('glosso-retention').addEventListener('change', function() {
-      window.webkit?.messageHandlers?.glosso?.postMessage({action: 'retention', days: this.value});
+      glossoPost({action: 'retention', days: this.value});
     });
     // An idempotent setter like glossoSetMode: Swift owns which body the shared panel shows.
     function glossoPanelMode(mode) {
@@ -512,7 +501,7 @@ enum ReaderTemplate {
         open.appendChild(title);
         open.appendChild(meta);
         open.addEventListener('click', function() {
-          window.webkit?.messageHandlers?.glosso?.postMessage({action: 'open', url: row.url});
+          glossoPost({action: 'open', url: row.url});
         });
         const pin = document.createElement('button');
         pin.type = 'button';
@@ -524,7 +513,7 @@ enum ReaderTemplate {
         glossoSanitize(pin);
         pin.setAttribute('aria-label', row.pinned ? '\(loc("Odepnij", "Unpin"))' : '\(loc("Przypnij", "Pin"))');
         pin.addEventListener('click', function() {
-          window.webkit?.messageHandlers?.glosso?.postMessage({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});
+          glossoPost({action: 'pin', url: row.url, on: row.pinned ? '' : '1'});
         });
         item.appendChild(open);
         item.appendChild(pin);
@@ -584,14 +573,14 @@ enum ReaderTemplate {
       messages.appendChild(a);
       messages.scrollTop = messages.scrollHeight;
       glossoChatBusy(true);
-      window.webkit?.messageHandlers?.glosso?.postMessage({action: 'ask', question: question});
+      glossoPost({action: 'ask', question: question});
     }
     function glossoAnswer(answer, error) {
       const pending = document.querySelector('.glosso-chat-pending');
       if (!pending) { return; }
       pending.classList.remove('glosso-chat-pending');
       // The answer arrives as rendered markdown; the error is our own string and stays text.
-      if (answer) { pending.innerHTML = answer; glossoSanitize(pending); }
+      if (answer) { glossoSetHTML(pending, answer); }
       else { pending.textContent = error; pending.classList.add('glosso-chat-error'); }
       glossoChatBusy(false);
       const messages = document.getElementById('glosso-chat-messages');
@@ -610,8 +599,7 @@ enum ReaderTemplate {
       lang.className = 'glosso-interlinear-lang';
       lang.textContent = '\(loc("Oryginał", "Original"))';
       const text = document.createElement('div');
-      text.innerHTML = glosso.original[block.dataset.glossoId];
-      glossoSanitize(text);
+      glossoSetHTML(text, glosso.original[block.dataset.glossoId]);
       note.appendChild(lang);
       note.appendChild(text);
       block.appendChild(note);
@@ -643,9 +631,7 @@ enum ReaderTemplate {
     }
     document.addEventListener('scroll', glossoProgress, {passive: true});
     window.addEventListener('resize', glossoProgress);
-    </script>
-    </body>
-    </html>
     """
     }
+
 }

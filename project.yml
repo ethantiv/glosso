@@ -33,6 +33,14 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+        excludes:
+          - Reader/ReaderSanitizer.js
+      - path: Sources/Reader/ReaderSanitizer.js
+        buildPhase: resources
+      - path: Vendor/purify.min.js
+        buildPhase: resources
+      - path: Vendor/DOMPurify-LICENSE
+        buildPhase: resources
       # XcodeGen classifies .js as compilable source; force the vendored
       # Readability into Copy Bundle Resources instead.
       - path: Vendor/Readability.js

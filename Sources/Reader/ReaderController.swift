@@ -18,7 +18,9 @@ final class ReaderController: ReaderPresenting {
     enum PanelContent { case chat, saved }
 
     private var window: NSWindow?
-    private var webView: WKWebView?
+    fileprivate var webView: WKWebView?
+    fileprivate var documentSession: String?
+    private let navigator = ReaderNavigationDelegate()
     private var translationTask: Task<Void, Never>?
     private var suggestTask: Task<Void, Never>?
     private var askTask: Task<Void, Never>?
@@ -121,6 +123,7 @@ final class ReaderController: ReaderPresenting {
 
     /// The shared new-article reset; panel handling stays with the callers, which disagree about it.
     private func resetForArticle(_ url: URL) {
+        documentSession = nil
         currentURL = url
         translationTask?.cancel()
         suggestTask?.cancel()
@@ -192,11 +195,18 @@ final class ReaderController: ReaderPresenting {
     }
 
     private func loadTemplate(in webView: WKWebView, baseURL: URL?) async throws {
-        let watcher = NavigationWatcher()
-        webView.navigationDelegate = watcher
-        try await watcher.awaitNavigation(in: webView, timeout: .seconds(5)) {
-            webView.loadHTMLString(ReaderTemplate.html, baseURL: baseURL)
+        try Task.checkCancellation()
+        let session = UUID().uuidString
+        documentSession = session
+        webView.navigationDelegate = navigator
+        navigator.loadingTemplate = true
+        defer { navigator.loadingTemplate = false }
+        try await navigator.awaitNavigation(in: webView, timeout: .seconds(5)) {
+            webView.loadHTMLString(ReaderTemplate.html, baseURL: nil)
         }
+        try Task.checkCancellation()
+        guard documentSession == session else { throw CancellationError() }
+        _ = try await webView.evaluateReaderString(ReaderWebSecurity.bootstrap(session: session, sourceURL: baseURL))
     }
 
     private func replay(_ entry: ReaderCache.Entry, in webView: WKWebView) async throws {
@@ -206,11 +216,11 @@ final class ReaderController: ReaderPresenting {
         if Task.isCancelled { return }
         await applyTitle(entry.translatedTitle, in: webView)
         if !entry.summary.isEmpty {
-            _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetSummary", entry.summary))
+            _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoSetSummary", entry.summary))
         }
         for (id, html) in entry.translations.sorted(by: { $0.key < $1.key }) {
             if Task.isCancelled { return }
-            _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoApply", String(id), html))
+            _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoApply", String(id), html))
         }
         setStatus("")
     }
@@ -220,7 +230,7 @@ final class ReaderController: ReaderPresenting {
         _ article: ArticleExtractor.ExtractedArticle, engine: String?, in webView: WKWebView
     ) async throws -> [ReaderTemplate.Block] {
         let call = ReaderTemplate.call("glossoSetArticle", article.title, article.byline ?? "", article.content)
-        guard let json = try await webView.evaluateStringResult(call),
+        guard let json = try await webView.evaluateReaderString(call),
               let blocks = try? JSONDecoder().decode([ReaderTemplate.Block].self, from: Data(json.utf8))
         else { throw ReaderError.extractionFailed }
         // Always set both, never only on a hit: the control outlives the article, so a nil detection would otherwise
@@ -356,7 +366,7 @@ final class ReaderController: ReaderPresenting {
                             pinned: entry.pinned == true)
         }
         let json = (try? JSONEncoder().encode(rows)).flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetSaved", json), completionHandler: nil)
+        webView.evaluateReaderJavaScript(ReaderTemplate.call("glossoSetSaved", json), completionHandler: nil)
     }
 
     /// Who translated *this* text, kept in the window's subtitle — a cached replay can outlive a provider switch.
@@ -431,7 +441,7 @@ final class ReaderController: ReaderPresenting {
         // The window and webview are shared across runs — a superseded run resuming here after its await
         // would paint the previous article's title onto the next one's page.
         guard !Task.isCancelled else { return }
-        _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetTitle", title))
+        _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoSetTitle", title))
         guard !Task.isCancelled else { return }
         window?.title = title
     }
@@ -440,7 +450,7 @@ final class ReaderController: ReaderPresenting {
     // it if long-article summaries come out thin. Sliced in JS so a long
     // article isn't bridged out of the web process just to be truncated.
     private func headText(in webView: WKWebView) async -> String {
-        (try? await webView.evaluateStringResult(
+        (try? await webView.evaluateReaderString(
             "document.getElementById('glosso-content').textContent.slice(0, 6000)")) ?? ""
     }
 
@@ -449,7 +459,7 @@ final class ReaderController: ReaderPresenting {
         guard let cleaned = try? await llm.readerSummary(of: text, into: settings.primaryLanguage, model: settings.activeModel) else { return "" }
         if Task.isCancelled { return "" }
         if !cleaned.isEmpty {
-            _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetSummary", cleaned))
+            _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoSetSummary", cleaned))
         }
         return cleaned
     }
@@ -497,7 +507,7 @@ final class ReaderController: ReaderPresenting {
                               String(translatable.map(\.html).joined(separator: " ").prefix(6000))) {
             for block in translatable {
                 if Task.isCancelled { return nil }
-                _ = try? await webView.evaluateStringResult(
+                _ = try? await webView.evaluateReaderString(
                     ReaderTemplate.call("glossoApply", String(block.id), block.html))
                 applied[block.id] = block.html
             }
@@ -509,7 +519,7 @@ final class ReaderController: ReaderPresenting {
         for block in translatable {
             if Task.isCancelled { return nil }
             if Self.isConfidently(in: settings.primaryLanguage, block.html) {
-                _ = try? await webView.evaluateStringResult(
+                _ = try? await webView.evaluateReaderString(
                     ReaderTemplate.call("glossoApply", String(block.id), block.html))
                 applied[block.id] = block.html
             } else {
@@ -558,13 +568,13 @@ final class ReaderController: ReaderPresenting {
                         done += 1
                         consecutiveFailures = Self.countsTowardAbort(error) ? consecutiveFailures + 1 : 0
                         if consecutiveFailures >= 2 {
-                            _ = try? await webView.evaluateStringResult("glossoAbort()")
+                            _ = try? await webView.evaluateReaderString("glossoAbort()")
                             let detail = (error as? TranslationError).map { " " + $0.userMessage } ?? ""
                             setStatus(loc("Tłumaczenie przerwane — reszta w oryginale.",
                                           "Translation stopped — the rest stays in the original language.") + detail)
                             return nil
                         }
-                        _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
+                        _ = try? await webView.evaluateReaderString(ReaderTemplate.call(
                             "glossoApply", String(block.id), block.html))
                         continue
                     }
@@ -573,7 +583,7 @@ final class ReaderController: ReaderPresenting {
                 if Task.isCancelled { return nil }
                 // An empty result must still un-dim its block — re-apply the original.
                 let html = translated.isEmpty ? block.html : translated
-                _ = try? await webView.evaluateStringResult(ReaderTemplate.call(
+                _ = try? await webView.evaluateReaderString(ReaderTemplate.call(
                     "glossoApply", String(block.id), html))
                 applied[block.id] = html
                 done += 1
@@ -644,7 +654,7 @@ final class ReaderController: ReaderPresenting {
     // the article". Sliced in JS like summarize(), read fresh per request so the
     // chat always sees the currently displayed text.
     private func chatContext(in webView: WKWebView) async -> String {
-        (try? await webView.evaluateStringResult(
+        (try? await webView.evaluateReaderString(
             "document.getElementById('glosso-content').textContent.slice(0, 12000)")) ?? ""
     }
 
@@ -664,7 +674,7 @@ final class ReaderController: ReaderPresenting {
             if questions.isEmpty { self.questionsRequested = false }
             let json = (try? JSONEncoder().encode(questions))
                 .flatMap { String(data: $0, encoding: .utf8) } ?? "[]"
-            _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoSetQuestions", json))
+            _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoSetQuestions", json))
         }
     }
 
@@ -681,13 +691,13 @@ final class ReaderController: ReaderPresenting {
                     into: self.settings.primaryLanguage, model: self.settings.activeModel)
                 if Task.isCancelled { return }
                 self.chatHistory.append((question, answer))
-                _ = try? await webView.evaluateStringResult(
+                _ = try? await webView.evaluateReaderString(
                     ReaderTemplate.call("glossoAnswer", ReaderTemplate.markdown(answer), ""))
             } catch {
                 if Task.isCancelled { return }
                 let message = (error as? TranslationError)?.userMessage
                     ?? loc("Nie udało się uzyskać odpowiedzi.", "Could not get an answer.")
-                _ = try? await webView.evaluateStringResult(ReaderTemplate.call("glossoAnswer", "", message))
+                _ = try? await webView.evaluateReaderString(ReaderTemplate.call("glossoAnswer", "", message))
             }
         }
     }
@@ -709,7 +719,7 @@ final class ReaderController: ReaderPresenting {
         guard mode != newMode else { return }
         // Record it even with no webview to talk to, or the control and this flag disagree and the next click no-ops.
         mode = newMode
-        webView?.evaluateJavaScript(ReaderTemplate.call("glossoSetMode", newMode.jsValue), completionHandler: nil)
+        webView?.evaluateReaderJavaScript(ReaderTemplate.call("glossoSetMode", newMode.jsValue), completionHandler: nil)
     }
 
     func toggleChatPanel() {
@@ -742,22 +752,22 @@ final class ReaderController: ReaderPresenting {
         // Mode before open — glossoSetChat's focus guard reads the class glossoPanelMode sets. On close the
         // mode is not sent at all: glossoPanelMode('chat') would focus the input of the panel being hidden.
         if open {
-            webView.evaluateJavaScript(
+            webView.evaluateReaderJavaScript(
                 ReaderTemplate.call("glossoPanelMode", panelContent == .saved ? "saved" : "chat"), completionHandler: nil)
         }
-        webView.evaluateJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : "", width), completionHandler: nil)
+        webView.evaluateReaderJavaScript(ReaderTemplate.call("glossoSetChat", open ? "1" : "", width), completionHandler: nil)
         showChatItemOpen(panelContent == .chat)
         showBrowseItemOpen(panelContent == .saved)
         switch panelContent {
         case .saved:
-            webView.evaluateJavaScript(
+            webView.evaluateReaderJavaScript(
                 ReaderTemplate.call("glossoSetRetention", String(settings.readerRetentionDays)),
                 completionHandler: nil)
             pushSavedList(in: webView)
         case .chat:
             if !questionsRequested {
                 questionsRequested = true
-                webView.evaluateJavaScript(ReaderTemplate.call("glossoSuggesting"), completionHandler: nil)
+                webView.evaluateReaderJavaScript(ReaderTemplate.call("glossoSuggesting"), completionHandler: nil)
                 suggestQuestions()
             }
         case nil:
@@ -777,7 +787,7 @@ final class ReaderController: ReaderPresenting {
     private func existingOrNewWindow() -> (NSWindow, WKWebView) {
         if let window, let webView { return (window, webView) }
         let configuration = WKWebViewConfiguration()
-        configuration.userContentController.add(ReaderScriptMessageProxy(controller: self), name: "glosso")
+        configuration.userContentController.add(ReaderScriptMessageProxy(controller: self), contentWorld: ReaderWebSecurity.world, name: "glosso")
         let webView = WKWebView(frame: .zero, configuration: configuration)
         let window = NSWindow(
             contentRect: NSRect(x: 0, y: 0, width: 760, height: 900),
@@ -821,6 +831,7 @@ final class ReaderController: ReaderPresenting {
     }
 
     private func windowWillClose() {
+        documentSession = nil
         translationTask?.cancel()
         toolbarProxy = nil
         suggestTask?.cancel()
@@ -834,7 +845,7 @@ final class ReaderController: ReaderPresenting {
         appObservers = []
         dimmers.forEach { $0.orderOut(nil) }
         dimmers = []
-        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso")
+        webView?.configuration.userContentController.removeScriptMessageHandler(forName: "glosso", contentWorld: ReaderWebSecurity.world)
         window = nil
         webView = nil
         // Or the next `showLibrary` skips the replay and the refresh item re-translates a closed article.
@@ -853,20 +864,23 @@ private final class ReaderScriptMessageProxy: NSObject, WKScriptMessageHandler {
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         // The toolbar owns refresh, the view switch and the panel, so only in-page clicks post up.
-        guard let dict = message.body as? [String: String] else { return }
+        guard let controller, let dict = message.body as? [String: String],
+              ReaderWebSecurity.accepts(dict, session: controller.documentSession,
+                                        isMainFrame: message.frameInfo.isMainFrame,
+                                        sameWebView: message.webView === controller.webView) else { return }
         switch dict["action"] {
         case "ask":
             guard let question = dict["question"], !question.isEmpty else { return }
-            controller?.answer(question: question)
+            controller.answer(question: question)
         case "open":
             guard let raw = dict["url"], let url = URL(string: raw) else { return }
-            controller?.showSavedArticle(url)
+            controller.showSavedArticle(url)
         case "pin":
             guard let raw = dict["url"], let url = URL(string: raw) else { return }
-            controller?.setPinned(dict["on"] == "1", for: url)
+            controller.setPinned(dict["on"] == "1", for: url)
         case "retention":
             guard let days = dict["days"].flatMap(Int.init) else { return }
-            controller?.setRetention(days: days)
+            controller.setRetention(days: days)
         default:
             break
         }

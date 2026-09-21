@@ -167,14 +167,19 @@ extension WKWebView {
 }
 
 @MainActor
-final class NavigationWatcher: NSObject, WKNavigationDelegate {
+class NavigationWatcher: NSObject, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Void, Error>?
     private var expected: WKNavigation?
+    private var navigationID: UUID?
 
     func awaitNavigation(in webView: WKWebView, timeout: Duration, start: () -> WKNavigation?) async throws {
+        finish(.failure(CancellationError()))
+        let id = UUID()
+        navigationID = id
+        try Task.checkCancellation()
         let watchdog = Task { @MainActor [weak self, weak webView] in
             try? await Task.sleep(for: timeout)
-            guard !Task.isCancelled else { return }
+            guard !Task.isCancelled, self?.navigationID == id else { return }
             webView?.stopLoading()
             self?.finish(.failure(ReaderError.fetchFailed))
         }
@@ -185,7 +190,10 @@ final class NavigationWatcher: NSObject, WKNavigationDelegate {
                 self.expected = start()
             }
         } onCancel: {
-            Task { @MainActor [weak self] in self?.finish(.failure(CancellationError())) }
+            Task { @MainActor [weak self] in
+                guard self?.navigationID == id else { return }
+                self?.finish(.failure(CancellationError()))
+            }
         }
     }
 
@@ -193,6 +201,7 @@ final class NavigationWatcher: NSObject, WKNavigationDelegate {
         continuation?.resume(with: result)
         continuation = nil
         expected = nil
+        navigationID = nil
     }
 
     private func matches(_ navigation: WKNavigation!) -> Bool {
