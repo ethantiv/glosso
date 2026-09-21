@@ -40,7 +40,7 @@ private final class Waits: @unchecked Sendable {
     ) -> GeminiRateLimiter {
         GeminiRateLimiter(
             limits: limits,
-            store: DefaultsRef(defaults ?? UserDefaults(suiteName: UUID().uuidString)!),
+            store: DefaultsRef(defaults ?? TestDefaults()),
             now: { clock.now },
             sleep: clock.sleep
         )
@@ -112,7 +112,7 @@ private final class Waits: @unchecked Sendable {
     }
 
     @Test func dailyCounterSurvivesARestartAndResetsOnANewDay() async throws {
-        let defaults = UserDefaults(suiteName: UUID().uuidString)!
+        let defaults = TestDefaults()
         let clock = FakeClock(Date(timeIntervalSince1970: 0))
         let limits = GeminiRateLimiter.Limits(rpm: 100, tpm: 100_000, rpd: 2)
 
@@ -160,7 +160,7 @@ private final class Waits: @unchecked Sendable {
         let clock = FakeClock(Date(timeIntervalSince1970: 0))
         let limiter = GeminiRateLimiter(
             limits: { _ in .init(rpm: 1, tpm: 100_000, rpd: 500) },
-            store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!),
+            store: DefaultsRef(TestDefaults()),
             now: { clock.now },
             sleep: { _ in throw CancellationError() }
         )
@@ -192,7 +192,7 @@ private final class Waits: @unchecked Sendable {
         let waits = Waits()
         let limiter = GeminiRateLimiter(
             limits: { _ in .init(rpm: 1, tpm: 100_000, rpd: 1000) },
-            store: DefaultsRef(UserDefaults(suiteName: UUID().uuidString)!),
+            store: DefaultsRef(TestDefaults()),
             now: { clock.now },
             sleep: clock.sleep,
             onWait: { waits.record($0) }

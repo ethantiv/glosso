@@ -3,11 +3,11 @@ import Testing
 @testable import Glosso
 
 @Suite struct SavedArticleStoreTests {
+    private let directory = TestDirectory()
     private let store: SavedArticleStore
 
     init() {
-        store = SavedArticleStore(directory: FileManager.default.temporaryDirectory
-            .appendingPathComponent(UUID().uuidString, isDirectory: true))
+        store = SavedArticleStore(directory: directory.url)
     }
 
     private func makeEntry(url: String = "https://example.com/article",
@@ -39,9 +39,9 @@ import Testing
             [.modificationDate: Date.now.addingTimeInterval(-interval)], ofItemAtPath: file.path)
     }
 
-    @Test func saveThenLoadRoundTripsEveryField() {
+    @Test func saveThenLoadRoundTripsEveryField() throws {
         let entry = makeEntry(pinned: true)
-        store.save(entry)
+        try store.save(entry)
 
         let loaded = store.load(entry.url)
         #expect(loaded?.url == entry.url)
@@ -59,14 +59,14 @@ import Testing
     @Test func saveStampsAFreshSavedAt() throws {
         var entry = makeEntry()
         entry.savedAt = .now.addingTimeInterval(-30 * 24 * 3600)
-        store.save(entry)
+        try store.save(entry)
 
         let loaded = try #require(store.load(entry.url))
         #expect(abs(loaded.savedAt.timeIntervalSinceNow) < 60)
     }
 
     @Test func entryWithoutThePinnedFieldStillDecodes() throws {
-        store.save(makeEntry())
+        try store.save(makeEntry())
         try backdate(makeEntry().url, by: 0)
 
         let loaded = try #require(store.load(makeEntry().url))
@@ -76,24 +76,24 @@ import Testing
 
     @Test func setPinnedFlipsTheFlagWithoutTouchingSavedAt() throws {
         let entry = makeEntry()
-        store.save(entry)
+        try store.save(entry)
         let before = try #require(store.load(entry.url)).savedAt
 
-        store.setPinned(true, for: entry.url)
+        try store.setPinned(true, for: entry.url)
         #expect(store.isPinned(entry.url))
         #expect(store.load(entry.url)?.savedAt == before)
 
-        store.setPinned(false, for: entry.url)
+        try store.setPinned(false, for: entry.url)
         #expect(!store.isPinned(entry.url))
     }
 
     // Un-pinning must not silently destroy an article the TTL already outlived — it restarts the window.
     @Test func unpinningAnExpiredEntryRestartsItsRetentionWindow() throws {
         let entry = makeEntry(pinned: true)
-        store.save(entry)
+        try store.save(entry)
         try backdate(entry.url, by: 30 * 24 * 3600)
 
-        store.setPinned(false, for: entry.url)
+        try store.setPinned(false, for: entry.url)
 
         let loaded = try #require(store.load(entry.url))
         #expect(loaded.pinned == false)
@@ -102,7 +102,7 @@ import Testing
 
     @Test func expiredUnpinnedEntryIsDeletedOnLoad() throws {
         let entry = makeEntry()
-        store.save(entry)
+        try store.save(entry)
         try backdate(entry.url, by: 8 * 24 * 3600)
 
         #expect(store.load(entry.url) == nil)
@@ -112,19 +112,19 @@ import Testing
 
     @Test func pinnedEntryNeverExpires() throws {
         let entry = makeEntry(pinned: true)
-        store.save(entry)
+        try store.save(entry)
         try backdate(entry.url, by: 30 * 24 * 3600)
 
         #expect(store.load(entry.url) != nil)
 
-        store.save(makeEntry(url: "https://example.com/new"))
+        try store.save(makeEntry(url: "https://example.com/new"))
         #expect(store.load(entry.url) != nil)
     }
 
     @Test func pinnedEntrySurvivesShortenedRetentionSweep() throws {
         let long = SavedArticleStore(directory: store.directory, ttl: 90 * 24 * 3600)
         let entry = makeEntry(pinned: true)
-        long.save(entry)
+        try long.save(entry)
         try backdate(entry.url, by: 10 * 24 * 3600)
 
         store.sweep()
@@ -133,21 +133,21 @@ import Testing
     }
 
     // A re-translation saves an entry that says nothing about the pin — the stored flag must win.
-    @Test func saveWithoutPinKeepsTheStoredPin() {
+    @Test func saveWithoutPinKeepsTheStoredPin() throws {
         let entry = makeEntry(pinned: true)
-        store.save(entry)
+        try store.save(entry)
 
-        store.save(makeEntry(pinned: nil))
+        try store.save(makeEntry(pinned: nil))
 
         #expect(store.isPinned(entry.url))
     }
 
     @Test func saveSweepsExpiredUnpinnedSiblings() throws {
         let old = makeEntry(url: "https://example.com/old")
-        store.save(old)
+        try store.save(old)
         try backdate(old.url, by: 8 * 24 * 3600)
 
-        store.save(makeEntry(url: "https://example.com/new"))
+        try store.save(makeEntry(url: "https://example.com/new"))
 
         #expect(store.load(old.url) == nil)
         let files = try FileManager.default.contentsOfDirectory(atPath: store.directory.path)
@@ -155,10 +155,10 @@ import Testing
     }
 
     @Test func listPutsPinnedFirstThenNewestFirst() throws {
-        store.save(makeEntry(url: "https://example.com/a"))
+        try store.save(makeEntry(url: "https://example.com/a"))
         try backdate(URL(string: "https://example.com/a")!, by: 3600)
-        store.save(makeEntry(url: "https://example.com/b"))
-        store.save(makeEntry(url: "https://example.com/c", pinned: true))
+        try store.save(makeEntry(url: "https://example.com/b"))
+        try store.save(makeEntry(url: "https://example.com/c", pinned: true))
         try backdate(URL(string: "https://example.com/c")!, by: 2 * 3600)
 
         let urls = store.list().map(\.url.absoluteString)
@@ -168,7 +168,7 @@ import Testing
     @Test func longerRetentionKeepsAnEntryTheDefaultWouldExpire() throws {
         let long = SavedArticleStore(directory: store.directory, ttl: 30 * 24 * 3600)
         let entry = makeEntry()
-        long.save(entry)
+        try long.save(entry)
         try backdate(entry.url, by: 10 * 24 * 3600)
 
         #expect(long.load(entry.url) != nil)
@@ -179,7 +179,7 @@ import Testing
     @Test func sweepAppliesAShortenedRetentionAtOnce() throws {
         let long = SavedArticleStore(directory: store.directory, ttl: 90 * 24 * 3600)
         let entry = makeEntry()
-        long.save(entry)
+        try long.save(entry)
         try backdate(entry.url, by: 10 * 24 * 3600)
 
         store.sweep()
@@ -189,9 +189,9 @@ import Testing
     }
 
     // The key deliberately carries no app version or language — a saved article survives updates.
-    @Test func aSecondInstanceOverTheSameDirectoryLoadsTheEntry() {
+    @Test func aSecondInstanceOverTheSameDirectoryLoadsTheEntry() throws {
         let entry = makeEntry()
-        store.save(entry)
+        try store.save(entry)
 
         let second = SavedArticleStore(directory: store.directory)
         #expect(second.load(entry.url) != nil)

@@ -316,6 +316,7 @@ protocol PasteboardReading {
 
 @MainActor
 protocol AXSelectionReading {
+    func snapshot() -> SelectionSnapshot?
     func selectedText() -> String?
 }
 

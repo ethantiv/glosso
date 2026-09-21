@@ -2,11 +2,12 @@ import Foundation
 import Testing
 @testable import Glosso
 
-// MockURLProtocol.handler is shared global state, so these run serialized.
-@Suite(.serialized) struct UpdateCheckerTests {
+// Each test owns an isolated HTTP fixture.
+@Suite struct UpdateCheckerTests {
+    private let http = HTTPFixture()
     private func makeChecker() -> GitHubUpdateChecker {
         let config = URLSessionConfiguration.ephemeral
-        config.protocolClasses = [MockURLProtocol.self]
+        http.configure(config)
         return GitHubUpdateChecker(
             session: URLSession(configuration: config),
             releasesURL: URL(string: "https://example.invalid/releases/latest")!
@@ -14,7 +15,7 @@ import Testing
     }
 
     private func respond(tag: String, asset: String = "https://example.invalid/Glosso.zip", assetName: String = "Glosso.zip") {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let json = #"{"tag_name":"\#(tag)","assets":[{"name":"\#(assetName)","browser_download_url":"\#(asset)"}]}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, json)
@@ -47,7 +48,7 @@ import Testing
 
     // The alert must not claim "you're up to date" when GitHub was simply unreachable.
     @Test func throwsOnHTTPError() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 503, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }

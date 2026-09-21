@@ -5,8 +5,6 @@ import Testing
 /// Hits the real Gemini API; silently skips with no key configured, so the suite stays green without the cloud.
 @Suite struct GeminiLiveTests {
     private var apiKey: String? {
-        let stored = APIKeyStore.read()?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let stored, !stored.isEmpty { return stored }
         let env = ProcessInfo.processInfo.environment["GEMINI_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (env?.isEmpty == false) ? env : nil
     }
@@ -19,7 +17,7 @@ import Testing
     }
 
     @Test func translatesAgainstLiveGemini() async throws {
-        guard let apiKey else { return }
+        let apiKey = try #require(apiKey, "Set GEMINI_API_KEY to run this live suite")
 
         var output = ""
         for try await event in makeClient(apiKey).run("Dzień dobry", action: .translate, model: CloudModelCatalog.default.id, primary: .polish, second: .english, formality: .automatic, style: false) {
@@ -30,7 +28,7 @@ import Testing
     }
 
     @Test func translatesABlockAgainstLiveGemini() async throws {
-        guard let apiKey else { return }
+        let apiKey = try #require(apiKey, "Set GEMINI_API_KEY to run this live suite")
 
         let result = try await makeClient(apiKey).translateBlock(
             html: "<p>Good morning, everyone.</p>", into: .polish, model: CloudModelCatalog.default.id)
@@ -39,7 +37,7 @@ import Testing
 
     /// The batch format only works if the model honours it; nothing else proves that.
     @Test func translatesABatchOfBlocksAgainstLiveGemini() async throws {
-        guard let apiKey else { return }
+        let apiKey = try #require(apiKey, "Set GEMINI_API_KEY to run this live suite")
 
         let blocks = [
             (id: 12, html: "<p>Good morning, everyone.</p>"),
@@ -61,7 +59,7 @@ import Testing
 
     /// The catalog hardcodes model ids; this is what catches Google renaming them.
     @Test func catalogModelsAreServedByTheAPI() async throws {
-        guard let apiKey else { return }
+        let apiKey = try #require(apiKey, "Set GEMINI_API_KEY to run this live suite")
 
         var request = URLRequest(url: URL(string: "https://generativelanguage.googleapis.com/v1beta/models?pageSize=1000")!)
         request.setValue(apiKey, forHTTPHeaderField: "x-goog-api-key")

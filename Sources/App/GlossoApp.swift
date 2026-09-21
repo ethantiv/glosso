@@ -120,7 +120,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     /// One banner per outage, not one per call: a single capture prefetches every verb.
     nonisolated static let fallbackNotificationID = "glosso.fallback"
     let appState = AppState()
-    let settings = SettingsStore()
+    let settings: SettingsStore
+    override convenience init() { self.init(settings: SettingsStore()) }
+    init(settings: SettingsStore) {
+        self.settings = settings
+        super.init()
+    }
     /// Shared so the Settings quota line counts the same requests the client books.
     lazy var cloudLimiter = GeminiRateLimiter(onWait: { [weak self] seconds in
         Task { @MainActor in self?.articleReader?.cloudWait(seconds) }

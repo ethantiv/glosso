@@ -18,82 +18,328 @@ final class StreamGate: @unchecked Sendable {
 
 struct FakeLLMClient: LLMClient {
     final class Recorder: @unchecked Sendable {
-        var receivedText: String?
-        var receivedModel: String?
-        var receivedPrimary: PrimaryLanguage?
-        var receivedSecond: SecondLanguage?
-        var receivedFormality: Formality?
-        var receivedAction: Action?
-        var receivedStyle: Bool?
-        var runCount = 0
-        var runActions: [Action] = []
-        var replyCount = 0
-        var prewarmModel: String?
-        // alternatives(...)
-        var altWord: String?
-        var altTranslation: String?
-        var altSource: String?
-        var altSecond: SecondLanguage?
-        var altModel: String?
-        // explain(...)
-        var explainWord: String?
-        var explainTranslation: String?
-        var explainSource: String?
-        var explainSecond: SecondLanguage?
-        var explainModel: String?
-        // explainFix(...)
-        var fixError: String?
-        var fixCorrection: String?
-        var fixOriginal: String?
-        var fixCorrected: String?
-        var fixSecond: SecondLanguage?
-        var fixEnglishRules: Bool?
-        var fixStyle: Bool?
-        var fixModel: String?
-        // explainRegister(...)
-        var registerPrevious: String?
-        var registerCurrent: String?
-        var registerFrom: Formality?
-        var registerTo: Formality?
-        var registerSource: String?
-        var registerSecond: SecondLanguage?
-        var registerModel: String?
-        // reply(...)
-        var replyText: String?
-        var replyModel: String?
-        // translateBlock(...)
-        var blockHTMLs: [String] = []
-        var blockPrimary: PrimaryLanguage?
-        var blockModel: String?
-        // translateBlocks(...) — one entry per batch, so a test can assert how the blocks were packed
-        var batches: [[Int]] = []
-        // readerSummary(...)
-        var summaryText: String?
-        var summaryPrimary: PrimaryLanguage?
-        var summaryModel: String?
-        // askArticle(...)
-        var askQuestion: String?
-        var askHistory: [(question: String, answer: String)]?
-        var askArticleText: String?
-        var askPrimary: PrimaryLanguage?
-        var askModel: String?
-        // articleQuestions(...)
-        var questionsArticleText: String?
-        var questionsPrimary: PrimaryLanguage?
-        var questionsModel: String?
-        // reword(...)
-        var rewordOriginal: String?
-        var rewordChosen: String?
-        var rewordTranslation: String?
-        var rewordSource: String?
-        var rewordSecond: SecondLanguage?
-        var rewordFormality: Formality?
-        var rewordModel: String?
+        private let lock = NSLock()
+        private struct State {
+            var receivedText: String?
+            var receivedModel: String?
+            var receivedPrimary: PrimaryLanguage?
+            var receivedSecond: SecondLanguage?
+            var receivedFormality: Formality?
+            var receivedAction: Action?
+            var receivedStyle: Bool?
+            var runCount = 0
+            var runActions: [Action] = []
+            var replyCount = 0
+            var prewarmModel: String?
+            // alternatives(...)
+            var altWord: String?
+            var altTranslation: String?
+            var altSource: String?
+            var altSecond: SecondLanguage?
+            var altModel: String?
+            // explain(...)
+            var explainWord: String?
+            var explainTranslation: String?
+            var explainSource: String?
+            var explainSecond: SecondLanguage?
+            var explainModel: String?
+            // explainFix(...)
+            var fixError: String?
+            var fixCorrection: String?
+            var fixOriginal: String?
+            var fixCorrected: String?
+            var fixSecond: SecondLanguage?
+            var fixEnglishRules: Bool?
+            var fixStyle: Bool?
+            var fixModel: String?
+            // explainRegister(...)
+            var registerPrevious: String?
+            var registerCurrent: String?
+            var registerFrom: Formality?
+            var registerTo: Formality?
+            var registerSource: String?
+            var registerSecond: SecondLanguage?
+            var registerModel: String?
+            // reply(...)
+            var replyText: String?
+            var replyModel: String?
+            // translateBlock(...)
+            var blockHTMLs: [String] = []
+            var blockPrimary: PrimaryLanguage?
+            var blockModel: String?
+            // translateBlocks(...) — one entry per batch, so a test can assert how the blocks were packed
+            var batches: [[Int]] = []
+            // readerSummary(...)
+            var summaryText: String?
+            var summaryPrimary: PrimaryLanguage?
+            var summaryModel: String?
+            // askArticle(...)
+            var askQuestion: String?
+            var askHistory: [(question: String, answer: String)]?
+            var askArticleText: String?
+            var askPrimary: PrimaryLanguage?
+            var askModel: String?
+            // articleQuestions(...)
+            var questionsArticleText: String?
+            var questionsPrimary: PrimaryLanguage?
+            var questionsModel: String?
+            // reword(...)
+            var rewordOriginal: String?
+            var rewordChosen: String?
+            var rewordTranslation: String?
+            var rewordSource: String?
+            var rewordSecond: SecondLanguage?
+            var rewordFormality: Formality?
+            var rewordModel: String?
+        }
+        private var storage = State()
+        var receivedText: String? {
+            get { lock.withLock { storage.receivedText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedText }
+        }
+        var receivedModel: String? {
+            get { lock.withLock { storage.receivedModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedModel }
+        }
+        var receivedPrimary: PrimaryLanguage? {
+            get { lock.withLock { storage.receivedPrimary } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedPrimary }
+        }
+        var receivedSecond: SecondLanguage? {
+            get { lock.withLock { storage.receivedSecond } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedSecond }
+        }
+        var receivedFormality: Formality? {
+            get { lock.withLock { storage.receivedFormality } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedFormality }
+        }
+        var receivedAction: Action? {
+            get { lock.withLock { storage.receivedAction } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedAction }
+        }
+        var receivedStyle: Bool? {
+            get { lock.withLock { storage.receivedStyle } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.receivedStyle }
+        }
+        var runCount: Int {
+            get { lock.withLock { storage.runCount } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.runCount }
+        }
+        var runActions: [Action] {
+            get { lock.withLock { storage.runActions } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.runActions }
+        }
+        var replyCount: Int {
+            get { lock.withLock { storage.replyCount } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.replyCount }
+        }
+        var prewarmModel: String? {
+            get { lock.withLock { storage.prewarmModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.prewarmModel }
+        }
+        var altWord: String? {
+            get { lock.withLock { storage.altWord } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.altWord }
+        }
+        var altTranslation: String? {
+            get { lock.withLock { storage.altTranslation } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.altTranslation }
+        }
+        var altSource: String? {
+            get { lock.withLock { storage.altSource } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.altSource }
+        }
+        var altSecond: SecondLanguage? {
+            get { lock.withLock { storage.altSecond } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.altSecond }
+        }
+        var altModel: String? {
+            get { lock.withLock { storage.altModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.altModel }
+        }
+        var explainWord: String? {
+            get { lock.withLock { storage.explainWord } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.explainWord }
+        }
+        var explainTranslation: String? {
+            get { lock.withLock { storage.explainTranslation } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.explainTranslation }
+        }
+        var explainSource: String? {
+            get { lock.withLock { storage.explainSource } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.explainSource }
+        }
+        var explainSecond: SecondLanguage? {
+            get { lock.withLock { storage.explainSecond } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.explainSecond }
+        }
+        var explainModel: String? {
+            get { lock.withLock { storage.explainModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.explainModel }
+        }
+        var fixError: String? {
+            get { lock.withLock { storage.fixError } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixError }
+        }
+        var fixCorrection: String? {
+            get { lock.withLock { storage.fixCorrection } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixCorrection }
+        }
+        var fixOriginal: String? {
+            get { lock.withLock { storage.fixOriginal } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixOriginal }
+        }
+        var fixCorrected: String? {
+            get { lock.withLock { storage.fixCorrected } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixCorrected }
+        }
+        var fixSecond: SecondLanguage? {
+            get { lock.withLock { storage.fixSecond } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixSecond }
+        }
+        var fixEnglishRules: Bool? {
+            get { lock.withLock { storage.fixEnglishRules } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixEnglishRules }
+        }
+        var fixStyle: Bool? {
+            get { lock.withLock { storage.fixStyle } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixStyle }
+        }
+        var fixModel: String? {
+            get { lock.withLock { storage.fixModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.fixModel }
+        }
+        var registerPrevious: String? {
+            get { lock.withLock { storage.registerPrevious } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerPrevious }
+        }
+        var registerCurrent: String? {
+            get { lock.withLock { storage.registerCurrent } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerCurrent }
+        }
+        var registerFrom: Formality? {
+            get { lock.withLock { storage.registerFrom } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerFrom }
+        }
+        var registerTo: Formality? {
+            get { lock.withLock { storage.registerTo } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerTo }
+        }
+        var registerSource: String? {
+            get { lock.withLock { storage.registerSource } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerSource }
+        }
+        var registerSecond: SecondLanguage? {
+            get { lock.withLock { storage.registerSecond } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerSecond }
+        }
+        var registerModel: String? {
+            get { lock.withLock { storage.registerModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerModel }
+        }
+        var replyText: String? {
+            get { lock.withLock { storage.replyText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.replyText }
+        }
+        var replyModel: String? {
+            get { lock.withLock { storage.replyModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.replyModel }
+        }
+        var blockHTMLs: [String] {
+            get { lock.withLock { storage.blockHTMLs } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.blockHTMLs }
+        }
+        var blockPrimary: PrimaryLanguage? {
+            get { lock.withLock { storage.blockPrimary } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.blockPrimary }
+        }
+        var blockModel: String? {
+            get { lock.withLock { storage.blockModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.blockModel }
+        }
+        var batches: [[Int]] {
+            get { lock.withLock { storage.batches } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.batches }
+        }
+        var summaryText: String? {
+            get { lock.withLock { storage.summaryText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.summaryText }
+        }
+        var summaryPrimary: PrimaryLanguage? {
+            get { lock.withLock { storage.summaryPrimary } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.summaryPrimary }
+        }
+        var summaryModel: String? {
+            get { lock.withLock { storage.summaryModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.summaryModel }
+        }
+        var askQuestion: String? {
+            get { lock.withLock { storage.askQuestion } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.askQuestion }
+        }
+        var askHistory: [(question: String, answer: String)]? {
+            get { lock.withLock { storage.askHistory } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.askHistory }
+        }
+        var askArticleText: String? {
+            get { lock.withLock { storage.askArticleText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.askArticleText }
+        }
+        var askPrimary: PrimaryLanguage? {
+            get { lock.withLock { storage.askPrimary } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.askPrimary }
+        }
+        var askModel: String? {
+            get { lock.withLock { storage.askModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.askModel }
+        }
+        var questionsArticleText: String? {
+            get { lock.withLock { storage.questionsArticleText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.questionsArticleText }
+        }
+        var questionsPrimary: PrimaryLanguage? {
+            get { lock.withLock { storage.questionsPrimary } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.questionsPrimary }
+        }
+        var questionsModel: String? {
+            get { lock.withLock { storage.questionsModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.questionsModel }
+        }
+        var rewordOriginal: String? {
+            get { lock.withLock { storage.rewordOriginal } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordOriginal }
+        }
+        var rewordChosen: String? {
+            get { lock.withLock { storage.rewordChosen } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordChosen }
+        }
+        var rewordTranslation: String? {
+            get { lock.withLock { storage.rewordTranslation } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordTranslation }
+        }
+        var rewordSource: String? {
+            get { lock.withLock { storage.rewordSource } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordSource }
+        }
+        var rewordSecond: SecondLanguage? {
+            get { lock.withLock { storage.rewordSecond } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordSecond }
+        }
+        var rewordFormality: Formality? {
+            get { lock.withLock { storage.rewordFormality } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordFormality }
+        }
+        var rewordModel: String? {
+            get { lock.withLock { storage.rewordModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.rewordModel }
+        }
+
     }
     let recorder = Recorder()
     let events: [TranslationEvent]
     let error: TranslationError?
     let gate: StreamGate?
+    let streamStarted = StreamGate()
     let alternativesResult: [String]
     let alternativesError: TranslationError?
     let replyResult: [String]
@@ -240,6 +486,7 @@ struct FakeLLMClient: LLMClient {
         let events = self.events
         let error = self.error
         let gate = self.gate
+        let started = streamStarted
         return AsyncThrowingStream { continuation in
             guard let gate else {
                 for event in events { continuation.yield(event) }
@@ -248,6 +495,7 @@ struct FakeLLMClient: LLMClient {
             }
             let task = Task {
                 var pending: StreamGate? = gate
+                started.release()
                 for event in events {
                     continuation.yield(event)
                     if let pending { await pending.wait() }
@@ -333,6 +581,14 @@ final class FakePasteboardReader: PasteboardReading {
 @MainActor
 final class FakeAXSelectionReader: AXSelectionReading {
     var text: String?
+    var snapshotPID: pid_t = 42
+    var elementID = "editor"
+    var selectedRange = NSRange(location: 0, length: 7)
+    var snapshotAvailable = true
+    func snapshot() -> SelectionSnapshot? {
+        guard snapshotAvailable, let text = selectedText(), !text.isEmpty else { return nil }
+        return SelectionSnapshot(pid: snapshotPID, element: elementID as NSString, range: selectedRange, text: text)
+    }
     var texts: [String?] = []
     private(set) var callCount = 0
     func selectedText() -> String? {
@@ -351,6 +607,7 @@ final class FakeEmptyPasteboardReader: PasteboardReading {
 
 @MainActor
 final class FakePopup: TranslationPopupPresenting {
+    let firstToken = StreamGate()
     var onDismiss: (@MainActor () -> Void)?
     var onSelectFormality: (@MainActor (Formality) -> Void)?
     var onSelectAction: (@MainActor (Action) -> Void)?
@@ -384,7 +641,7 @@ final class FakePopup: TranslationPopupPresenting {
         presentedSourceText = sourceText
         presentedAction = action
     }
-    func append(token: String) { tokens.append(token) }
+    func append(token: String) { tokens.append(token); firstToken.release() }
     func showError(_ message: String) { errorMessage = message }
     func finish(truncated: Bool) { finished = true; self.truncated = truncated }
     func showReplies(_ drafts: [String]) { shownReplies = drafts }

@@ -2,11 +2,12 @@ import Foundation
 import Testing
 @testable import Glosso
 
-// Serialized: shares the process-global MockURLProtocol.handler (see OllamaClientTests).
-@Suite(.serialized) struct OllamaModelManagerTests {
+// Each test owns an isolated HTTP fixture.
+@Suite struct OllamaModelManagerTests {
+    private let http = HTTPFixture()
     private func makeManager() -> OllamaModelManager {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        http.configure(configuration)
         let session = URLSession(configuration: configuration)
         return OllamaModelManager(session: session, endpointProvider: {
             URL(string: "http://localhost:11434/api/generate")!
@@ -14,7 +15,7 @@ import Testing
     }
 
     @Test func pullHitsPullEndpointAndStreamsToSuccess() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             #expect(request.url?.path == "/api/pull")
             #expect(request.httpMethod == "POST")
             let lines = [
@@ -26,7 +27,7 @@ import Testing
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let manager = makeManager()
         var updates: [PullProgress] = []
@@ -38,12 +39,12 @@ import Testing
     }
 
     @Test func pullSurfacesServerError() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = (#"{"error":"model not found"}"# + "\n").data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let manager = makeManager()
         await #expect(throws: TranslationError.ollamaError("model not found")) {
@@ -52,13 +53,13 @@ import Testing
     }
 
     @Test func deleteUsesDeleteEndpoint() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             #expect(request.url?.path == "/api/delete")
             #expect(request.httpMethod == "DELETE")
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         try await makeManager().delete("gemma4:12b-mlx")
     }

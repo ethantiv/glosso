@@ -6,7 +6,7 @@ import Testing
 @MainActor
 @Suite struct SettingsStoreTests {
     private func transientDefaults() -> UserDefaults {
-        UserDefaults(suiteName: "SettingsStoreTests-\(UUID().uuidString)")!
+        TestDefaults()
     }
 
     @Test func defaultsMatchTheHardcodedConfig() {

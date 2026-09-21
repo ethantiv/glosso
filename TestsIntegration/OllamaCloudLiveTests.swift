@@ -5,8 +5,6 @@ import Testing
 /// Hits the real Ollama Cloud; silently skips with no key configured, so the suite stays green without it.
 @Suite struct OllamaCloudLiveTests {
     private var apiKey: String? {
-        let stored = APIKeyStore.read(account: APIKeyStore.ollamaAccount)?.trimmingCharacters(in: .whitespacesAndNewlines)
-        if let stored, !stored.isEmpty { return stored }
         let env = ProcessInfo.processInfo.environment["OLLAMA_API_KEY"]?.trimmingCharacters(in: .whitespacesAndNewlines)
         return (env?.isEmpty == false) ? env : nil
     }
@@ -17,7 +15,7 @@ import Testing
 
     /// The whole integration rests on the cloud speaking the local engine's NDJSON. Nothing else proves it.
     @Test func translatesAgainstLiveOllamaCloud() async throws {
-        guard let apiKey else { return }
+        let apiKey = try #require(apiKey, "Set OLLAMA_API_KEY to run this live suite")
 
         var output = ""
         for try await event in makeClient(apiKey).run("Dzień dobry", action: .translate, model: OllamaCloudCatalog.defaultModel, primary: .polish, second: .english, formality: .automatic, style: false) {
@@ -29,7 +27,7 @@ import Testing
 
     /// `think:false` is undocumented on the cloud host, and gemma4:31b advertises thinking. If it were rejected outright, this call would fail rather than merely run long.
     @Test func theCloudAcceptsTheLockedGenerationOptions() async throws {
-        guard let apiKey else { return }
+        let apiKey = try #require(apiKey, "Set OLLAMA_API_KEY to run this live suite")
 
         let result = try await makeClient(apiKey).translateBlock(
             html: "<p>Good morning, everyone.</p>", into: .polish, model: OllamaCloudCatalog.defaultModel)

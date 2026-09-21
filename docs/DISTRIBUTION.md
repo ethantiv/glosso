@@ -36,10 +36,12 @@ The `.p12`/`.pem`/`.cer` files are git-ignored; never commit them.
 ## Cutting a release
 
 1. In a PR, bump `MARKETING_VERSION` in `project.yml` (e.g. `0.2.0`).
-2. Merge the PR to `main`. The `Release` workflow sees that `v0.2.0` has no release yet, builds, signs, and publishes `Glosso.zip` — creating the `v0.2.0` tag. Merges that don't change the version are no-ops (a cheap pre-check skips the macOS build).
+2. Merge the PR to `main`. The `Release` workflow sees that `v0.2.0` has no release yet, builds, signs, and publishes `Glosso.zip` — creating the `v0.2.0` tag. The tag targets the exact commit being built. Existing releases skip the macOS build but still allow download-link repair.
 3. The in-app update check (menu bar → "Dostępna nowa wersja …") points users at the release page.
 
-Bumping the version *is* the release trigger — no manual tagging.
+Bumping the version *is* the release trigger — no manual tagging. Workflow runs are serialized without cancelling an active release.
+
+Download links are updated in a separate `update-site` job using fresh `main` and the latest published release. It retries competing pushes up to three times. If publication succeeds but this job fails, rerun the failed job (or the whole workflow): the existing release is retained, and link updates are idempotent. An older workflow rerun will not point the site back to its older tag.
 
 The repository must be **public** so the unauthenticated GitHub API (`releases/latest`) and the release asset download work for everyone.
 

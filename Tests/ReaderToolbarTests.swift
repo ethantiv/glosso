@@ -18,7 +18,7 @@ struct ReaderToolbarTests {
 
     @Test("every default toolbar identifier builds an item, and every item is named for VoiceOver")
     func toolbarBuildsEveryDefaultItem() {
-        let defaults = UserDefaults(suiteName: "ReaderToolbarTests-\(UUID().uuidString)")!
+        let defaults = TestDefaults()
         let controller = ReaderController(llm: FakeLLMClient(), settings: SettingsStore(defaults: defaults))
         let proxy = ReaderToolbarProxy(controller: controller)
         let toolbar = NSToolbar(identifier: "test")

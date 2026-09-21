@@ -22,7 +22,7 @@ final class SettingsStore {
     }
 
     /// The retention periods the reader's saved-list picker offers.
-    static let retentionChoices = [7, 30, 90]
+    nonisolated static let retentionChoices = [7, 30, 90]
 
     /// How long Ollama keeps the local model in memory after a request, in minutes; `-1` means indefinitely.
     static let keepAliveChoices = [5, 15, 30, 60, 120, -1]

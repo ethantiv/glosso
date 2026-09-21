@@ -2,7 +2,7 @@ import CryptoKit
 import Foundation
 
 struct ReaderCache: Sendable {
-    struct Entry: Codable {
+    struct Entry: Codable, Sendable {
         var url: URL
         var savedAt: Date
         /// Original title — feeds glossoSetArticle so the original-view toggle works.
@@ -49,11 +49,11 @@ struct ReaderCache: Sendable {
         try? FileManager.default.removeItem(at: fileURL(for: url, primary: primary))
     }
 
-    func save(_ entry: Entry, primary: PrimaryLanguage) {
+    func save(_ entry: Entry, primary: PrimaryLanguage) throws {
         let fm = FileManager.default
-        try? fm.createDirectory(at: directory, withIntermediateDirectories: true)
-        guard let data = try? JSONEncoder().encode(entry) else { return }
-        try? data.write(to: fileURL(for: entry.url, primary: primary))
+        try fm.createDirectory(at: directory, withIntermediateDirectories: true)
+        let data = try JSONEncoder().encode(entry)
+        try data.write(to: fileURL(for: entry.url, primary: primary), options: .atomic)
         sweepExpired()
     }
 
