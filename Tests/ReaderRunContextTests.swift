@@ -28,7 +28,7 @@ private struct StaticArticle: ArticleExtracting {
 }
 
 @MainActor
-@Suite struct ReaderRunContextTests {
+@Suite(.timeLimit(.minutes(1))) struct ReaderRunContextTests {
     @Test func changingSettingsMidArticleCannotChangeRoutingOrCacheLanguage() async throws {
         let suite = UUID().uuidString
         let defaults = UserDefaults(suiteName: suite)!
@@ -61,5 +61,43 @@ private struct StaticArticle: ArticleExtracting {
         #expect(cached != nil)
         #expect(cached?.engine == "Google AI · \(model)")
         #expect(await repository.cached(url, primary: .english) == nil)
+    }
+}
+
+@MainActor
+private final class DelayedArticle: ArticleExtracting {
+    let started = StreamGate()
+    var pending: CheckedContinuation<Void, Never>?
+    func extract(from url: URL) async throws -> ArticleExtractor.ExtractedArticle {
+        if url.lastPathComponent == "old" {
+            await withCheckedContinuation { pending = $0; started.release() }
+        }
+        return .init(title: url.lastPathComponent, byline: nil, content: "<p>" + url.lastPathComponent + "</p>")
+    }
+}
+
+extension ReaderRunContextTests {
+    @Test func cancelledArticleCannotPaintLateResultsIntoTheNextDocument() async throws {
+        let directory = TestDirectory()
+        let repository = ReaderRepository(cache: ReaderCache(directory: directory.url.appendingPathComponent("cache")),
+                                          saved: SavedArticleStore(directory: directory.url.appendingPathComponent("saved")))
+        let extractor = DelayedArticle()
+        let controller = ReaderController(llm: FakeLLMClient(), settings: SettingsStore(defaults: TestDefaults()),
+            repository: repository, extractor: extractor)
+        let configuration = WKWebViewConfiguration(); configuration.websiteDataStore = .nonPersistent()
+        let web = WKWebView(frame: .zero, configuration: configuration)
+        let oldURL = URL(string: "https://example.com/old")!
+        let oldRun = controller.makeRun()
+        let oldTask = Task { await controller.run(url: oldURL, in: web, run: oldRun) }
+        await extractor.started.wait()
+        oldTask.cancel()
+        let nextURL = URL(string: "https://example.com/next")!
+        await controller.run(url: nextURL, in: web, run: controller.makeRun())
+        let before = try await web.evaluateReaderString("document.body.innerHTML")
+        extractor.pending?.resume()
+        await oldTask.value
+        #expect(try await web.evaluateReaderString("document.body.innerHTML") == before)
+        #expect(await repository.cached(oldURL, primary: oldRun.context.primary) == nil)
+        #expect(await repository.list().map(\.url) == [nextURL])
     }
 }

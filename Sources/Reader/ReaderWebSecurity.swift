@@ -47,6 +47,8 @@ final class ReaderNavigationDelegate: NavigationWatcher {
     var loadingTemplate = false
     var openExternal: (URL) -> Void = { NSWorkspace.shared.open($0) }
 
+    // WKNavigationDelegate conformance is inherited; expose the optional callback to WebKit explicitly.
+    @objc(webView:decidePolicyForNavigationAction:decisionHandler:)
     func webView(_ webView: WKWebView, decidePolicyFor action: WKNavigationAction,
                  decisionHandler: @escaping (WKNavigationActionPolicy) -> Void) {
         guard let url = action.request.url else { decisionHandler(.cancel); return }

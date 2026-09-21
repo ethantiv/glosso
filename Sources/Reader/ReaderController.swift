@@ -248,7 +248,7 @@ final class ReaderController: ReaderPresenting {
         documentSession = session
         webView.navigationDelegate = navigator
         navigator.loadingTemplate = true
-        defer { navigator.loadingTemplate = false }
+        defer { if documentSession == session { navigator.loadingTemplate = false } }
         try await navigator.awaitNavigation(in: webView, timeout: .seconds(5)) {
             webView.loadHTMLString(ReaderTemplate.html, baseURL: nil)
         }
