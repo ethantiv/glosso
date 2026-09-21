@@ -32,7 +32,7 @@ scripts/test.sh     # run the tests
 scripts/package.sh  # build a signed .zip you can drop into /Applications
 ```
 
-Releasing is automatic: bump `MARKETING_VERSION` in `project.yml` in a PR, and merging it to `main` builds, signs, and publishes the release. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
+Releases are built and published manually; this repository has no GitHub Actions workflows. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
 ## Using the popup
 
