@@ -7,7 +7,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.23.0"
+    MARKETING_VERSION: "0.23.1"
     CURRENT_PROJECT_VERSION: "1"
     # Stable self-signed identity (created once in Keychain): keeps the app's code
     # signing identity constant across releases so the Accessibility (TCC) grant
@@ -33,6 +33,14 @@ targets:
     platform: macOS
     sources:
       - path: Sources
+        excludes:
+          - Reader/ReaderSanitizer.js
+      - path: Sources/Reader/ReaderSanitizer.js
+        buildPhase: resources
+      - path: Vendor/purify.min.js
+        buildPhase: resources
+      - path: Vendor/DOMPurify-LICENSE
+        buildPhase: resources
       # XcodeGen classifies .js as compilable source; force the vendored
       # Readability into Copy Bundle Resources instead.
       - path: Vendor/Readability.js
@@ -61,10 +69,28 @@ targets:
     platform: macOS
     sources:
       - path: Tests
-      - path: TestsIntegration
     dependencies:
       - target: Glosso
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso.tests
         GENERATE_INFOPLIST_FILE: YES
+  GlossoLiveTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: TestsIntegration
+    dependencies:
+      - target: Glosso
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso.live-tests
+        GENERATE_INFOPLIST_FILE: YES
+schemes:
+  GlossoLive:
+    build:
+      targets:
+        Glosso: all
+    test:
+      targets:
+        - GlossoLiveTests

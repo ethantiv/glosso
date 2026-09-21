@@ -5,7 +5,7 @@ import Testing
 @MainActor
 @Suite struct AppDelegateTests {
     private func makeDelegate(trusted: Bool) -> (AppDelegate, FakeAccessibilityAuthorizing) {
-        let delegate = AppDelegate()
+        let delegate = AppDelegate(settings: SettingsStore(defaults: TestDefaults(), loginItem: FakeLoginItem()))
         let ax = FakeAccessibilityAuthorizing(isTrusted: trusted)
         delegate.ax = ax
         delegate.coordinator = AppCoordinator(
@@ -21,6 +21,7 @@ import Testing
 
     @Test func recheckStartsListeningWhenAccessGranted() {
         let (delegate, ax) = makeDelegate(trusted: false)
+        defer { delegate.coordinator?.stop() }
         delegate.appState.listening = false
         ax.isTrusted = true
 
@@ -32,6 +33,7 @@ import Testing
 
     @Test func recheckStopsListeningWhenAccessRevoked() {
         let (delegate, ax) = makeDelegate(trusted: true)
+        defer { delegate.coordinator?.stop() }
         delegate.appState.listening = true
         ax.isTrusted = false
 

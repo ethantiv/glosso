@@ -9,11 +9,12 @@ private struct StubBackend: GenerationBackend {
     var tokensBeforeFailure: [String] = []
     /// Silence before anything is produced — how a slow cloud model looks from here.
     var delay: TimeInterval = 0
+    var clock: ManualTestClock? = nil
     var seenModels: ModelLog = ModelLog()
 
     func generate(prompt: String, model: String, timeout: TimeInterval?, numPredict: Int?) async throws -> String {
         seenModels.record(model)
-        if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+        if delay > 0, let clock { try await clock.sleep(for: .seconds(delay)) }
         if let failure { throw failure }
         return text
     }
@@ -23,7 +24,7 @@ private struct StubBackend: GenerationBackend {
         return AsyncThrowingStream { continuation in
             let task = Task {
                 for token in tokensBeforeFailure { continuation.yield(.token(token)) }
-                if delay > 0 { try await Task.sleep(for: .seconds(delay)) }
+                if delay > 0, let clock { try await clock.sleep(for: .seconds(delay)) }
                 if let failure {
                     continuation.finish(throwing: failure)
                 } else {
@@ -58,7 +59,7 @@ private final class FallbackLog: @unchecked Sendable {
     var longFormFlags: [Bool] { lock.withLock { reported.map(\.longForm) } }
 }
 
-@Suite struct RoutingLLMClientTests {
+@Suite(.timeLimit(.minutes(1))) struct RoutingLLMClientTests {
     private func makeClient(
         local: StubBackend,
         cloud: StubBackend,
@@ -66,6 +67,7 @@ private final class FallbackLog: @unchecked Sendable {
         provider: LLMProvider,
         fallbacks: FallbackLog = FallbackLog(),
         deadline: TimeInterval = 0.05,
+        clock: ManualTestClock = ManualTestClock(),
         localReady: @escaping @Sendable () async -> Bool = { true }
     ) -> RoutingLLMClient {
         RoutingLLMClient(
@@ -76,6 +78,7 @@ private final class FallbackLog: @unchecked Sendable {
             localModel: { "gemma4:26b-mlx" },
             onFallback: { fallbacks.record($0, longForm: $1) },
             deadline: deadline,
+            sleep: { try await clock.sleep(for: $0) },
             localReady: localReady
         )
     }
@@ -119,18 +122,6 @@ private final class FallbackLog: @unchecked Sendable {
         #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma4:31b") == "local")
         #expect(local.seenModels.all == ["gemma4:26b-mlx"])
         #expect(fallbacks.all == [.invalidAPIKey])
-    }
-
-    @Test func aSilentOllamaCloudStreamHandsOverToTheLocalModel() async throws {
-        let fallbacks = FallbackLog()
-        let client = makeClient(local: StubBackend(text: "local"), cloud: StubBackend(text: "google"),
-                                ollamaCloud: StubBackend(text: "ollama-cloud", delay: 5),
-                                provider: .ollamaCloud, fallbacks: fallbacks)
-
-        let tokens = try await collect(client.run("Cześć", action: .translate, model: "gemma4:31b",
-                                                  primary: .polish, second: .english, formality: .automatic, style: false))
-        #expect(tokens == ["local"])
-        #expect(fallbacks.all == [.cloudUnreachable])
     }
 
     @Test func exhaustedQuotaFallsBackToTheLocalModelName() async throws {
@@ -209,127 +200,106 @@ private final class FallbackLog: @unchecked Sendable {
         #expect(fallbacks.all.isEmpty)
     }
 
-    @Test func aSilentCloudStreamHandsOverToTheLocalModel() async throws {
-        // gemini-3.5-flash-lite answers a trivial prompt in ~30s and nothing errors, so without the deadline the popup just sits on its skeleton.
+    @Test(arguments: [LLMProvider.cloud, .ollamaCloud])
+    func aSilentCloudStreamHandsOverToTheLocalModel(provider: LLMProvider) async throws {
+        let clock = ManualTestClock()
         let fallbacks = FallbackLog()
-        let client = makeClient(
-            local: StubBackend(text: "lokalnie"),
-            cloud: StubBackend(text: "z chmury", delay: 5),
-            provider: .cloud,
-            fallbacks: fallbacks
-        )
-
-        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
-        #expect(tokens == ["lokalnie"])
+        let client = makeClient(local: StubBackend(text: "local"),
+            cloud: StubBackend(text: "cloud", delay: 5, clock: clock),
+            ollamaCloud: StubBackend(text: "ollama-cloud", delay: 5, clock: clock),
+            provider: provider, fallbacks: fallbacks, clock: clock)
+        let task = Task { try await collect(client.streamGeneration(prompt: "Hi", model: "m")) }
+        await clock.waitForSleepers(2)
+        await clock.advance(by: .milliseconds(50))
+        #expect(try await task.value == ["local"])
         #expect(fallbacks.all == [.cloudUnreachable])
+        #expect(await clock.cancellations >= 1)
     }
 
     @Test func aStreamThatSpokeInTimeMayPausePastTheDeadline() async throws {
-        // The deadline covers the first token only; killing a live stream over a slow middle would lose what the popup shows.
-        let local = StubBackend(text: "lokalnie")
-        let client = makeClient(
-            local: local,
-            cloud: StubBackend(text: "reszta", tokensBeforeFailure: ["Dzień "], delay: 0.3),
-            provider: .cloud
-        )
-
-        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
-        #expect(tokens == ["Dzień ", "reszta"])
+        let clock = ManualTestClock()
+        let local = StubBackend(text: "local")
+        let client = makeClient(local: local,
+            cloud: StubBackend(text: "rest", tokensBeforeFailure: ["first"], delay: 1, clock: clock), provider: .cloud, clock: clock)
+        let firstToken = StreamGate()
+        let task = Task { () throws -> [String] in
+            var result: [String] = []
+            for try await event in client.streamGeneration(prompt: "Hi", model: "m") {
+                if case .token(let token) = event { result.append(token); firstToken.release() }
+            }
+            return result
+        }
+        await clock.waitForSleepers(2)
+        await firstToken.wait()
+        await clock.advance(by: .seconds(1))
+        #expect(try await task.value == ["first", "rest"])
         #expect(local.seenModels.all.isEmpty)
     }
 
     @Test func aSilentInteractiveLookupHandsOverToTheLocalModel() async throws {
-        // Non-streaming lookups (alternatives, why, replies) hang the same way; only the whole answer counts as a response there.
-        let local = StubBackend(text: "słowo")
+        let clock = ManualTestClock()
+        let local = StubBackend(text: "word")
         let fallbacks = FallbackLog()
-        let client = makeClient(
-            local: local,
-            cloud: StubBackend(text: "z chmury", delay: 5),
-            provider: .cloud,
-            fallbacks: fallbacks
-        )
-
-        _ = try await client.reply(to: "Hi", model: "gemma-4-31b-it")
+        let client = makeClient(local: local, cloud: StubBackend(text: "cloud", delay: 5, clock: clock),
+                                provider: .cloud, fallbacks: fallbacks, clock: clock)
+        let task = Task { try await client.reply(to: "Hi", model: "m") }
+        await clock.waitForSleepers(2)
+        await clock.advance(by: .milliseconds(50))
+        _ = try await task.value
         #expect(local.seenModels.all == ["gemma4:26b-mlx"])
         #expect(fallbacks.all == [.cloudUnreachable])
     }
 
     @Test func theReaderKeepsItsOwnTimeoutInsteadOfTheDeadline() async throws {
-        // Translating a block legitimately outruns the deadline; applying it there would send every article to the local model.
-        let client = makeClient(
-            local: StubBackend(text: "lokalnie"),
-            cloud: StubBackend(text: "z chmury", delay: 0.3),
-            provider: .cloud
-        )
-
-        #expect(try await client.translateBlock(html: "<b>Hi</b>", into: .polish, model: "gemma-4-31b-it") == "z chmury")
-    }
-
-    @Test func withNoLocalEngineTheSlowCloudKeepsTheStream() async throws {
-        // The cloud is the no-download path: an install that took it has no Ollama, so handing over would turn a slow answer into none at all.
-        let local = StubBackend(text: "lokalnie")
-        let fallbacks = FallbackLog()
-        let client = makeClient(
-            local: local,
-            cloud: StubBackend(text: "z chmury", delay: 0.3),
-            provider: .cloud,
-            fallbacks: fallbacks,
-            localReady: { false }
-        )
-
-        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemini-3.5-flash-lite", primary: .polish, second: .english, formality: .automatic, style: false))
-        #expect(tokens == ["z chmury"])
+        let clock = ManualTestClock()
+        let local = StubBackend(text: "local")
+        let client = makeClient(local: local, cloud: StubBackend(text: "cloud", delay: 1, clock: clock), provider: .cloud, clock: clock)
+        let task = Task { try await client.translateBlock(html: "Hi", into: .polish, model: "m") }
+        await clock.waitForSleepers(1)
+        await clock.advance(by: .seconds(1))
+        #expect(try await task.value == "cloud")
         #expect(local.seenModels.all.isEmpty)
-        #expect(fallbacks.all.isEmpty)
     }
 
-    @Test func withNoLocalEngineTheSlowCloudKeepsAnInteractiveLookup() async throws {
-        let local = StubBackend(text: "lokalnie")
-        let client = makeClient(
-            local: local,
-            cloud: StubBackend(text: "z chmury", delay: 0.3),
-            provider: .cloud,
-            localReady: { false }
-        )
-
-        #expect(try await client.reply(to: "Hi", model: "gemini-3.5-flash-lite") == ReplyParser.parse("z chmury"))
+    @Test(arguments: [false, true])
+    func withNoLocalEngineTheSlowCloudKeepsTheRequest(stream: Bool) async throws {
+        let clock = ManualTestClock()
+        let probed = StreamGate()
+        let local = StubBackend(text: "local")
+        let client = makeClient(local: local, cloud: StubBackend(text: "cloud", delay: 1, clock: clock),
+            provider: .cloud, clock: clock, localReady: { probed.release(); return false })
+        let task = Task {
+            if stream { return try await collect(client.streamGeneration(prompt: "Hi", model: "m")) }
+            return [try await client.generate(prompt: "Hi", model: "m")]
+        }
+        await clock.waitForSleepers(2)
+        await clock.advance(by: .milliseconds(50))
+        await probed.wait()
+        await clock.advance(by: .seconds(1))
+        #expect(try await task.value == ["cloud"])
         #expect(local.seenModels.all.isEmpty)
     }
 
     @Test func aSlowReadinessProbeDoesNotHoldTheCloudAnswer() async throws {
-        // The probe sits in the group the answer has to leave, so it must be cancellable — wiring it to the engine's provisioning path (spawn + up to ~2min wait) would outlast the deadline it gates.
-        let probed = FallbackLog()
-        let client = makeClient(
-            local: StubBackend(text: "lokalnie"),
-            // Slower than the deadline on purpose: the timer has to fire and enter the probe, or the test would guard nothing.
-            cloud: StubBackend(text: "z chmury", delay: 0.2),
-            provider: .cloud,
-            deadline: 0.05,
-            localReady: {
-                probed.record(.cloudUnreachable, longForm: false)
-                try? await Task.sleep(for: .seconds(5))
-                return true
-            }
-        )
-
-        let start = ContinuousClock.now
-        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
-
-        // Without this the test would pass on a cloud that answers before the timer even fires, guarding nothing.
-        #expect(probed.all.count == 1)
-        #expect(tokens == ["z chmury"])
-        #expect(ContinuousClock.now - start < .milliseconds(500))
+        let clock = ManualTestClock()
+        let probed = StreamGate()
+        let client = makeClient(local: StubBackend(text: "local"),
+            cloud: StubBackend(text: "cloud", delay: 1, clock: clock), provider: .cloud, clock: clock,
+            localReady: { probed.release(); try? await clock.sleep(for: .seconds(5)); return true })
+        let task = Task { try await collect(client.streamGeneration(prompt: "Hi", model: "m")) }
+        await clock.waitForSleepers(2)
+        await clock.advance(by: .milliseconds(50))
+        await probed.wait()
+        await clock.waitForSleepers(2)
+        await clock.advance(by: .seconds(1))
+        #expect(try await task.value == ["cloud"])
+        #expect(await clock.cancellations >= 1)
     }
 
     @Test func aFinishedCloudStreamDoesNotWaitOutTheDeadline() async throws {
-        // Waiting for the timer too would hold the popup's task open for 6s after the answer is complete, delaying everything the caller does once the stream ends.
-        let client = makeClient(local: StubBackend(text: "lokalnie"), cloud: StubBackend(text: "z chmury"), provider: .cloud, deadline: 2)
-
-        let start = ContinuousClock.now
-        let tokens = try await collect(client.run("Hi", action: .translate, model: "gemma-4-31b-it", primary: .polish, second: .english, formality: .automatic, style: false))
-        let elapsed = ContinuousClock.now - start
-
-        #expect(tokens == ["z chmury"])
-        #expect(elapsed < .milliseconds(500), "the stream stayed open for \(elapsed)")
+        let clock = ManualTestClock()
+        let client = makeClient(local: StubBackend(text: "local"), cloud: StubBackend(text: "cloud"), provider: .cloud, clock: clock)
+        // No clock advance: this would hang if a finished stream waited for the deadline.
+        #expect(try await collect(client.streamGeneration(prompt: "Hi", model: "m")) == ["cloud"])
     }
 }

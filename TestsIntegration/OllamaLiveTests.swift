@@ -17,7 +17,7 @@ import Testing
     }
 
     @Test func translatesAgainstLiveOllama() async throws {
-        guard await ollamaReachable() else { return }
+        try #require(await ollamaReachable(), "Local Ollama is required for live tests")
 
         let client = OllamaClient()
         var output = ""
@@ -31,7 +31,7 @@ import Testing
     }
 
     @Test func translatesDutchToPolishAgainstLiveOllama() async throws {
-        guard await ollamaReachable() else { return }
+        try #require(await ollamaReachable(), "Local Ollama is required for live tests")
 
         let client = OllamaClient()
         var output = ""
@@ -52,7 +52,7 @@ import Testing
     }
 
     @Test func explainsAgainstLiveOllama() async throws {
-        guard await ollamaReachable() else { return }
+        try #require(await ollamaReachable(), "Local Ollama is required for live tests")
 
         let client = OllamaClient()
         let explanation = try await client.explain(
@@ -63,7 +63,7 @@ import Testing
     }
 
     @Test func explainsRegisterShiftAgainstLiveOllama() async throws {
-        guard await ollamaReachable() else { return }
+        try #require(await ollamaReachable(), "Local Ollama is required for live tests")
 
         let client = OllamaClient()
         let note = try await client.explainRegister(

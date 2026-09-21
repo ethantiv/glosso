@@ -2,16 +2,17 @@ import Foundation
 import Testing
 @testable import Glosso
 
-@Suite(.serialized) struct OllamaClientTests {
+@Suite struct OllamaClientTests {
+    private let http = HTTPFixture()
     private func makeClient() -> OllamaClient {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        http.configure(configuration)
         let session = URLSession(configuration: configuration)
         return OllamaClient(session: session)
     }
 
     @Test func streamsTokensAndStopsOnDone() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let lines = [
                 #"{"model":"m","response":"Hel","done":false}"#,
                 #"{"model":"m","response":"lo","done":false}"#,
@@ -21,7 +22,7 @@ import Testing
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         var tokens: [String] = []
@@ -35,12 +36,12 @@ import Testing
     }
 
     @Test func translateBlockReturnsResponseBody() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"model":"m","response":"<b>Cześć</b>","done":true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         let result = try await client.translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
@@ -48,12 +49,12 @@ import Testing
     }
 
     @Test func translateBlockSurfacesOllamaErrorBody() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"error":"model 'm' not found"}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'm' not found")) {
@@ -62,12 +63,12 @@ import Testing
     }
 
     @Test func translateBlockTreatsLengthTruncationAsError() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"model":"m","response":"<b>Cześć","done":true,"done_reason":"length"}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.malformedStream) {
@@ -77,10 +78,10 @@ import Testing
 
     @Test func keepAliveProviderOverridesTheConfigValue() async throws {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        http.configure(configuration)
         let client = OllamaClient(session: URLSession(configuration: configuration), keepAliveProvider: { "5m" })
         let captured = CapturedBody()
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             captured.store(request.httpBodyStream.map { stream in
                 stream.open()
                 defer { stream.close() }
@@ -96,7 +97,7 @@ import Testing
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, Data(#"{"response":"ok","done":true}"#.utf8))
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
         _ = try await client.generate(prompt: "p", model: "m")
         #expect(String(decoding: captured.value, as: UTF8.self).contains(#""keep_alive":"5m""#))
     }
@@ -110,12 +111,12 @@ import Testing
     }
 
     @Test func readerSummaryReturnsResponseBody() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"model":"m","response":"Krótkie streszczenie.","done":true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         let result = try await client.readerSummary(of: "A long article.", into: .polish, model: "m")
@@ -123,12 +124,12 @@ import Testing
     }
 
     @Test func askArticleReturnsResponseBody() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"model":"m","response":"Autor mówi, że tak.","done":true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         let result = try await client.askArticle(question: "Co mówi autor?", history: [], article: "A long article.", into: .polish, model: "m")
@@ -136,12 +137,12 @@ import Testing
     }
 
     @Test func askArticleWithHistoryReturnsResponseBody() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"model":"m","response":"Tak, nawiązuje do poprzedniej odpowiedzi.","done":true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         let result = try await client.askArticle(
@@ -151,12 +152,12 @@ import Testing
     }
 
     @Test func askArticleSurfacesOllamaErrorBody() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"error":"model 'm' not found"}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'm' not found")) {
@@ -165,12 +166,12 @@ import Testing
     }
 
     @Test func articleQuestionsParsesOnePerLineAndStripsMarkers() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = #"{"model":"m","response":"1. Jak działa bateria?\n- Kto ją wynalazł?\nCo dalej?","done":true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         let result = try await client.articleQuestions(about: "A long article.", into: .polish, model: "m")
@@ -178,13 +179,13 @@ import Testing
     }
 
     @Test func articleQuestionsCapsAtFive() async throws {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let lines = (1...7).map { "Pytanie numer \($0)?" }.joined(separator: #"\n"#)
             let body = #"{"model":"m","response":""#.appending(lines).appending(#"","done":true}"#).data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         let result = try await client.articleQuestions(about: "A long article.", into: .polish, model: "m")
@@ -193,10 +194,10 @@ import Testing
     }
 
     @Test func unreachableHostMapsToOllamaUnreachable() async {
-        MockURLProtocol.handler = { _ in
+        http.handler = { _ in
             throw URLError(.cannotConnectToHost)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaUnreachable) {
@@ -205,12 +206,12 @@ import Testing
     }
 
     @Test func errorFrameSurfacesAsOllamaError() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = (#"{"error":"model 'gemma4:26b-mlx' not found"}"# + "\n").data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model 'gemma4:26b-mlx' not found")) {
@@ -219,7 +220,7 @@ import Testing
     }
 
     @Test func streamEndingWithoutDoneMapsToMalformedStream() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let lines = [
                 #"{"model":"m","response":"Hel","done":false}"#,
                 #"{"model":"m","response":"lo","done":false}"#,
@@ -228,7 +229,7 @@ import Testing
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.malformedStream) {
@@ -237,10 +238,10 @@ import Testing
     }
 
     @Test func unexpectedURLErrorMapsToOllamaUnreachable() async {
-        MockURLProtocol.handler = { _ in
+        http.handler = { _ in
             throw URLError(.networkConnectionLost)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaUnreachable) {
@@ -249,11 +250,11 @@ import Testing
     }
 
     @Test func nonOKStatusMapsToHTTPStatus() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let response = HTTPURLResponse(url: request.url!, statusCode: 500, httpVersion: nil, headerFields: nil)!
             return (response, Data())
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.httpStatus(500)) {
@@ -262,12 +263,12 @@ import Testing
     }
 
     @Test func nonOKStatusWithErrorBodySurfacesOllamaError() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let body = (#"{"error":"model not found, try pulling it first"}"# + "\n").data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.ollamaError("model not found, try pulling it first")) {
@@ -277,10 +278,11 @@ import Testing
 }
 
 /// The same client pointed at Ollama's cloud host. What matters here is that its failures land on the cases `RoutingLLMClient.fallsBack` accepts — otherwise a dead key would strand the user instead of handing over to the local engine.
-@Suite(.serialized) struct OllamaCloudClientTests {
+@Suite struct OllamaCloudClientTests {
+    private let http = HTTPFixture()
     private func makeClient(key: String? = "sk-test") -> OllamaClient {
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        http.configure(configuration)
         let session = URLSession(configuration: configuration)
         return OllamaClient(session: session,
                             endpointProvider: { OllamaCloudCatalog.baseURL },
@@ -294,11 +296,11 @@ import Testing
 
     @Test func signsTheRequestAndSendsItToOllamasHost() async throws {
         let captured = HeaderBox()
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             captured.store(url: request.url, header: request.value(forHTTPHeaderField: "Authorization"))
             return self.ok(request)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         #expect(captured.header == "Bearer sk-test")
@@ -307,50 +309,50 @@ import Testing
 
     @Test func theLocalEngineIsNeverSignedIn() async throws {
         let captured = HeaderBox()
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             captured.store(url: request.url, header: request.value(forHTTPHeaderField: "Authorization"))
             return self.ok(request)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let configuration = URLSessionConfiguration.ephemeral
-        configuration.protocolClasses = [MockURLProtocol.self]
+        http.configure(configuration)
         let local = OllamaClient(session: URLSession(configuration: configuration))
         _ = try await local.translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         #expect(captured.header == nil)
     }
 
     @Test func missingKeyFailsWithoutTouchingTheNetwork() async {
-        MockURLProtocol.handler = { _ in
+        http.handler = { _ in
             Issue.record("a keyless cloud client must not reach the network")
             throw URLError(.unknown)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         await #expect(throws: TranslationError.missingAPIKey) {
             _ = try await makeClient(key: "  ").translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         }
     }
 
-    @Test func aRejectedKeyIsReportedAsInvalidNotAsAnOllamaError() async {
+    @Test(arguments: [401, 403]) func aRejectedKeyIsReportedAsInvalidNotAsAnOllamaError(status: Int) async {
         // The cloud answers 401 with {"error":"Unauthorized"}, which would decode into `.ollamaError` — and that never falls back.
-        MockURLProtocol.handler = { request in
-            (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+        http.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
              #"{"error":"Unauthorized"}"#.data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         await #expect(throws: TranslationError.invalidAPIKey) {
             _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
         }
     }
 
-    @Test func aRejectedKeyStopsTheStreamWithInvalidKeyToo() async {
-        MockURLProtocol.handler = { request in
-            (HTTPURLResponse(url: request.url!, statusCode: 401, httpVersion: nil, headerFields: nil)!,
+    @Test(arguments: [401, 403]) func aRejectedKeyStopsTheStreamWithInvalidKeyToo(status: Int) async {
+        http.handler = { request in
+            (HTTPURLResponse(url: request.url!, statusCode: status, httpVersion: nil, headerFields: nil)!,
              (#"{"error":"Unauthorized"}"# + "\n").data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.invalidAPIKey) {
@@ -360,11 +362,11 @@ import Testing
 
     @Test func anUnknownModelKeepsTheServersOwnMessage() async {
         // The default cloud model id is hardcoded and Ollama retires cloud models on a schedule — "HTTP 404" would hide the one sentence that says why.
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             (HTTPURLResponse(url: request.url!, statusCode: 404, httpVersion: nil, headerFields: nil)!,
              #"{"error":"model 'gemma4:31b' not found"}"#.data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         await #expect(throws: TranslationError.cloudError("model 'gemma4:31b' not found")) {
             _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "gemma4:31b")
@@ -373,11 +375,11 @@ import Testing
 
     @Test func anAcceptedRequestThatFailsMidGenerationHandsOver() async {
         // 200 then {"error":…} is Ollama's shape for a capacity or model-load failure — the request was fine, so the local engine must get its turn. `.ollamaError` would strand it.
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
              #"{"error":"model requires more system memory than is available"}"#.data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         await #expect(throws: TranslationError.cloudUnreachable) {
             _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "gemma4:31b")
@@ -386,7 +388,7 @@ import Testing
     }
 
     @Test func aStreamThatFailsMidGenerationHandsOverToo() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             let lines = [
                 #"{"model":"m","response":"","done":false}"#,
                 #"{"error":"unable to load model"}"#,
@@ -394,7 +396,7 @@ import Testing
             return (HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!,
                     (lines.joined(separator: "\n") + "\n").data(using: .utf8)!)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         let client = makeClient()
         await #expect(throws: TranslationError.cloudUnreachable) {
@@ -403,10 +405,10 @@ import Testing
     }
 
     @Test func aThrottledCloudIsReportedAsRateLimited() async {
-        MockURLProtocol.handler = { request in
+        http.handler = { request in
             (HTTPURLResponse(url: request.url!, statusCode: 429, httpVersion: nil, headerFields: nil)!, Data())
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         await #expect(throws: TranslationError.rateLimited(nil)) {
             _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
@@ -414,8 +416,8 @@ import Testing
     }
 
     @Test func networkFailureIsReportedAsCloudNotOllama() async {
-        MockURLProtocol.handler = { _ in throw URLError(.notConnectedToInternet) }
-        defer { MockURLProtocol.handler = nil }
+        http.handler = { _ in throw URLError(.notConnectedToInternet) }
+        defer { http.handler = nil }
 
         await #expect(throws: TranslationError.cloudUnreachable) {
             _ = try await makeClient().translateBlock(html: "<b>Hello</b>", into: .polish, model: "m")
@@ -424,11 +426,11 @@ import Testing
 
     @Test func prewarmSendsNothing() async throws {
         // Nothing is resident to warm, and this runs on every launch — it would only spend GPU time.
-        MockURLProtocol.handler = { _ in
+        http.handler = { _ in
             Issue.record("prewarm must not spend a request on the cloud")
             throw URLError(.unknown)
         }
-        defer { MockURLProtocol.handler = nil }
+        defer { http.handler = nil }
 
         try await makeClient().prewarm(model: "m")
     }

@@ -5,9 +5,11 @@ import Testing
 @testable import Glosso
 
 @MainActor
-@Suite struct AppCoordinatorTests {
+@Suite(.timeLimit(.minutes(1))) struct AppCoordinatorTests {
+    private let clipboard = TestPasteboard()
+    private var pasteboard: NSPasteboard { clipboard.value }
     private func makeSettings(model: String = "test-model", second: SecondLanguage = .english, formality: Formality = .automatic) -> SettingsStore {
-        let defaults = UserDefaults(suiteName: "AppCoordinatorTests-\(UUID().uuidString)")!
+        let defaults = TestDefaults()
         let store = SettingsStore(defaults: defaults)
         store.modelName = model
         store.secondLanguage = second
@@ -34,13 +36,8 @@ import Testing
             articleReader: articleReader,
             pollStepMs: 1,
             pollMaxAttempts: 5,
-            prefetchLingerMs: prefetchLingerMs
+            prefetchLingerMs: prefetchLingerMs, pasteboard: pasteboard
         )
-    }
-
-    private func spin(until condition: () -> Bool, max: Int = 20_000) async {
-        var spins = 0
-        while !condition() && spins < max { await Task.yield(); spins += 1 }
     }
 
     @Test func translatesOnceClipboardBecomesReady() async {
@@ -51,6 +48,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(model: "test-model", second: .english, formality: .formal)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -73,6 +71,7 @@ import Testing
         let popup = FakePopup()
         let presenter = FakeReaderPresenter()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, articleReader: presenter)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -89,6 +88,7 @@ import Testing
         let popup = FakePopup()
         let presenter = FakeReaderPresenter()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, articleReader: presenter)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -103,6 +103,7 @@ import Testing
         reader.text = "https://example.com/artykul"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -120,6 +121,7 @@ import Testing
         let coordinator = makeCoordinator(
             llm: llm, reader: reader, popup: popup,
             axReader: axReader, articleReader: presenter)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -134,6 +136,7 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -146,6 +149,7 @@ import Testing
         reader.readyAfterAttempts = nil   // never ready
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -161,6 +165,7 @@ import Testing
         reader.text = "select from the terminal"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [4]   // snapshot from before the gesture
 
         await coordinator.captureAndTranslate(baseline: 5, at: .zero)
@@ -177,6 +182,7 @@ import Testing
         reader.text = "stare dane sprzed kwadransa"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [5]   // the snapshot already saw this copy
 
         await coordinator.captureAndTranslate(baseline: 5, at: .zero)
@@ -195,6 +201,7 @@ import Testing
         axReader.text = "faktyczne bieżące zaznaczenie"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: axReader)
+        defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [4]   // snapshot predates the unrelated copy
 
         await coordinator.captureAndTranslate(baseline: 5, at: .zero)
@@ -210,10 +217,11 @@ import Testing
         reader.readyAfterAttempts = 0
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.handleDoubleCopy(baseline: 0)
-        var spins = 0
-        while popup.tokens.isEmpty && spins < 10_000 { await Task.yield(); spins += 1 }
+        await popup.firstToken.wait()
+        let previousCapture = coordinator.captureTask
         #expect(popup.tokens == ["first"])   // capture #1 is suspended mid-stream
 
         reader.readyAfterAttempts = nil       // #2 just polls; it won't stream and muddy the tokens
@@ -221,8 +229,7 @@ import Testing
         #expect(popup.dismissCount == 1)      // #1's popup torn down
 
         gate.release()                        // resume #1 — it is cancelled, must not append "late"
-        spins = 0
-        while spins < 200 { await Task.yield(); spins += 1 }
+        await previousCapture?.value
         #expect(popup.tokens == ["first"])
     }
 
@@ -233,6 +240,7 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -247,6 +255,7 @@ import Testing
         reader.text = "Hello"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -258,6 +267,7 @@ import Testing
 
     @Test func startReturnsTrueWhenTheMonitorStarts() {
         let coordinator = makeCoordinator(llm: FakeLLMClient(), reader: FakePasteboardReader(), popup: FakePopup())
+        defer { coordinator.stop() }
         #expect(coordinator.start() == true)
     }
 
@@ -268,8 +278,9 @@ import Testing
         let coordinator = AppCoordinator(
             llm: FakeLLMClient(), monitor: monitor,
             reader: FakePasteboardReader(), axReader: FakeAXSelectionReader(), popup: FakePopup(),
-            settings: makeSettings()
+            settings: makeSettings(), pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
         #expect(coordinator.start() == false)
     }
 
@@ -282,20 +293,20 @@ import Testing
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup,
-            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5
+            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         coordinator.start()
         coordinator.handleDoubleCopy(baseline: 0)
-        var spins = 0
-        while popup.tokens.isEmpty && spins < 10_000 { await Task.yield(); spins += 1 }
+        await popup.firstToken.wait()
+        let previousCapture = coordinator.captureTask
         #expect(popup.tokens == ["first"])
 
         popup.dismiss()                       // onDismiss wiring should cancel the capture
         #expect(popup.dismissCount == 1)
         gate.release()
-        spins = 0
-        while spins < 200 { await Task.yield(); spins += 1 }
+        await previousCapture?.value
         #expect(popup.tokens == ["first"])    // cancelled capture never appended "late"
     }
 
@@ -306,6 +317,7 @@ import Testing
         reader.landedChangeCount = 7          // copy lands at change count 7
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 7, at: .zero)   // equal, not above
 
@@ -321,8 +333,9 @@ import Testing
             reader: FakePasteboardReader(),
             axReader: FakeAXSelectionReader(),
             popup: FakePopup(),
-            settings: makeSettings()
+            settings: makeSettings(), pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         coordinator.stop()
 
@@ -338,8 +351,9 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }
+            frontmostPID: { 42 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
@@ -359,8 +373,9 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: settings, replacer: replacer,
-            frontmostPID: { 42 }
+            frontmostPID: { 42 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
@@ -377,8 +392,9 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }
+            frontmostPID: { 42 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42, action: .translate)
 
@@ -399,8 +415,9 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
@@ -426,8 +443,9 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [4]  // snapshot from before the selection
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -451,8 +469,9 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: FakeSelectionReplacer(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [5]  // the snapshot already saw this copy
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
@@ -476,8 +495,9 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { "com.apple.Terminal" },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
@@ -486,10 +506,10 @@ import Testing
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(replacer.replacedText == nil)   // no paste — would append in a terminal
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
-    @Test func fixGrammarFreshCopyInNonTerminalPastesInPlace() async {
+    @Test func fixGrammarFreshCopyInNonTerminalCopiesWithoutVerifiedTarget() async {
         let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = nil                     // AX read yields nothing
@@ -504,17 +524,19 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { "com.microsoft.VSCode" },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(llm.recorder.receivedText == "teh cat")
-        #expect(replacer.replacedText == "the cat")
-        #expect(messages.isEmpty)
+        #expect(replacer.replacedText == nil)
+        #expect(pasteboard.string(forType: .string) == "the cat")
+        #expect(messages.count == 1)
     }
 
-    @Test func fixGrammarEmptyAXReadThroughoutStillPastesInPlace() async {
+    @Test func fixGrammarEmptyAXReadThroughoutStillCopiesWithoutVerifiedTarget() async {
         let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = ""                      // non-nil empty, before and after
@@ -529,13 +551,15 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { "com.microsoft.VSCode" },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
-        #expect(replacer.replacedText == "the cat")
-        #expect(messages.isEmpty)
+        #expect(replacer.replacedText == nil)
+        #expect(pasteboard.string(forType: .string) == "the cat")
+        #expect(messages.count == 1)
     }
 
     @Test func fixGrammarUnknownBundleIDCopiesToClipboard() async {
@@ -553,14 +577,15 @@ import Testing
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5, frontmostPID: { 42 },
             frontmostBundleID: { nil },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(replacer.replacedText == nil)
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
     @Test func fixGrammarCopiesToClipboardWhenSelectionCollapsed() async {
@@ -574,15 +599,16 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 42 },
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(replacer.replacedText == nil)   // no paste — would insert at cursor
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
     @Test func fixGrammarFallsBackToClipboardWhenAppChanged() async {
@@ -596,14 +622,15 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 99 },           // now a different app than the captured PID
-            notify: { messages.append($0) }
+            pasteboard: pasteboard, notify: { messages.append($0) }
         )
+        defer { coordinator.stop() }
 
         await coordinator.fixGrammarInPlace(sourcePID: 42)
 
         #expect(replacer.replacedText == nil)
         #expect(messages.count == 1)
-        #expect(NSPasteboard.general.string(forType: .string) == "the cat")
+        #expect(pasteboard.string(forType: .string) == "the cat")
     }
 
     @Test func stopDismissesAVisiblePopup() async {
@@ -612,6 +639,7 @@ import Testing
         reader.readyAfterAttempts = 0
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         #expect(popup.presented)
@@ -630,14 +658,14 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .german, formality: .automatic)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         #expect(llm.recorder.receivedFormality == .automatic)
 
         popup.onSelectFormality?(.formal)   // user clicked the tone pill
-        var spins = 0
-        while llm.recorder.receivedFormality != .formal && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(settings.formality == .formal)
         #expect(popup.restartCount == 1)
@@ -650,6 +678,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(formality: .automatic)
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         popup.onSelectFormality?(.informal)
@@ -669,11 +698,12 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .german)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         popup.onSelectAction?(.fixGrammar)
-        await spin(until: { llm.recorder.receivedAction == .fixGrammar })
+        await coordinator.captureTask?.value
 
         #expect(llm.recorder.receivedStyle == false)
     }
@@ -689,6 +719,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -704,6 +735,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -717,14 +749,14 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         #expect(llm.recorder.receivedAction == .translate)
 
         popup.onSelectAction?(.summarize)   // user clicked the Streść pill
-        var spins = 0
-        while llm.recorder.receivedAction != .summarize && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(popup.restartCount == 1)
         #expect(llm.recorder.receivedText == "Dzień dobry")
@@ -740,13 +772,13 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         popup.onSelectAction?(.fixGrammar)
-        var spins = 0
-        while popup.presentedAction != .fixGrammar && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(popup.presentedDirection == .fromPrimary(.polish, .english))
     }
@@ -758,13 +790,13 @@ import Testing
         reader.text = "Hi, are we still on for Thursday?"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         popup.onSelectAction?(.reply)   // user clicked the Odpowiedz pill
-        var spins = 0
-        while popup.shownReplies == nil && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(popup.shownReplies == ["wersja A", "wersja B", "wersja C"])
         #expect(llm.recorder.replyText == "Hi, are we still on for Thursday?")
@@ -778,13 +810,13 @@ import Testing
         reader.readyAfterAttempts = 0
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         popup.onSelectAction?(.reply)
-        var spins = 0
-        while popup.errorMessage == nil && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(popup.shownReplies == nil)
         #expect(popup.errorMessage != nil)
@@ -795,6 +827,7 @@ import Testing
         let llm = FakeLLMClient()
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         popup.onSelectAction?(.fixGrammar)
@@ -812,14 +845,14 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         #expect(llm.recorder.receivedText == "Dzień dobry")
 
         popup.onRetranslate?("Poprawiony tekst")   // user edited the source and hit Przetłumacz
-        var spins = 0
-        while llm.recorder.receivedText != "Poprawiony tekst" && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(popup.restartCount == 1)
         #expect(llm.recorder.receivedText == "Poprawiony tekst")
@@ -832,6 +865,7 @@ import Testing
         let llm = FakeLLMClient()
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         popup.onRetranslate?("cokolwiek")
@@ -848,6 +882,7 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -868,6 +903,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .english)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -884,6 +920,7 @@ import Testing
         let llm = FakeLLMClient(alternatives: ["x"])
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         let result = await popup.onFetchAlternatives?("foo", "bar")
@@ -899,6 +936,7 @@ import Testing
         reader.text = "great"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -917,6 +955,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .german)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -933,6 +972,7 @@ import Testing
         let llm = FakeLLMClient(explanation: "x")
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         let result = await popup.onFetchExplanation?("foo", "bar")
@@ -948,6 +988,7 @@ import Testing
         reader.text = "great"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -966,6 +1007,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .german)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -984,6 +1026,7 @@ import Testing
         let llm = FakeLLMClient(toneNote: "x")
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         let result = await popup.onFetchToneNote?("a", "b", .automatic, .formal)
@@ -999,6 +1042,7 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -1017,6 +1061,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .english)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -1043,6 +1088,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .english)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -1059,6 +1105,7 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .german)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -1071,6 +1118,7 @@ import Testing
         let llm = FakeLLMClient(fixReason: "x")
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakePasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         let result = await popup.onFetchFixReason?("a", "b", "c")
@@ -1086,6 +1134,7 @@ import Testing
         reader.text = "great"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
@@ -1102,13 +1151,13 @@ import Testing
         let popup = FakePopup()
         let settings = makeSettings(second: .english, formality: .formal)
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings)
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         popup.onPickAlternative?("wspaniały", "świetny", "To jest wspaniały")
-        var spins = 0
-        while llm.recorder.rewordChosen == nil && spins < 10_000 { await Task.yield(); spins += 1 }
+        await coordinator.captureTask?.value
 
         #expect(popup.restartCount == 1)
         #expect(llm.recorder.rewordOriginal == "wspaniały")
@@ -1128,12 +1177,16 @@ import Testing
         reader.text = "Dzień dobry"
         let popup = FakePopup()
         let replacer = FakeSelectionReplacer()
+        let ax = FakeAXSelectionReader()
+        ax.text = reader.text
+        ax.snapshotPID = 123
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
-            axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
+            axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
@@ -1155,15 +1208,17 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }   // a different app is frontmost now
+            frontmostPID: { 999 }, pasteboard: pasteboard // a different app is frontmost now
         )
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
         popup.onReplace?("Hello")
 
         #expect(replacer.replacedText == nil)
-        #expect(popup.errorMessage == loc("Aplikacja źródłowa się zmieniła — nie wklejono.", "The source app changed — nothing was pasted."))
+        #expect(popup.errorMessage != nil)
+        #expect(pasteboard.string(forType: .string) == "Hello")
         #expect(popup.dismissCount == 0)
     }
 
@@ -1180,15 +1235,17 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
         popup.onReplace?("Hello")
 
         #expect(replacer.replacedText == nil)
-        #expect(popup.errorMessage == "Brak zaznaczenia do zastąpienia.")
+        #expect(popup.errorMessage != nil)
+        #expect(pasteboard.string(forType: .string) == "Hello")
         #expect(popup.dismissCount == 0)
     }
 
@@ -1201,12 +1258,14 @@ import Testing
         let replacer = FakeSelectionReplacer()
         let ax = FakeAXSelectionReader()
         ax.text = "Dzień dobry"
+        ax.snapshotPID = 123
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         coordinator.start()
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
@@ -1221,6 +1280,7 @@ import Testing
         let llm = FakeLLMClient()
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -1236,6 +1296,7 @@ import Testing
         ax.text = "Dzień dobry"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -1244,7 +1305,7 @@ import Testing
         #expect(popup.errorMessage == nil)
     }
 
-    @Test func clipboardTakesPrecedenceAndAXIsNotConsulted() async {
+    @Test func clipboardTakesPrecedenceOverTheSafetySnapshot() async {
         let llm = FakeLLMClient()
         let reader = FakePasteboardReader()
         reader.readyAfterAttempts = 0
@@ -1253,11 +1314,12 @@ import Testing
         ax.text = "stale selection"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
         #expect(llm.recorder.receivedText == "Hello")
-        #expect(ax.callCount == 0)
+        #expect(ax.callCount == 1)
     }
 
     @Test func presentsErrorWhenClipboardAndAXBothFail() async {
@@ -1268,6 +1330,7 @@ import Testing
         ax.text = nil
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -1283,6 +1346,7 @@ import Testing
         ax.text = "   \n\t "
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, axReader: ax)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -1301,8 +1365,9 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }   // the app focused *now* differs from the source below
+            frontmostPID: { 999 }, pasteboard: pasteboard // the app focused *now* differs from the source below
         )
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
 
@@ -1322,8 +1387,9 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }
+            frontmostPID: { 123 }, pasteboard: pasteboard
         )
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero, sourcePID: 123)
 
@@ -1337,6 +1403,7 @@ import Testing
         ax.text = "would-be fallback"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(), popup: popup, axReader: ax)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
 
@@ -1351,9 +1418,10 @@ import Testing
         reader.text = "Cześć"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 0)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
-        await spin(until: { llm.recorder.runCount >= 3 && llm.recorder.replyCount >= 1 })
+        await coordinator.prefetchTask?.value
 
         // translate (foreground) + fixGrammar + summarize; reply takes the reply() path.
         #expect(llm.recorder.runCount == 3)
@@ -1371,10 +1439,12 @@ import Testing
         let settings = makeSettings()
         settings.provider = .cloud
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, settings: settings, prefetchLingerMs: 0)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
-        // Exits early if a prefetch does fire, so the assertions below aren't just winning a race.
-        await spin(until: { llm.recorder.runCount > 1 || llm.recorder.replyCount > 0 }, max: 5_000)
+        // Await any accidentally scheduled prefetch before asserting that none was scheduled.
+        await coordinator.prefetchTask?.value
+        #expect(coordinator.prefetchTask == nil)
 
         // The cloud meters every request: three speculative verbs per capture would spend 4x the day on guesses.
         #expect(llm.recorder.runCount == 1)
@@ -1388,19 +1458,20 @@ import Testing
         reader.text = "Cześć"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 0)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
-        await spin(until: { llm.recorder.runCount >= 3 && llm.recorder.replyCount >= 1 })
+        await coordinator.prefetchTask?.value
         let runsBefore = llm.recorder.runCount
         let repliesBefore = llm.recorder.replyCount
 
         coordinator.handleActionChange(.fixGrammar)
-        await spin(until: { popup.finished && popup.presentedAction == .fixGrammar })
+        await coordinator.captureTask?.value
         #expect(llm.recorder.runCount == runsBefore)   // served from cache
         #expect(popup.tokens == ["X"])                 // the cached result replayed
 
         coordinator.handleActionChange(.reply)
-        await spin(until: { popup.shownReplies != nil })
+        await coordinator.captureTask?.value
         #expect(llm.recorder.replyCount == repliesBefore)
         #expect(popup.shownReplies == ["draft-one", "draft-two", "draft-three"])
     }
@@ -1412,19 +1483,20 @@ import Testing
         reader.text = "Cześć"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)   // translate cached, runCount 1
         coordinator.handleActionChange(.fixGrammar)                     // miss → run, runCount 2
-        await spin(until: { llm.recorder.runCount == 2 })
+        await coordinator.captureTask?.value
 
         coordinator.handleActionChange(.translate)                      // cached from foreground → no run
-        await spin(until: { popup.finished && popup.presentedAction == .translate })
+        await coordinator.captureTask?.value
         #expect(llm.recorder.runCount == 2)
 
         coordinator.handleFormalityChange(.formal)                      // clears cache + re-runs translate → 3
-        await spin(until: { llm.recorder.runCount == 3 })
+        await coordinator.captureTask?.value
         coordinator.handleActionChange(.fixGrammar)                     // cache was cleared → must re-run → 4
-        await spin(until: { llm.recorder.runCount == 4 })
+        await coordinator.captureTask?.value
         #expect(llm.recorder.runCount == 4)
     }
 
@@ -1435,14 +1507,15 @@ import Testing
         reader.text = "Cześć"
         let popup = FakePopup()
         let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
 
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)   // translate cached, runCount 1
         coordinator.handlePickAlternative(original: "a", chosen: "b", translation: "X") // reword overwrites .translate
-        await spin(until: { popup.finished })
+        await coordinator.captureTask?.value
 
         coordinator.handleUndo()                                        // must drop the reworded .translate entry
         coordinator.handleActionChange(.translate)                      // cache gone → must re-run → 2
-        await spin(until: { llm.recorder.runCount == 2 })
+        await coordinator.captureTask?.value
         #expect(llm.recorder.runCount == 2)
     }
 }

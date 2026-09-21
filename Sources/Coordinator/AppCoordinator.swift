@@ -18,6 +18,7 @@ final class AppCoordinator {
     private let prefetchLingerMs: Int
     private let frontmostPID: @MainActor () -> pid_t?
     private let frontmostBundleID: @MainActor () -> String?
+    private let pasteboard: NSPasteboard
     private let notify: @MainActor (String) -> Void
 
     // A terminal's "selection" is a mouse highlight the shell won't replace — Cmd+V
@@ -31,10 +32,10 @@ final class AppCoordinator {
         "dev.warp.Warp-Stable", "co.zeit.hyper",
     ]
 
-    private var captureTask: Task<Void, Never>?
+    private(set) var captureTask: Task<Void, Never>?
     private var fixTask: Task<Void, Never>?
 
-    private var prefetchTask: Task<Void, Never>?
+    private(set) var prefetchTask: Task<Void, Never>?
 
     private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
     private var actionCache: [Action: ActionResult] = [:]
@@ -54,6 +55,7 @@ final class AppCoordinator {
     private var lastCapture: (text: String, point: CGPoint, action: Action, direction: TranslationDirection)?
 
     private var lastSourcePID: pid_t?
+    private var lastSelection: SelectionSnapshot?
 
     // Ring of pasteboard changeCounts sampled every 2s (newest last, 3 deep), so
     // the oldest is 4–6s old once warm. It backs the capture's second chance: when
@@ -92,6 +94,7 @@ final class AppCoordinator {
         prefetchLingerMs: Int = 800,
         frontmostPID: @escaping @MainActor () -> pid_t? = { NSWorkspace.shared.frontmostApplication?.processIdentifier },
         frontmostBundleID: @escaping @MainActor () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier },
+        pasteboard: NSPasteboard = .general,
         notify: @escaping @MainActor (String) -> Void = { SystemUserNotifier.post($0) }
     ) {
         self.llm = llm
@@ -108,6 +111,7 @@ final class AppCoordinator {
         self.frontmostPID = frontmostPID
         self.frontmostBundleID = frontmostBundleID
         self.notify = notify
+        self.pasteboard = pasteboard
     }
 
     @discardableResult
@@ -178,6 +182,7 @@ final class AppCoordinator {
         // A fresh selection invalidates every cached action result.
         actionCache.removeAll()
         lastSourcePID = sourcePID
+        lastSelection = nil
         popup.present(at: point, formality: settings.formality)
         var sawEmptyCopy = false
         for _ in 0..<pollMaxAttempts {
@@ -185,6 +190,7 @@ final class AppCoordinator {
             do {
                 let text = try reader.readSelection(baselineChangeCount: baseline)
                 if Task.isCancelled { return }
+                rememberSelection(for: text)
                 await route(text, at: point)
                 return
             } catch CaptureError.emptyOrNonText {
@@ -211,12 +217,14 @@ final class AppCoordinator {
         if sourcePID == nil || sourcePID == frontmostPID(),
            let axText = try? SelectionGuard.nonEmptyText(axReader.selectedText()) {
             if Task.isCancelled { return }
+            rememberSelection(for: axText)
             await route(axText, at: point)
             return
         }
         if let trailing = trailingChangeCounts.first,
            let text = try? reader.readSelection(baselineChangeCount: trailing) {
             if Task.isCancelled { return }
+            rememberSelection(for: text)
             await stream(text, at: point, action: .translate)
             return
         }
@@ -228,22 +236,22 @@ final class AppCoordinator {
         frontmostBundleID().map { Self.terminalBundleIDs.contains($0) } ?? false
     }
 
+    private func rememberSelection(for text: String) {
+        guard let snapshot = axReader.snapshot(), snapshot.pid == lastSourcePID,
+              snapshot.text.trimmingCharacters(in: .whitespacesAndNewlines) == text else { return }
+        lastSelection = snapshot
+    }
+
+    private func canReplace(_ snapshot: SelectionSnapshot?) -> Bool {
+        guard !frontmostIsTerminal(), let snapshot else { return false }
+        return snapshot.matches(axReader.snapshot(), frontmostPID: frontmostPID())
+    }
+
     func handleReplace(translation: String) {
-        guard let sourcePID = lastSourcePID, sourcePID == frontmostPID() else {
-            popup.showError(loc("Aplikacja źródłowa się zmieniła — nie wklejono.",
-                                "The source app changed — nothing was pasted."))
-            return
-        }
-        guard !frontmostIsTerminal() else {
+        guard canReplace(lastSelection) else {
             copyToClipboard(translation)
-            popup.showError(loc("Terminal nie pozwala zastąpić zaznaczenia — tłumaczenie jest w schowku (Cmd+V).",
-                                "A terminal can't replace the selection — the translation is on the clipboard (Cmd+V)."))
-            return
-        }
-        if let selection = axReader.selectedText(),
-           selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
-            popup.showError(loc("Brak zaznaczenia do zastąpienia.",
-                                "No selection left to replace."))
+            popup.showError(loc("Nie można potwierdzić zaznaczenia — wynik jest w schowku (Cmd+V).",
+                                "Cannot verify the selection — the result is on the clipboard (Cmd+V)."))
             return
         }
         replacer.replace(with: translation)
@@ -264,12 +272,10 @@ final class AppCoordinator {
 
     func fixGrammarInPlace(sourcePID: pid_t?, action: Action = .fixGrammar) async {
         let isTranslate = action == .translate
-        var captured = try? SelectionGuard.nonEmptyText(axReader.selectedText())
-        let usedFallback = captured == nil
-        var freshSyntheticCopy = false
+        let selection = axReader.snapshot()
+        var captured = try? SelectionGuard.nonEmptyText(selection?.text ?? axReader.selectedText())
         if captured == nil, let fallback = await captureViaSyntheticCopy() {
             captured = try? SelectionGuard.nonEmptyText(fallback.text)
-            freshSyntheticCopy = fallback.fresh
         }
         if Task.isCancelled { return }
         guard let text = captured else {
@@ -280,7 +286,7 @@ final class AppCoordinator {
                       "Couldn't read the selection to fix."))
             return
         }
-        var buffer = ""
+        var output = ReplacementOutput()
         let detected = DirectionDetector.detect(text, primary: settings.primaryLanguage, second: settings.secondLanguage)
         do {
             for try await event in llm.run(
@@ -289,7 +295,7 @@ final class AppCoordinator {
                 formality: settings.formality,
                 style: detected.supportsStyleFix) {
                 if Task.isCancelled { return }
-                if case .token(let token) = event { buffer += token }
+                output.receive(event)
             }
         } catch {
             if Task.isCancelled { return }
@@ -299,55 +305,27 @@ final class AppCoordinator {
             return
         }
         if Task.isCancelled { return }
-        let corrected = buffer.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !corrected.isEmpty else { return }
-        // The terminal check covers the AX path too: Terminal/iTerm expose AXSelectedText, so a successful
-        // AX read must not become a licence to paste where Cmd+V appends at the prompt. The fallback path
-        // additionally demands a *known* non-terminal bundle — an unknown frontmost app is not worth the risk.
-        let bundleID = frontmostBundleID()
-        let isTerminal = bundleID.map { Self.terminalBundleIDs.contains($0) } ?? false
-        if usedFallback || isTerminal {
-            let pasteable = !isTerminal && (!usedFallback || (freshSyntheticCopy && bundleID != nil))
-            guard pasteable else {
-                copyToClipboard(corrected)
-                notify(isTranslate
-                    ? loc("Przetłumaczono. To zaznaczenie nie pozwala wkleić w miejscu — tłumaczenie jest w schowku (Cmd+V).",
-                          "Translated. This selection can't be pasted over in place — the translation is on the clipboard (Cmd+V).")
-                    : loc("Poprawiono. To zaznaczenie nie pozwala wkleić w miejscu — poprawka jest w schowku (Cmd+V).",
-                          "Fixed. This selection can't be pasted over in place — the fix is on the clipboard (Cmd+V)."))
-                return
-            }
-        }
-        // ponytail: best-effort paste; no read-only detection — add an AX writability probe if it bites
-        guard let sourcePID, sourcePID == frontmostPID() else {
-            copyToClipboard(corrected)
-            notify(isTranslate
-                ? loc("Aplikacja się zmieniła — tłumaczenie skopiowano do schowka.",
-                      "The app changed — the translation was copied to the clipboard.")
-                : loc("Aplikacja się zmieniła — poprawiony tekst skopiowano do schowka.",
-                      "The app changed — the fixed text was copied to the clipboard."))
+        guard let corrected = output.completeText else {
+            notify(loc("Odpowiedź jest niepełna — zaznaczenie i schowek pozostały bez zmian.",
+                       "The response is incomplete — the selection and clipboard were left unchanged."))
             return
         }
-        if !usedFallback, let selection = axReader.selectedText(),
-           selection.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+        guard selection?.pid == sourcePID, canReplace(selection) else {
             copyToClipboard(corrected)
-            notify(isTranslate
-                ? loc("Zaznaczenie zniknęło — tłumaczenie skopiowano do schowka.",
-                      "The selection disappeared — the translation was copied to the clipboard.")
-                : loc("Zaznaczenie zniknęło — poprawiony tekst skopiowano do schowka.",
-                      "The selection disappeared — the fixed text was copied to the clipboard."))
+            notify(loc("Nie można potwierdzić zaznaczenia — wynik jest w schowku (Cmd+V).",
+                       "Cannot verify the selection — the result is on the clipboard (Cmd+V)."))
             return
         }
         replacer.replace(with: corrected)
     }
 
     private func copyToClipboard(_ text: String) {
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
+        pasteboard.clearContents()
+        pasteboard.setString(text, forType: .string)
     }
 
     private func captureViaSyntheticCopy() async -> (text: String, fresh: Bool)? {
-        let pasteboard = NSPasteboard.general
+        let pasteboard = self.pasteboard
         // Every flavor, not just the string: restoring only text would destroy a copied image or file list.
         let original = PasteboardSnapshot.capture(pasteboard)
         let baseline = reader.currentChangeCount

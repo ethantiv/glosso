@@ -2,11 +2,16 @@ name: Release
 
 # Auto-release on merge to main: when MARKETING_VERSION in project.yml names a
 # version with no GitHub Release yet, build a signed .zip and publish it (creating
-# the vX.Y.Z tag). Merges that don't bump the version are no-ops. To cut a release,
+# the vX.Y.Z tag). Existing releases skip the build but can repair site links. To cut a release,
 # bump MARKETING_VERSION in the PR — merging it is the trigger.
 on:
   push:
     branches: [main]
+
+# Serialize the gate as well as publication; never interrupt an in-progress release.
+concurrency:
+  group: release-main
+  cancel-in-progress: false
 
 permissions:
   contents: write # gh release create needs to write Releases
@@ -30,7 +35,7 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
             echo "released=true" >> "$GITHUB_OUTPUT"
-            echo "::notice::$TAG already released — nothing to do."
+            echo "::notice::$TAG already released — skipping build."
           else
             echo "released=false" >> "$GITHUB_OUTPUT"
           fi
@@ -83,23 +88,53 @@ jobs:
         run: |
           gh release create "$TAG" \
             .build/release/Glosso.zip \
+            --target "$GITHUB_SHA" \
             --title "$TAG" \
             --generate-notes
 
-      # Repoint the landing page's direct .zip download links at the just-released
-      # tag. Pushing with the default GITHUB_TOKEN does not retrigger this workflow.
+  update-site:
+    needs: [check, release]
+    # Explicit status check allows recovery when the release job was skipped on a rerun.
+    if: >-
+      ${{ always() && !cancelled() && needs.check.result == 'success' &&
+          (needs.release.result == 'success' ||
+           (needs.release.result == 'skipped' && needs.check.outputs.released == 'true')) }}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: main
+
+      # Use the latest published release, not the tag from an older rerun.
+      # GITHUB_TOKEN pushes do not retrigger this workflow.
       - name: Update download links on site
         env:
-          TAG: ${{ needs.check.outputs.tag }}
+          GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          sed -i '' -E "s#releases/download/v[0-9]+\.[0-9]+\.[0-9]+/Glosso\.zip#releases/download/$TAG/Glosso.zip#g" docs/index.html docs/en/index.html
-          if git diff --quiet; then
-            echo "Download links already at $TAG — nothing to do."
-            exit 0
-          fi
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git add docs/index.html docs/en/index.html
-          git commit -m "docs(site): point download links at $TAG"
-          git push origin HEAD:main
+          for attempt in 1 2 3; do
+            # This checkout is disposable. Reapply only the link edit onto fresh main
+            # after a competing push instead of force-pushing or rebasing stale HTML.
+            git fetch origin main
+            git reset --hard origin/main
+            TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)
+            if [[ ! "$TAG" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+              echo "::error::Unexpected release tag: $TAG"
+              exit 1
+            fi
+            sed -i -E "s#releases/download/v[0-9]+\.[0-9]+\.[0-9]+/Glosso\.zip#releases/download/$TAG/Glosso.zip#g" docs/index.html docs/en/index.html
+            if git diff --quiet -- docs/index.html docs/en/index.html; then
+              echo "Download links already at $TAG — nothing to do."
+              exit 0
+            fi
+            git add docs/index.html docs/en/index.html
+            git commit -m "docs(site): point download links at $TAG"
+            if git push origin HEAD:main; then
+              exit 0
+            fi
+            echo "Push failed on attempt $attempt; refreshing main before retry."
+          done
+          echo "::error::Could not update download links after three attempts. Rerun the workflow to retry."
+          exit 1

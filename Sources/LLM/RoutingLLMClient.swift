@@ -41,6 +41,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
     private let onFallback: @Sendable (TranslationError, _ longForm: Bool) -> Void
     /// A cloud model that says nothing for this long is worse than the local one: gemini-3.5-flash-lite answers a 43-token prompt in ~30s and delivers its whole stream in one shot, so nothing errors and the popup just sits there.
     private let deadline: TimeInterval
+    private let sleep: @Sendable (Duration) async throws -> Void
     /// Asked only when the deadline is about to fire, since resolving the engine can start it. The cloud is sold as the no-download path, so a hand-over on those installs would turn a slow answer into no answer at all.
     private let localReady: @Sendable () async -> Bool
 
@@ -52,6 +53,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
         localModel: @escaping @Sendable () async -> String,
         onFallback: @escaping @Sendable (TranslationError, Bool) -> Void,
         deadline: TimeInterval = 6,
+        sleep: @escaping @Sendable (Duration) async throws -> Void = { try await Task.sleep(for: $0) },
         localReady: @escaping @Sendable () async -> Bool = { true }
     ) {
         self.local = local
@@ -61,7 +63,16 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
         self.localModel = localModel
         self.onFallback = onFallback
         self.deadline = deadline
+        self.sleep = sleep
         self.localReady = localReady
+    }
+
+    /// A reader operation keeps the same routing decision while sharing transports and their limiter.
+    func scoped(to context: ReaderRunContext,
+                onFallback: @escaping @Sendable (TranslationError, Bool) -> Void) -> RoutingLLMClient {
+        RoutingLLMClient(local: local, cloud: cloud, ollamaCloud: ollamaCloud,
+                         provider: { context.provider }, localModel: { context.localModel },
+                         onFallback: onFallback, deadline: deadline, sleep: sleep, localReady: localReady)
     }
 
     /// The backend serving this provider, or nil when the local engine already is the answer.
@@ -114,7 +125,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
                             }
                             // Deadline only on the first token: a stream that already speaks may pause as long as it likes.
                             group.addTask {
-                                try await Task.sleep(for: .seconds(self.deadline))
+                                try await self.sleep(.seconds(self.deadline))
                                 // With no local engine to hand over to, waiting out a slow cloud still beats an empty popup.
                                 guard await self.localReady(), progress.giveUp() else { return false }
                                 throw TranslationError.cloudUnreachable
@@ -157,7 +168,7 @@ final class RoutingLLMClient: LLMClient, GenerationBackend {
         return try await withThrowingTaskGroup(of: T?.self) { group in
             group.addTask { try await work() }
             group.addTask {
-                try await Task.sleep(for: .seconds(self.deadline))
+                try await self.sleep(.seconds(self.deadline))
                 // nil means the deadline stands down — with no local engine to hand over to, the slow cloud is still the only answer.
                 guard await self.localReady() else { return nil }
                 throw TranslationError.cloudUnreachable
