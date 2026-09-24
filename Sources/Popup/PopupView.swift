@@ -144,8 +144,8 @@ struct PopupView: View {
         HStack(spacing: 4) {
             verbPicker
             if model.action == .translate {
-                languagePair
                 tonePicker
+                languagePair
             }
             Spacer(minLength: 0)
             headerButtons
