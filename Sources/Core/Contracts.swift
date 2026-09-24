@@ -69,25 +69,19 @@ enum Formality: String, CaseIterable, Sendable {
 enum Action: String, CaseIterable, Sendable {
     case translate
     case fixGrammar
-    case reply
-    case summarize
 
     /// Label for the verb strip pill, in the app's UI language.
     var displayName: String {
         switch self {
         case .translate: loc("Tłumacz", "Translate")
-        case .summarize: loc("Streść", "Summarize")
         case .fixGrammar: loc("Popraw", "Fix")
-        case .reply: loc("Odpowiedz", "Reply")
         }
     }
 
     var systemImage: String {
         switch self {
         case .translate: "character.book.closed"
-        case .summarize: "list.bullet"
         case .fixGrammar: "checkmark.circle"
-        case .reply: "arrowshape.turn.up.left"
         }
     }
 }
@@ -233,7 +227,6 @@ protocol LLMClient: Sendable {
     func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String
     func explainFix(error: String, correction: String, original: String, corrected: String, primary: PrimaryLanguage, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String
     func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String
-    func reply(to text: String, model: String) async throws -> [String]
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String
     /// Several blocks in one request, keyed back by the ids sent — the reader's answer to a per-minute request cap.
     func translateBlocks(_ blocks: [(id: Int, html: String)], into primary: PrimaryLanguage, model: String) async throws -> [Int: String]
@@ -332,13 +325,15 @@ protocol TranslationPopupPresenting: AnyObject {
     var onFetchToneNote: (@MainActor (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String)? { get set }
     var onReplace: (@MainActor (_ translation: String) -> Void)? { get set }
     var onRetranslate: (@MainActor (_ source: String) -> Void)? { get set }
+    var onSourceChange: (@MainActor () -> Void)? { get set }
     var onUndo: (@MainActor () -> Void)? { get set }
+    func openTranslator(formality: Formality)
+    func resetToIdle()
     func present(at screenPoint: CGPoint, formality: Formality)
     func update(direction: TranslationDirection, sourceText: String, action: Action)
     func append(token: String)
     func showError(_ message: String)
     func finish(truncated: Bool)
-    func showReplies(_ drafts: [String])
     func restartTranslation()
     func dismiss()
 }

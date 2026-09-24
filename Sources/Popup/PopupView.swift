@@ -11,6 +11,7 @@ struct PopupView: View {
     let fetchToneNote: (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
+    var sourceChanged: () -> Void = {}
     let undo: () -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
     let reportSize: (CGSize) -> Void
@@ -18,6 +19,7 @@ struct PopupView: View {
     let reportDropdownAnchor: (CGRect?) -> Void
 
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @FocusState private var sourceFocused: Bool
     @State private var copied = false
     @State private var appeared = false
     @State private var hoverWordID: Int?
@@ -40,19 +42,17 @@ struct PopupView: View {
     private var resultLabel: String {
         switch model.action {
         case .translate: loc("Tłumaczenie", "Translation")
-        case .summarize: loc("Streszczenie", "Summary")
         case .fixGrammar: loc("Poprawka", "Correction")
-        case .reply: loc("Odpowiedź", "Reply")
         }
     }
 
     private var canCopy: Bool { model.phase == .done && !model.text.isEmpty }
-    private var canReplace: Bool { canCopy && !model.truncated && model.action != .reply }
+    private var canReplace: Bool { canCopy && !model.truncated && !model.isManual }
     private var canUndo: Bool {
         model.canUndo && (model.phase == .done || model.phase == .error)
     }
     private var canRetranslate: Bool {
-        !model.sourceText.isEmpty && model.sourceText != model.capturedSource
+        model.canSubmit
     }
     private var showLiveDot: Bool { model.phase == .capturing || model.phase == .streaming }
 
@@ -80,6 +80,7 @@ struct PopupView: View {
             // without the reset a stale id paints a phantom highlight on an unrelated chunk.
             .onChange(of: model.text) { hoverWordID = nil }
             .onAppear {
+                if model.isManual { sourceFocused = true }
                 if reduceMotion {
                     appeared = true
                 } else {
@@ -143,6 +144,7 @@ struct PopupView: View {
     private var header: some View {
         HStack(spacing: 8) {
             verbPicker
+            if model.action == .translate { languagePair }
             Spacer(minLength: 0)
             headerButtons
         }
@@ -151,10 +153,9 @@ struct PopupView: View {
         .padding(.vertical, PopupTheme.padWindow)
     }
 
-    // Second row, Translate-only: the language pair and the tone picker.
+    // Second row, Translate-only: tone and its explanation.
     private var translateControls: some View {
         HStack(spacing: 10) {
-            languagePair
             tonePicker
             if model.phase == .done && model.toneChange != nil { toneNoteButton }
             Spacer(minLength: 0)
@@ -201,7 +202,7 @@ struct PopupView: View {
             }
         }
         .accessibilityElement(children: .contain)
-        .accessibilityLabel(loc("Co zrobić z zaznaczeniem", "What to do with the selection"))
+        .accessibilityLabel(loc("Co zrobić z tekstem", "What to do with the text"))
     }
 
     private var verbSelection: Binding<Action> {
@@ -381,9 +382,12 @@ struct PopupView: View {
     private var sourcePane: some View {
         VStack(alignment: .leading, spacing: 8) {
             paneHeader(loc("Oryginał", "Original")) { retranslateButton }
-            if !model.sourceText.isEmpty {
+            if model.isManual || !model.sourceText.isEmpty {
                 ScrollView {
-                    TextField("", text: $model.sourceText, axis: .vertical)
+                    TextField(loc("Wpisz lub wklej tekst…", "Type or paste text…"), text: sourceBinding, axis: .vertical)
+                        .focused($sourceFocused)
+                        .lineLimit(model.isManual ? 8... : 1...)
+                        .accessibilityLabel(loc("Oryginał", "Original"))
                         .textFieldStyle(.plain)
                         .font(PopupTheme.fontLead)
                         .foregroundStyle(.primary)
@@ -398,7 +402,7 @@ struct PopupView: View {
                             return .handled
                         }
                 }
-                .frame(maxHeight: paneMaxHeight)
+                .frame(minHeight: model.isManual ? 180 : nil, maxHeight: paneMaxHeight)
                 .scrollBounceBehavior(.basedOnSize)
                 .scrollEdgeEffectStyle(.soft, for: .all)
                 .padding(.trailing, Self.scrollerOverhang)
@@ -423,17 +427,33 @@ struct PopupView: View {
         .overlay(alignment: .trailing) { trailing() }
     }
 
-    /// The reader's refresh symbol for the same action; the title stays for VoiceOver and the tooltip adds the ⌘↩.
+    private var sourceBinding: Binding<String> {
+        Binding { model.sourceText } set: { text in
+            model.sourceText = text
+            if model.isManual { sourceChanged() }
+        }
+    }
+
+    @ViewBuilder
     private var retranslateButton: some View {
-        Button(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"),
-               systemImage: "arrow.trianglehead.clockwise", action: runRetranslate)
-            .labelStyle(.iconOnly)
-            .buttonStyle(.glass)
-            .buttonBorderShape(.circle)
-            .controlSize(.small)
-            .disabled(!canRetranslate)
-            .opacity(canRetranslate ? 1 : 0)
-            .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
+        if model.isManual {
+            Button(model.action.displayName, action: runRetranslate)
+                .keyboardShortcut(.return, modifiers: .command)
+                .buttonStyle(.glass)
+                .controlSize(.small)
+                .disabled(!canRetranslate)
+                .help(loc("Uruchom (⌘↩)", "Run (⌘↩)"))
+        } else {
+            Button(loc("Uruchom ponownie na poprawionym tekście", "Run again on the edited text"),
+                   systemImage: "arrow.trianglehead.clockwise", action: runRetranslate)
+                .labelStyle(.iconOnly)
+                .buttonStyle(.glass)
+                .buttonBorderShape(.circle)
+                .controlSize(.small)
+                .disabled(!canRetranslate)
+                .opacity(canRetranslate ? 1 : 0)
+                .help(loc("Uruchom ponownie na poprawionym tekście (⌘↩)", "Run again on the edited text (⌘↩)"))
+        }
     }
 
     private func runRetranslate() {
@@ -466,6 +486,10 @@ struct PopupView: View {
     @ViewBuilder
     private var content: some View {
         switch model.phase {
+        case .idle:
+            Text(loc("Wynik pojawi się tutaj.", "Your result will appear here."))
+                .font(PopupTheme.fontLead)
+                .foregroundStyle(.secondary)
         case .capturing, .streaming:
             SkeletonView()
         case .error:
@@ -481,12 +505,8 @@ struct PopupView: View {
                 Group {
                     if model.action == .translate {
                         wordFlow
-                    } else if model.action == .fixGrammar {
-                        if model.splitFixView { fixSplitContent } else { grammarDiffFlow }
-                    } else if model.action == .reply {
-                        replyDrafts
                     } else {
-                        plainResultText
+                        if model.splitFixView { fixSplitContent } else { grammarDiffFlow }
                     }
                 }
                 .padding(.trailing, Self.scrollerInset)
@@ -496,21 +516,6 @@ struct PopupView: View {
             .scrollEdgeEffectStyle(.soft, for: .all)
             .padding(.trailing, Self.scrollerOverhang)
         }
-    }
-
-    private var replyDrafts: some View {
-        Picker(loc("Wybierz odpowiedź", "Pick a reply"), selection: draftSelection) {
-            ForEach(Array(model.replyDrafts.enumerated()), id: \.offset) { index, draft in
-                Text(draft).tag(index)
-            }
-        }
-        .pickerStyle(.radioGroup)
-        .labelsHidden()
-        .frame(maxWidth: .infinity, alignment: .leading)
-    }
-
-    private var draftSelection: Binding<Int> {
-        Binding { model.selectedDraftIndex ?? -1 } set: { model.selectDraft($0) }
     }
 
     private var wordFlow: some View {

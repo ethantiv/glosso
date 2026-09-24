@@ -14,6 +14,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onFetchToneNote: (@MainActor (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
+    var onSourceChange: (@MainActor () -> Void)?
     var onUndo: (@MainActor () -> Void)?
 
     private var panel: FloatingPanel?
@@ -43,12 +44,28 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     private static let defaultSize = CGSize(width: 561, height: 160)
 
+    func openTranslator(formality: Formality) {
+        if let panel {
+            panel.orderFrontRegardless()
+            panel.makeKey()
+            return
+        }
+        present(at: NSEvent.mouseLocation, formality: formality, manual: true)
+    }
+
     func present(at screenPoint: CGPoint, formality: Formality) {
+        present(at: screenPoint, formality: formality, manual: false)
+    }
+
+    private func present(at screenPoint: CGPoint, formality: Formality, manual: Bool) {
         tearDown()
 
+        model.isManual = manual
         resetTranslationPane()
+        if manual { model.phase = .idle }
         model.clearUndo()
         model.clearToneNote()
+        model.capturedSource = ""
         model.sourceText = ""
         model.direction = .unknown
         model.formality = formality
@@ -62,7 +79,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
         isApplyingFrame = false
 
         let panel = FloatingPanel(contentRect: CGRect(origin: .zero, size: Self.defaultSize))
-        panel.title = loc("Tłumaczenie", "Translation")
+        panel.title = manual ? loc("Tłumacz", "Translator") : loc("Tłumaczenie", "Translation")
+        if manual {
+            panel.level = .normal
+            panel.isFloatingPanel = false
+        }
         let hostView = NSHostingView(rootView: PopupView(
             model: model,
             close: { [weak self] in self?.dismiss() },
@@ -79,6 +100,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             },
             replace: { [weak self] text in self?.onReplace?(text) },
             retranslate: { [weak self] source in self?.onRetranslate?(source) },
+            sourceChanged: { [weak self] in self?.onSourceChange?() },
             undo: { [weak self] in
                 self?.model.undo()
                 self?.onUndo?()
@@ -115,6 +137,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
             x: (panelTopLeft.x - margin).rounded(),
             y: (panelTopLeft.y + margin).rounded()
         )
+        if manual {
+            anchorTopLeft = CGPoint(x: (frame.midX - size.width / 2).rounded(),
+                                    y: (frame.midY + size.height / 2).rounded())
+        }
         anchorScreenFrame = frame
         contentIdealSize = size
         applyContentSize()
@@ -178,25 +204,27 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.phase = .done
     }
 
-    func showReplies(_ drafts: [String]) {
-        model.replyDrafts = drafts
-        model.selectedDraftIndex = drafts.isEmpty ? nil : 0
-        model.text = drafts.first ?? ""
-        model.phase = .done
-    }
-
     func restartTranslation() {
         resetTranslationPane()
     }
 
+    func resetToIdle() {
+        resetTranslationPane()
+        model.clearUndo()
+        model.clearToneNote()
+        model.direction = .unknown
+        model.phase = .idle
+    }
+
     private func resetTranslationPane() {
+        model.altsRequestToken &+= 1
+        model.explanationRequestToken &+= 1
+        model.toneNoteRequestToken &+= 1
         model.closeDropdown()
         model.altsCache.removeAll()
         model.explanationCache.removeAll()
         model.fixReasonCache.removeAll()
         model.text = ""
-        model.replyDrafts = []
-        model.selectedDraftIndex = nil
         model.errorMessage = nil
         model.truncated = false
         model.diffHidden = false
@@ -214,6 +242,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     private func makeDropdownPanel(parent: FloatingPanel) -> FloatingPanel {
         let child = FloatingPanel(contentRect: CGRect(origin: .zero, size: CGSize(width: AlternativesDropdown.width, height: 1)))
+        if model.isManual { child.level = .normal }
         let host = NSHostingView(rootView: dropdownRoot())
         host.sizingOptions = []
         child.contentView = host
@@ -423,6 +452,11 @@ final class TranslationPopupController: TranslationPopupPresenting {
             return event
         }
 
+        if model.isManual {
+            installLocalEscMonitor()
+            return
+        }
+
         let mask = CGEventMask(1) << CGEventType.keyDown.rawValue
         let tap = CGEvent.tapCreate(
             tap: .cgSessionEventTap,
@@ -448,6 +482,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     }
 
     fileprivate func handleTapKeyDown(keyCode: UInt16, modifiersRawValue: UInt) -> Bool {
+        if let keyWindow = NSApp.keyWindow, keyWindow !== panel, keyWindow !== dropdownPanel { return false }
         switch EscKeyHandling.action(
             keyCode: keyCode,
             modifiers: NSEvent.ModifierFlags(rawValue: modifiersRawValue),
@@ -478,6 +513,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         }
         // The panel takes key on open and a global monitor never sees the app's own events, so without a local
         // sibling Esc would be dead exactly when the tap is unavailable (secure keyboard entry).
+        installLocalEscMonitor()
+    }
+
+    private func installLocalEscMonitor() {
         escLocalMonitor = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { [weak self] event in
             let handled = MainActor.assumeIsolated { self?.handleFallbackKeyDown(event) ?? false }
             return handled ? nil : event
@@ -486,6 +525,8 @@ final class TranslationPopupController: TranslationPopupPresenting {
 
     /// Shared by both fallback monitors; true when the key was consumed.
     private func handleFallbackKeyDown(_ event: NSEvent) -> Bool {
+        if model.isManual && panel?.isKeyWindow != true && dropdownPanel?.isKeyWindow != true { return false }
+        if let keyWindow = NSApp.keyWindow, keyWindow !== panel, keyWindow !== dropdownPanel { return false }
         switch EscKeyHandling.action(
             keyCode: event.keyCode,
             modifiers: event.modifierFlags,

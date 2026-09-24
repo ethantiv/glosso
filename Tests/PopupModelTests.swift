@@ -3,6 +3,26 @@ import Testing
 
 @MainActor
 @Suite struct PopupModelTests {
+    @Test func manualSubmissionRejectsBlankTextAndAllowsRetry() {
+        let model = PopupModel()
+        model.isManual = true
+        model.phase = .idle
+        #expect(!model.canSubmit)
+        model.sourceText = " \n\t"
+        #expect(!model.canSubmit)
+        model.sourceText = "Cześć"
+        #expect(model.canSubmit)
+        model.capturedSource = model.sourceText
+        model.phase = .error
+        #expect(model.canSubmit)
+        model.phase = .streaming
+        #expect(!model.canSubmit)
+        model.phase = .done
+        #expect(model.canSubmit)
+        model.isManual = false
+        #expect(!model.canSubmit)
+    }
+
     @Test func freshModelHasNothingToUndo() {
         let model = PopupModel()
         #expect(model.canUndo == false)
@@ -153,29 +173,6 @@ import Testing
         model.text = "bieżąca"
         model.undo()
         #expect(model.text == "bieżąca")
-    }
-
-    // MARK: Reply drafts (issue #60)
-
-    @Test func selectDraftMirrorsIntoTextForCopy() {
-        let model = PopupModel()
-        model.replyDrafts = ["pierwsza", "druga", "trzecia"]
-
-        model.selectDraft(1)
-
-        #expect(model.selectedDraftIndex == 1)
-        #expect(model.text == "druga")
-    }
-
-    @Test func selectDraftIgnoresOutOfRangeIndex() {
-        let model = PopupModel()
-        model.replyDrafts = ["jedna"]
-        model.selectDraft(0)
-
-        model.selectDraft(5)
-
-        #expect(model.selectedDraftIndex == 0)
-        #expect(model.text == "jedna")
     }
 
     // MARK: Explanation sub-state — "Dlaczego tak?" (issue #39)
