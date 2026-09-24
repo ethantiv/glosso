@@ -145,14 +145,14 @@ struct PopupView: View {
             verbPicker
             if model.action == .translate {
                 tonePicker
+                    .padding(.leading, 4)
                 languagePair
                     .padding(.leading, 4)
             }
             Spacer(minLength: 0)
             headerButtons
         }
-        .padding(.leading, 13)
-        .padding(.trailing, PopupTheme.padWindow)
+        .padding(.horizontal, PopupTheme.padWindow)
         .padding(.vertical, PopupTheme.padWindow)
     }
 
