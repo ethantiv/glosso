@@ -72,9 +72,9 @@ struct PopupLayoutTests {
         let second = host.fittingSize
         #expect(first.width > 0 && first.height > 0)
         // The single toolbar must fit the existing two panes, even with copy, replace and undo visible.
-        #expect(first.width <= 598)
+        #expect(first.width <= 598, "\(state): toolbar expands the panel to \(first.width) pt")
         if manual { #expect(first.height >= 180) }
         // A layout that keeps changing its mind feeds `applyContentSize` a new frame every runloop turn.
-        #expect(first == second)
+        #expect(first == second, "\(state): layout changed from \(first) to \(second)")
     }
 }
