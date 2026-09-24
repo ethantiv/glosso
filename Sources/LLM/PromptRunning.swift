@@ -18,11 +18,6 @@ extension LLMClient where Self: GenerationBackend {
         return AlternativesParser.parse(try await generate(prompt: prompt, model: model, timeout: nil, numPredict: nil), original: word)
     }
 
-    func reply(to text: String, model: String) async throws -> [String] {
-        let prompt = PromptBuilder.buildReply(text: text)
-        return ReplyParser.parse(try await generate(prompt: prompt, model: model, timeout: nil, numPredict: nil))
-    }
-
     // The reader-facing methods unwrap here, once — Flash Lite echoes the prompt's own wrapper, and a call
     // site that forgets to peel it renders a literal `<block>` and persists it into the cache.
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {

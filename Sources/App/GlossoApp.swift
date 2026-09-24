@@ -32,6 +32,7 @@ struct GlossoApp: App {
             }
             Divider()
             LanguageMenus(store: appDelegate.settings)
+            Button(loc("Tłumacz…", "Translator…")) { appDelegate.openTranslator() }
             Button(loc("Biblioteka artykułów…", "Article library…")) { appDelegate.openLibrary() }
             Divider()
             if let update = appDelegate.appState.updateAvailable {
@@ -149,6 +150,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     }
     var ax: any AccessibilityAuthorizing = AXChecker()
     var coordinator: AppCoordinator?
+    private var translatorCoordinator: AppCoordinator?
     private var activationObserver: NSObjectProtocol?
     lazy var onboarding = OnboardingController(
         store: settings,
@@ -218,6 +220,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator
+        translatorCoordinator = AppCoordinator(
+            llm: llm,
+            monitor: GlobalHotkeyMonitor(),
+            reader: reader,
+            axReader: AXSelectionReader(),
+            popup: TranslationPopupController(),
+            settings: settings
+        )
 
         UNUserNotificationCenter.current().delegate = self
         checkForUpdates(announce: false)
@@ -257,7 +267,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
         ax.openSystemSettings()
     }
 
-    /// The saved-articles list without a fresh capture — until now double Cmd+C over a URL was the only way in.
+    func openTranslator() {
+        translatorCoordinator?.openTranslator()
+    }
+
+    /// The saved-articles list without a fresh capture.
     func openLibrary() {
         articleReader?.showLibrary()
     }

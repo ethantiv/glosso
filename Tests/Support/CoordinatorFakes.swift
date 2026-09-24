@@ -29,7 +29,6 @@ struct FakeLLMClient: LLMClient {
             var receivedStyle: Bool?
             var runCount = 0
             var runActions: [Action] = []
-            var replyCount = 0
             var prewarmModel: String?
             // alternatives(...)
             var altWord: String?
@@ -60,9 +59,6 @@ struct FakeLLMClient: LLMClient {
             var registerSource: String?
             var registerSecond: SecondLanguage?
             var registerModel: String?
-            // reply(...)
-            var replyText: String?
-            var replyModel: String?
             // translateBlock(...)
             var blockHTMLs: [String] = []
             var blockPrimary: PrimaryLanguage?
@@ -128,10 +124,6 @@ struct FakeLLMClient: LLMClient {
         var runActions: [Action] {
             get { lock.withLock { storage.runActions } }
             _modify { lock.lock(); defer { lock.unlock() }; yield &storage.runActions }
-        }
-        var replyCount: Int {
-            get { lock.withLock { storage.replyCount } }
-            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.replyCount }
         }
         var prewarmModel: String? {
             get { lock.withLock { storage.prewarmModel } }
@@ -237,14 +229,6 @@ struct FakeLLMClient: LLMClient {
             get { lock.withLock { storage.registerModel } }
             _modify { lock.lock(); defer { lock.unlock() }; yield &storage.registerModel }
         }
-        var replyText: String? {
-            get { lock.withLock { storage.replyText } }
-            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.replyText }
-        }
-        var replyModel: String? {
-            get { lock.withLock { storage.replyModel } }
-            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.replyModel }
-        }
         var blockHTMLs: [String] {
             get { lock.withLock { storage.blockHTMLs } }
             _modify { lock.lock(); defer { lock.unlock() }; yield &storage.blockHTMLs }
@@ -342,8 +326,6 @@ struct FakeLLMClient: LLMClient {
     let streamStarted = StreamGate()
     let alternativesResult: [String]
     let alternativesError: TranslationError?
-    let replyResult: [String]
-    let replyError: TranslationError?
     let blockResult: String
     let blockError: TranslationError?
     let summaryResult: String
@@ -371,8 +353,6 @@ struct FakeLLMClient: LLMClient {
         fixReasonError: TranslationError? = nil,
         toneNote: String = "- Sie → du: zwrot nieformalny",
         toneNoteError: TranslationError? = nil,
-        reply: [String] = ["draft-one", "draft-two", "draft-three"],
-        replyError: TranslationError? = nil,
         blockResult: String = "<b>PL</b>",
         blockError: TranslationError? = nil,
         summaryResult: String = "Krótkie streszczenie artykułu.",
@@ -393,8 +373,6 @@ struct FakeLLMClient: LLMClient {
         self.fixReasonError = fixReasonError
         self.toneNoteResult = toneNote
         self.toneNoteError = toneNoteError
-        self.replyResult = reply
-        self.replyError = replyError
         self.blockResult = blockResult
         self.blockError = blockError
         self.summaryResult = summaryResult
@@ -437,14 +415,6 @@ struct FakeLLMClient: LLMClient {
         recorder.altModel = model
         if let alternativesError { throw alternativesError }
         return alternativesResult
-    }
-
-    func reply(to text: String, model: String) async throws -> [String] {
-        recorder.replyText = text
-        recorder.replyModel = model
-        recorder.replyCount += 1
-        if let replyError { throw replyError }
-        return replyResult
     }
 
     func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String {
@@ -618,6 +588,7 @@ final class FakePopup: TranslationPopupPresenting {
     var onFetchToneNote: (@MainActor (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String)?
     var onReplace: (@MainActor (_ translation: String) -> Void)?
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
+    var onSourceChange: (@MainActor () -> Void)?
     var onUndo: (@MainActor () -> Void)?
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
@@ -630,8 +601,20 @@ final class FakePopup: TranslationPopupPresenting {
     private(set) var errorMessage: String?
     private(set) var finished = false
     private(set) var truncated = false
-    private(set) var shownReplies: [String]?
 
+    private(set) var manualOpenCount = 0
+    private(set) var idle = false
+
+    func openTranslator(formality: Formality) {
+        guard !presented else { return }
+        manualOpenCount += 1
+        present(at: .zero, formality: formality)
+        resetToIdle()
+    }
+    func resetToIdle() {
+        restartTranslation()
+        idle = true
+    }
     func present(at screenPoint: CGPoint, formality: Formality) {
         presented = true
         presentedFormality = formality
@@ -644,14 +627,13 @@ final class FakePopup: TranslationPopupPresenting {
     func append(token: String) { tokens.append(token); firstToken.release() }
     func showError(_ message: String) { errorMessage = message }
     func finish(truncated: Bool) { finished = true; self.truncated = truncated }
-    func showReplies(_ drafts: [String]) { shownReplies = drafts }
     func restartTranslation() {
+        idle = false
         restartCount += 1
         tokens.removeAll()
         errorMessage = nil
         finished = false
         truncated = false
-        shownReplies = nil
     }
     func dismiss() {
         guard presented else { return }
@@ -686,8 +668,12 @@ final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
     var onFixGrammar: (@MainActor () -> Void)?
     var onTranslateInPlace: (@MainActor () -> Void)?
+    private(set) var startCount = 0
     private(set) var stopCount = 0
     var startError: (any Error)?
-    func start() throws { if let startError { throw startError } }
+    func start() throws {
+        startCount += 1
+        if let startError { throw startError }
+    }
     func stop() { stopCount += 1 }
 }

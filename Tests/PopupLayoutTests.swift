@@ -41,12 +41,17 @@ struct PopupLayoutTests {
         }
     }
 
-    @Test("the panel reports a stable, non-zero ideal size")
-    func popupIdealSizeIsStable() {
+    @Test("the panel reports a stable, non-zero ideal size", arguments: [false, true])
+    func popupIdealSizeIsStable(manual: Bool) {
         let model = PopupModel()
         model.sourceText = "Learning a language is mostly a matter of stubbornness."
         model.text = "Nauka języka to w dużej mierze kwestia uporu."
-        model.phase = .done
+        model.isManual = manual
+        model.phase = manual ? .idle : .done
+        if manual {
+            model.sourceText = ""
+            model.text = ""
+        }
         let host = hosted(PopupView(
             model: model,
             close: {}, selectFormality: { _ in }, selectAction: { _ in },
@@ -60,6 +65,7 @@ struct PopupLayoutTests {
         host.layoutSubtreeIfNeeded()
         let second = host.fittingSize
         #expect(first.width > 0 && first.height > 0)
+        if manual { #expect(first.height >= 180) }
         // A layout that keeps changing its mind feeds `applyContentSize` a new frame every runloop turn.
         #expect(first == second)
     }
