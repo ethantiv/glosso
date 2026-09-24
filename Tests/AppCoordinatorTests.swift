@@ -36,8 +36,125 @@ import Testing
             articleReader: articleReader,
             pollStepMs: 1,
             pollMaxAttempts: 5,
-            prefetchLingerMs: prefetchLingerMs, pasteboard: pasteboard
+            prefetchLingerMs: prefetchLingerMs, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
+    }
+
+    @Test func manualTranslatorOpensWithoutStartingCaptureAndReusesItsWindow() async {
+        let llm = FakeLLMClient(events: [.token("Hello"), .finished(doneReason: "stop")])
+        let popup = FakePopup()
+        let monitor = FakeHotkeyMonitor()
+        let ax = FakeAXSelectionReader()
+        let coordinator = AppCoordinator(
+            llm: llm, monitor: monitor, reader: FakeEmptyPasteboardReader(),
+            axReader: ax, popup: popup, settings: makeSettings(),
+            frontmostBundleID: { "com.apple.TextEdit" }
+        )
+        defer { coordinator.stop() }
+
+        coordinator.openTranslator()
+        #expect(popup.idle)
+        #expect(monitor.startCount == 0)
+        #expect(coordinator.trailingChangeCounts.isEmpty)
+        #expect(llm.recorder.runCount == 0)
+        #expect(ax.callCount == 0)
+
+        popup.onRetranslate?("Cześć")
+        await coordinator.captureTask?.value
+        #expect(popup.tokens == ["Hello"])
+        #expect(coordinator.prefetchTask == nil)
+        coordinator.openTranslator()
+        #expect(popup.manualOpenCount == 1)
+        #expect(popup.tokens == ["Hello"])
+
+        popup.dismiss()
+        coordinator.openTranslator()
+        #expect(popup.manualOpenCount == 2)
+        #expect(popup.idle && popup.tokens.isEmpty)
+    }
+
+    @Test func manualTranslatorSubmitsOnlyOnRequestAndTreatsURLsAsText() async {
+        let llm = FakeLLMClient(events: [.token("Result"), .finished(doneReason: "stop")])
+        let popup = FakePopup()
+        let reader = FakeReaderPresenter()
+        let coordinator = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(),
+                                          popup: popup, articleReader: reader)
+        defer { coordinator.stop() }
+        coordinator.openTranslator()
+        popup.onSourceChange?()
+        popup.onSelectAction?(.fixGrammar)
+        popup.onSelectFormality?(.formal)
+        popup.onRetranslate?("  \n\t")
+        #expect(llm.recorder.runCount == 0)
+
+        popup.onRetranslate?("https://example.com/article")
+        await coordinator.captureTask?.value
+        #expect(llm.recorder.receivedText == "https://example.com/article")
+        #expect(llm.recorder.receivedAction == .fixGrammar)
+        #expect(llm.recorder.receivedFormality == .formal)
+        #expect(reader.shownURLs.isEmpty)
+        #expect(popup.finished)
+    }
+
+    @Test func manualTranslatorCanRetryTheSameTextAfterAnError() async {
+        let llm = FakeLLMClient(events: [], error: .cancelled)
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
+        coordinator.openTranslator()
+        popup.onRetranslate?("Cześć")
+        await coordinator.captureTask?.value
+        #expect(popup.errorMessage != nil)
+        popup.onRetranslate?("Cześć")
+        await coordinator.captureTask?.value
+        #expect(llm.recorder.runCount == 2)
+    }
+
+    @Test(arguments: [false, true])
+    func manualEditOrCloseCancelsLateTokens(close: Bool) async {
+        let gate = StreamGate()
+        let llm = FakeLLMClient(events: [.token("first"), .token("late"), .finished(doneReason: "stop")], gate: gate)
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(), popup: popup)
+        defer { coordinator.stop() }
+        coordinator.openTranslator()
+        popup.onRetranslate?("Cześć")
+        await popup.firstToken.wait()
+        if close { popup.dismiss() } else { popup.onSourceChange?() }
+        let tokens = popup.tokens
+        gate.release()
+        await coordinator.captureTask?.value
+        #expect(popup.tokens == tokens)
+        #expect(!popup.finished)
+        if !close { #expect(popup.idle && popup.tokens.isEmpty) }
+    }
+
+    @Test func capturedTranslationDoesNotChangeTheManualSession() async {
+        let settings = makeSettings()
+        let llm = FakeLLMClient(events: [.token("Result"), .finished(doneReason: "stop")])
+        let manualPopup = FakePopup()
+        let manual = makeCoordinator(llm: llm, reader: FakeEmptyPasteboardReader(),
+                                     popup: manualPopup, settings: settings)
+        let capturePopup = FakePopup()
+        let clipboardReader = FakePasteboardReader()
+        clipboardReader.readyAfterAttempts = 0
+        clipboardReader.text = "Zaznaczenie"
+        let capture = makeCoordinator(llm: llm, reader: clipboardReader,
+                                      popup: capturePopup, settings: settings)
+        defer { manual.stop(); capture.stop() }
+        manual.openTranslator()
+        manualPopup.onSelectFormality?(.informal)
+        settings.formality = .formal
+        manualPopup.onRetranslate?("Ręcznie wpisany tekst")
+        await manual.captureTask?.value
+        #expect(llm.recorder.receivedFormality == .informal)
+        await capture.captureAndTranslate(baseline: 0, at: .zero)
+        capturePopup.dismiss()
+        #expect(manualPopup.presented)
+        #expect(manualPopup.presentedSourceText == "Ręcznie wpisany tekst")
+        #expect(manualPopup.tokens == ["Result"])
+        manual.openTranslator()
+        #expect(manualPopup.manualOpenCount == 1)
     }
 
     @Test func translatesOnceClipboardBecomesReady() async {
@@ -278,7 +395,7 @@ import Testing
         let coordinator = AppCoordinator(
             llm: FakeLLMClient(), monitor: monitor,
             reader: FakePasteboardReader(), axReader: FakeAXSelectionReader(), popup: FakePopup(),
-            settings: makeSettings(), pasteboard: pasteboard
+            settings: makeSettings(), frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
         #expect(coordinator.start() == false)
@@ -293,7 +410,7 @@ import Testing
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup,
-            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5, pasteboard: pasteboard
+            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -333,7 +450,7 @@ import Testing
             reader: FakePasteboardReader(),
             axReader: FakeAXSelectionReader(),
             popup: FakePopup(),
-            settings: makeSettings(), pasteboard: pasteboard
+            settings: makeSettings(), frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -342,7 +459,8 @@ import Testing
         #expect(monitor.stopCount == 1)
     }
 
-    @Test func fixGrammarReplacesSelectionInPlace() async {
+    @Test(arguments: ["com.apple.TextEdit", "com.apple.Terminal"])
+    func fixGrammarReplacesSelectionOnlyInAnEditor(bundleID: String) async {
         let llm = FakeLLMClient(events: [.token("the "), .token("cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = "teh cat"
@@ -351,7 +469,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard
+            frontmostPID: { 42 }, frontmostBundleID: { bundleID }, pasteboard: pasteboard, notify: { _ in }
         )
         defer { coordinator.stop() }
 
@@ -360,7 +478,12 @@ import Testing
         #expect(llm.recorder.receivedAction == .fixGrammar)
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(llm.recorder.receivedModel == "test-model")
-        #expect(replacer.replacedText == "the cat")
+        if bundleID == "com.apple.Terminal" {
+            #expect(replacer.replacedText == nil)
+            #expect(pasteboard.string(forType: .string) == "the cat")
+        } else {
+            #expect(replacer.replacedText == "the cat")
+        }
     }
 
     @Test func fixGrammarInPlaceRunsWithStyleForSupportedLanguage() async {
@@ -373,7 +496,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: settings, replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard
+            frontmostPID: { 42 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -392,7 +515,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard
+            frontmostPID: { 42 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -415,7 +538,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
 
@@ -443,7 +566,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [4]  // snapshot from before the selection
@@ -469,7 +592,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: FakeSelectionReplacer(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [5]  // the snapshot already saw this copy
@@ -599,7 +722,7 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 42 },
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
 
@@ -622,7 +745,7 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 99 },           // now a different app than the captured PID
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
 
@@ -755,14 +878,14 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         #expect(llm.recorder.receivedAction == .translate)
 
-        popup.onSelectAction?(.summarize)   // user clicked the Streść pill
+        popup.onSelectAction?(.fixGrammar)
         await coordinator.captureTask?.value
 
         #expect(popup.restartCount == 1)
         #expect(llm.recorder.receivedText == "Dzień dobry")
-        #expect(llm.recorder.receivedAction == .summarize)
-        #expect(popup.presentedAction == .summarize)
-        #expect(popup.presentedDirection == .unknown)
+        #expect(llm.recorder.receivedAction == .fixGrammar)
+        #expect(popup.presentedAction == .fixGrammar)
+        #expect(popup.presentedDirection == .fromPrimary(.polish, .english))
     }
 
     @Test func fixGrammarVerbComputesDirection() async {
@@ -781,45 +904,6 @@ import Testing
         await coordinator.captureTask?.value
 
         #expect(popup.presentedDirection == .fromPrimary(.polish, .english))
-    }
-
-    @Test func pickingReplyShowsDraftsViaTheListPath() async {
-        let llm = FakeLLMClient(reply: ["wersja A", "wersja B", "wersja C"])
-        let reader = FakePasteboardReader()
-        reader.readyAfterAttempts = 0
-        reader.text = "Hi, are we still on for Thursday?"
-        let popup = FakePopup()
-        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
-        defer { coordinator.stop() }
-
-        coordinator.start()
-        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
-
-        popup.onSelectAction?(.reply)   // user clicked the Odpowiedz pill
-        await coordinator.captureTask?.value
-
-        #expect(popup.shownReplies == ["wersja A", "wersja B", "wersja C"])
-        #expect(llm.recorder.replyText == "Hi, are we still on for Thursday?")
-        #expect(popup.presentedAction == .reply)
-        #expect(popup.presentedDirection == .unknown)
-    }
-
-    @Test func pickingReplyWithNoDraftsShowsError() async {
-        let llm = FakeLLMClient(reply: [])
-        let reader = FakePasteboardReader()
-        reader.readyAfterAttempts = 0
-        let popup = FakePopup()
-        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup)
-        defer { coordinator.stop() }
-
-        coordinator.start()
-        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
-
-        popup.onSelectAction?(.reply)
-        await coordinator.captureTask?.value
-
-        #expect(popup.shownReplies == nil)
-        #expect(popup.errorMessage != nil)
     }
 
     // Changing the verb before any text was captured is a no-op (nothing to re-run).
@@ -1184,7 +1268,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1208,7 +1292,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }, pasteboard: pasteboard // a different app is frontmost now
+            frontmostPID: { 999 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard // a different app is frontmost now
         )
         defer { coordinator.stop() }
 
@@ -1235,7 +1319,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1263,7 +1347,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1365,7 +1449,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }, pasteboard: pasteboard // the app focused *now* differs from the source below
+            frontmostPID: { 999 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard // the app focused *now* differs from the source below
         )
         defer { coordinator.stop() }
 
@@ -1387,7 +1471,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1423,11 +1507,8 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         await coordinator.prefetchTask?.value
 
-        // translate (foreground) + fixGrammar + summarize; reply takes the reply() path.
-        #expect(llm.recorder.runCount == 3)
-        #expect(llm.recorder.runActions.contains(.fixGrammar))
-        #expect(llm.recorder.runActions.contains(.summarize))
-        #expect(llm.recorder.replyCount == 1)
+        #expect(llm.recorder.runCount == 2)
+        #expect(llm.recorder.runActions == [.translate, .fixGrammar])
     }
 
     @Test func doesNotPrefetchOnTheCloudProvider() async {
@@ -1446,9 +1527,8 @@ import Testing
         await coordinator.prefetchTask?.value
         #expect(coordinator.prefetchTask == nil)
 
-        // The cloud meters every request: three speculative verbs per capture would spend 4x the day on guesses.
+        // The cloud meters every request, including speculative corrections.
         #expect(llm.recorder.runCount == 1)
-        #expect(llm.recorder.replyCount == 0)
     }
 
     @Test func switchingToAPrefetchedVerbReplaysFromCacheWithoutRerunning() async {
@@ -1463,17 +1543,11 @@ import Testing
         await coordinator.captureAndTranslate(baseline: 0, at: .zero)
         await coordinator.prefetchTask?.value
         let runsBefore = llm.recorder.runCount
-        let repliesBefore = llm.recorder.replyCount
 
         coordinator.handleActionChange(.fixGrammar)
         await coordinator.captureTask?.value
         #expect(llm.recorder.runCount == runsBefore)   // served from cache
         #expect(popup.tokens == ["X"])                 // the cached result replayed
-
-        coordinator.handleActionChange(.reply)
-        await coordinator.captureTask?.value
-        #expect(llm.recorder.replyCount == repliesBefore)
-        #expect(popup.shownReplies == ["draft-one", "draft-two", "draft-three"])
     }
 
     @Test func changingToneInvalidatesTheActionCache() async {

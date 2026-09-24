@@ -5,10 +5,17 @@ import Observation
 @Observable
 final class PopupModel {
     enum Phase {
+        case idle
         case capturing
         case streaming
         case done
         case error
+    }
+
+    var isManual = false
+    var canSubmit: Bool {
+        !sourceText.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (isManual ? phase != .capturing && phase != .streaming : sourceText != capturedSource)
     }
 
     var sourceText: String = ""
@@ -21,15 +28,6 @@ final class PopupModel {
     var formality: Formality = .automatic
     var action: Action = .translate
     var sizeDelta: CGSize = .zero
-
-    var replyDrafts: [String] = []
-    var selectedDraftIndex: Int? = nil
-
-    func selectDraft(_ index: Int) {
-        guard replyDrafts.indices.contains(index) else { return }
-        selectedDraftIndex = index
-        text = replyDrafts[index]
-    }
 
     var selectedWordID: Int? = nil
     var alternatives: [String] = []
