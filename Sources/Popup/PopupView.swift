@@ -146,6 +146,7 @@ struct PopupView: View {
             if model.action == .translate {
                 tonePicker
                 languagePair
+                    .padding(.leading, 4)
             }
             Spacer(minLength: 0)
             headerButtons
