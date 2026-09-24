@@ -141,7 +141,7 @@ struct PopupView: View {
     // MARK: Header
 
     private var header: some View {
-        HStack(spacing: 8) {
+        HStack(spacing: 4) {
             verbPicker
             if model.action == .translate {
                 languagePair
