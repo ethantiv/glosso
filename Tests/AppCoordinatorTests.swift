@@ -36,7 +36,7 @@ import Testing
             articleReader: articleReader,
             pollStepMs: 1,
             pollMaxAttempts: 5,
-            prefetchLingerMs: prefetchLingerMs, pasteboard: pasteboard
+            prefetchLingerMs: prefetchLingerMs, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
     }
 
@@ -47,7 +47,8 @@ import Testing
         let ax = FakeAXSelectionReader()
         let coordinator = AppCoordinator(
             llm: llm, monitor: monitor, reader: FakeEmptyPasteboardReader(),
-            axReader: ax, popup: popup, settings: makeSettings()
+            axReader: ax, popup: popup, settings: makeSettings(),
+            frontmostBundleID: { "com.apple.TextEdit" }
         )
         defer { coordinator.stop() }
 
@@ -394,7 +395,7 @@ import Testing
         let coordinator = AppCoordinator(
             llm: FakeLLMClient(), monitor: monitor,
             reader: FakePasteboardReader(), axReader: FakeAXSelectionReader(), popup: FakePopup(),
-            settings: makeSettings(), pasteboard: pasteboard
+            settings: makeSettings(), frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
         #expect(coordinator.start() == false)
@@ -409,7 +410,7 @@ import Testing
         let coordinator = AppCoordinator(
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup,
-            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5, pasteboard: pasteboard
+            settings: makeSettings(), pollStepMs: 1, pollMaxAttempts: 5, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -449,7 +450,7 @@ import Testing
             reader: FakePasteboardReader(),
             axReader: FakeAXSelectionReader(),
             popup: FakePopup(),
-            settings: makeSettings(), pasteboard: pasteboard
+            settings: makeSettings(), frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -458,7 +459,8 @@ import Testing
         #expect(monitor.stopCount == 1)
     }
 
-    @Test func fixGrammarReplacesSelectionInPlace() async {
+    @Test(arguments: ["com.apple.TextEdit", "com.apple.Terminal"])
+    func fixGrammarReplacesSelectionOnlyInAnEditor(bundleID: String) async {
         let llm = FakeLLMClient(events: [.token("the "), .token("cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()
         axReader.text = "teh cat"
@@ -467,7 +469,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard
+            frontmostPID: { 42 }, frontmostBundleID: { bundleID }, pasteboard: pasteboard, notify: { _ in }
         )
         defer { coordinator.stop() }
 
@@ -476,7 +478,12 @@ import Testing
         #expect(llm.recorder.receivedAction == .fixGrammar)
         #expect(llm.recorder.receivedText == "teh cat")
         #expect(llm.recorder.receivedModel == "test-model")
-        #expect(replacer.replacedText == "the cat")
+        if bundleID == "com.apple.Terminal" {
+            #expect(replacer.replacedText == nil)
+            #expect(pasteboard.string(forType: .string) == "the cat")
+        } else {
+            #expect(replacer.replacedText == "the cat")
+        }
     }
 
     @Test func fixGrammarInPlaceRunsWithStyleForSupportedLanguage() async {
@@ -489,7 +496,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: settings, replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard
+            frontmostPID: { 42 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -508,7 +515,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(),
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(model: "test-model"), replacer: replacer,
-            frontmostPID: { 42 }, pasteboard: pasteboard
+            frontmostPID: { 42 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -531,7 +538,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
 
@@ -559,7 +566,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             pollStepMs: 1, pollMaxAttempts: 5,
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [4]  // snapshot from before the selection
@@ -585,7 +592,7 @@ import Testing
             reader: reader, axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: FakeSelectionReplacer(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
         coordinator.trailingChangeCounts = [5]  // the snapshot already saw this copy
@@ -715,7 +722,7 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 42 },
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
 
@@ -738,7 +745,7 @@ import Testing
             reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
             settings: makeSettings(), replacer: replacer,
             frontmostPID: { 99 },           // now a different app than the captured PID
-            pasteboard: pasteboard, notify: { messages.append($0) }
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { messages.append($0) }
         )
         defer { coordinator.stop() }
 
@@ -1261,7 +1268,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1285,7 +1292,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: FakeAXSelectionReader(), popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }, pasteboard: pasteboard // a different app is frontmost now
+            frontmostPID: { 999 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard // a different app is frontmost now
         )
         defer { coordinator.stop() }
 
@@ -1312,7 +1319,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1340,7 +1347,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             replacer: replacer, pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
@@ -1442,7 +1449,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 999 }, pasteboard: pasteboard // the app focused *now* differs from the source below
+            frontmostPID: { 999 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard // the app focused *now* differs from the source below
         )
         defer { coordinator.stop() }
 
@@ -1464,7 +1471,7 @@ import Testing
             llm: llm, monitor: FakeHotkeyMonitor(), reader: reader,
             axReader: ax, popup: popup, settings: makeSettings(),
             pollStepMs: 1, pollMaxAttempts: 5,
-            frontmostPID: { 123 }, pasteboard: pasteboard
+            frontmostPID: { 123 }, frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard
         )
         defer { coordinator.stop() }
 
