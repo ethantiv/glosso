@@ -92,7 +92,6 @@ struct PopupView: View {
     private var panelBox: some View {
         VStack(spacing: 0) {
             header
-            if model.action == .translate { translateControls }
             if model.toneNoteVisible { toneNoteRow.transition(.opacity) }
             HStack(alignment: .top, spacing: 0) {
                 sourcePane
@@ -144,24 +143,16 @@ struct PopupView: View {
     private var header: some View {
         HStack(spacing: 8) {
             verbPicker
-            if model.action == .translate { languagePair }
+            if model.action == .translate {
+                languagePair
+                tonePicker
+            }
             Spacer(minLength: 0)
             headerButtons
         }
         .padding(.leading, 13)
         .padding(.trailing, PopupTheme.padWindow)
         .padding(.vertical, PopupTheme.padWindow)
-    }
-
-    // Second row, Translate-only: tone and its explanation.
-    private var translateControls: some View {
-        HStack(spacing: 10) {
-            tonePicker
-            if model.phase == .done && model.toneChange != nil { toneNoteButton }
-            Spacer(minLength: 0)
-        }
-        .padding(.horizontal, 13)
-        .padding(.bottom, PopupTheme.padWindow)
     }
 
     /// One glass capsule with a filled segment marking the choice — the shape the reader's toolbar gets for free from
@@ -233,21 +224,35 @@ struct PopupView: View {
                 pill(second.code, accent: false)
             }
         case .unknown:
-            pill("…", accent: false)
+            EmptyView()
         }
     }
 
-    /// Same capsule as the verbs: three mutually exclusive tones, all three visible. The click-to-cycle pill this
-    /// replaced hid the options a person was choosing between.
     private var tonePicker: some View {
-        glassSegments {
-            ForEach(Formality.allCases, id: \.self) { formality in
-                segment(Text(formality.displayName),
-                        selected: formality == model.formality) { toneSelection.wrappedValue = formality }
+        Menu {
+            Picker(loc("Ton wypowiedzi", "Tone"), selection: toneSelection) {
+                ForEach(Formality.allCases, id: \.self) { formality in
+                    Text(formality.displayName).tag(formality)
+                }
             }
+            .pickerStyle(.inline)
+            if model.phase == .done && model.toneChange != nil {
+                Divider()
+                toneNoteButton
+            }
+        } label: {
+            Text(model.formality.displayName)
+                .font(PopupTheme.fontControl)
         }
-        .accessibilityElement(children: .contain)
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .padding(.horizontal, 10)
+        .padding(.vertical, 7)
+        .glassEffect(.regular, in: .capsule)
+        .overlay(Capsule().strokeBorder(Color(nsColor: .separatorColor), lineWidth: 0.5))
+        .help(loc("Ton wypowiedzi", "Tone"))
         .accessibilityLabel(loc("Ton wypowiedzi", "Tone"))
+        .accessibilityValue(model.formality.displayName)
     }
 
     private var toneSelection: Binding<Formality> {
@@ -264,7 +269,6 @@ struct PopupView: View {
 
     private var toneNoteButton: some View {
         Button(loc("Co się zmieniło?", "What changed?"), systemImage: "arrow.left.arrow.right", action: toggleToneNote)
-            .buttonStyle(.glass)
             .help(loc("Pokaż, co zmieniła zmiana tonu wypowiedzi.", "Show what the tone change did."))
             .accessibilityAddTraits(model.toneNoteVisible ? .isSelected : [])
     }
@@ -416,14 +420,13 @@ struct PopupView: View {
         .frame(width: Self.sourceWidth + paneWidthDelta, alignment: .leading)
     }
 
-    /// Both panes carry a label and one trailing control, and the control lives in an **overlay** so it can't set the
-    /// row's height: a small glass button is taller than the label, which used to push "Oryginał" a few points below
-    /// "Tłumaczenie". An overlay draws outside the row without laying it out, so the two labels sit on one line.
+    /// Matching header heights keep the source and result labels aligned, including the manual submit capsule.
     private func paneHeader(_ title: String, @ViewBuilder trailing: () -> some View) -> some View {
         HStack(spacing: 6) {
             label(title)
             Spacer(minLength: 0)
         }
+        .frame(minHeight: model.isManual ? 28 : nil)
         .overlay(alignment: .trailing) { trailing() }
     }
 
@@ -437,10 +440,16 @@ struct PopupView: View {
     @ViewBuilder
     private var retranslateButton: some View {
         if model.isManual {
-            Button(model.action.displayName, action: runRetranslate)
+            Button(action: runRetranslate) {
+                Label(model.action.displayName, systemImage: "arrow.right")
+                    .font(PopupTheme.fontControl)
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 2)
+            }
                 .keyboardShortcut(.return, modifiers: .command)
                 .buttonStyle(.glass)
-                .controlSize(.small)
+                .buttonBorderShape(.capsule)
+                .controlSize(.regular)
                 .disabled(!canRetranslate)
                 .help(loc("Uruchom (⌘↩)", "Run (⌘↩)"))
         } else {
