@@ -41,12 +41,23 @@ struct PopupLayoutTests {
         }
     }
 
-    @Test("the panel reports a stable, non-zero ideal size")
-    func popupIdealSizeIsStable() {
+    @Test("the panel stays compact and reports a stable ideal size", arguments: ["captured", "manual", "allControls"])
+    func popupIdealSizeIsStable(state: String) {
+        let manual = state == "manual"
         let model = PopupModel()
         model.sourceText = "Learning a language is mostly a matter of stubbornness."
         model.text = "Nauka języka to w dużej mierze kwestia uporu."
-        model.phase = .done
+        model.isManual = manual
+        model.phase = manual ? .idle : .done
+        model.direction = manual ? .unknown : .fromPrimary(.polish, .english)
+        if state == "allControls" {
+            model.snapshotForUndo()
+            model.noteToneChange(from: .automatic, to: .formal)
+        }
+        if manual {
+            model.sourceText = ""
+            model.text = ""
+        }
         let host = hosted(PopupView(
             model: model,
             close: {}, selectFormality: { _ in }, selectAction: { _ in },
@@ -60,7 +71,10 @@ struct PopupLayoutTests {
         host.layoutSubtreeIfNeeded()
         let second = host.fittingSize
         #expect(first.width > 0 && first.height > 0)
+        // The single toolbar must fit the existing two panes, even with copy, replace and undo visible.
+        #expect(first.width <= 598, "\(state): toolbar expands the panel to \(first.width) pt")
+        if manual { #expect(first.height >= 180) }
         // A layout that keeps changing its mind feeds `applyContentSize` a new frame every runloop turn.
-        #expect(first == second)
+        #expect(first == second, "\(state): layout changed from \(first) to \(second)")
     }
 }

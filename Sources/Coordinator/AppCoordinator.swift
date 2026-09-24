@@ -37,8 +37,11 @@ final class AppCoordinator {
 
     private(set) var prefetchTask: Task<Void, Never>?
 
-    private enum ActionResult { case text(String, truncated: Bool); case replies([String]) }
-    private var actionCache: [Action: ActionResult] = [:]
+    private var actionCache: [Action: (text: String, truncated: Bool)] = [:]
+    private var isManual = false
+    private var manualAction: Action = .translate
+    private var manualFormality: Formality = .automatic
+    private var manualWindowOpen = false
 
     private var cacheSignature: String?
     private func currentCacheSignature() -> String {
@@ -112,6 +115,7 @@ final class AppCoordinator {
         self.frontmostBundleID = frontmostBundleID
         self.notify = notify
         self.pasteboard = pasteboard
+        connectPopup()
     }
 
     @discardableResult
@@ -122,10 +126,21 @@ final class AppCoordinator {
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         monitor.onFixGrammar = { [weak self] in self?.handleFixGrammar() }
         monitor.onTranslateInPlace = { [weak self] in self?.handleTranslateInPlace() }
+
+        do {
+            try monitor.start()
+            return true
+        } catch {
+            return false
+        }
+    }
+
+    private func connectPopup() {
         popup.onDismiss = { [weak self] in
             self?.captureTask?.cancel()
             self?.prefetchTask?.cancel()
             self?.lastCapture = nil
+            self?.manualWindowOpen = false
         }
         popup.onSelectFormality = { [weak self] formality in self?.handleFormalityChange(formality) }
         popup.onSelectAction = { [weak self] action in self?.handleActionChange(action) }
@@ -148,12 +163,30 @@ final class AppCoordinator {
         popup.onRetranslate = { [weak self] source in self?.handleSourceEdit(source) }
         popup.onUndo = { [weak self] in self?.handleUndo() }
 
-        do {
-            try monitor.start()
-            return true
-        } catch {
-            return false
+        popup.onSourceChange = { [weak self] in self?.invalidateManualResult() }
+    }
+
+    func openTranslator() {
+        isManual = true
+        if !manualWindowOpen {
+            manualAction = .translate
+            manualFormality = settings.formality
+            lastCapture = nil
+            lastSourcePID = nil
+            lastSelection = nil
+            actionCache.removeAll()
+            manualWindowOpen = true
         }
+        popup.openTranslator(formality: settings.formality)
+    }
+
+    private func invalidateManualResult() {
+        guard isManual else { return }
+        captureTask?.cancel()
+        prefetchTask?.cancel()
+        lastCapture = nil
+        actionCache.removeAll()
+        popup.resetToIdle()
     }
 
     func stop() {
@@ -371,17 +404,36 @@ final class AppCoordinator {
     }
 
     func handleFormalityChange(_ formality: Formality) {
-        settings.formality = formality
-        rerunLastCapture()
+        if isManual {
+            manualFormality = formality
+            invalidateManualResult()
+        } else {
+            settings.formality = formality
+            rerunLastCapture()
+        }
     }
 
     func handleActionChange(_ action: Action) {
-        rerunLastCapture(action: action, invalidatingCache: false)
+        if isManual {
+            manualAction = action
+            invalidateManualResult()
+        } else {
+            rerunLastCapture(action: action, invalidatingCache: false)
+        }
     }
 
     func handleSourceEdit(_ text: String) {
-        guard !text.isEmpty else { return }
-        rerunLastCapture(text: text)
+        guard !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+        if isManual {
+            invalidateManualResult()
+            popup.restartTranslation()
+            let action = manualAction
+            captureTask = Task { @MainActor [weak self] in
+                await self?.stream(text, at: .zero, action: action)
+            }
+        } else {
+            rerunLastCapture(text: text)
+        }
     }
 
     private typealias Capture = (text: String, point: CGPoint, action: Action, direction: TranslationDirection)
@@ -465,8 +517,7 @@ final class AppCoordinator {
         if Task.isCancelled { return }
         let detected = DirectionDetector.detect(text, primary: settings.primaryLanguage, second: settings.secondLanguage)
         lastCapture = (text, point, action, detected)
-        let direction = action == .translate || action == .fixGrammar ? detected : .unknown
-        popup.update(direction: direction, sourceText: text, action: action)
+        popup.update(direction: detected, sourceText: text, action: action)
 
         let signature = currentCacheSignature()
         if signature != cacheSignature {
@@ -475,34 +526,16 @@ final class AppCoordinator {
         }
 
         if let cached = actionCache[action] {
-            switch cached {
-            case .text(let result, let truncated):
-                popup.append(token: result)
-                popup.finish(truncated: truncated)
-            case .replies(let drafts):
-                popup.showReplies(drafts)
-            }
+            popup.append(token: cached.text)
+            popup.finish(truncated: cached.truncated)
             schedulePrefetch()
             return
         }
 
-        if action == .reply {
-            let drafts = (try? await llm.reply(to: text, model: settings.activeModel)) ?? []
-            if Task.isCancelled { return }
-            if drafts.isEmpty {
-                popup.showError(loc("Nie udało się wygenerować odpowiedzi.",
-                                    "Couldn't generate replies."))
-            } else {
-                popup.showReplies(drafts)
-                actionCache[.reply] = .replies(drafts)
-            }
-            schedulePrefetch()
-            return
-        }
         await consume(llm.run(
             text, action: action, model: settings.activeModel,
             primary: settings.primaryLanguage, second: resolvedSecond(for: detected),
-            formality: settings.formality,
+            formality: isManual ? manualFormality : settings.formality,
             style: detected.supportsStyleFix),
             bucket: action)
         if !Task.isCancelled { schedulePrefetch() }
@@ -514,7 +547,7 @@ final class AppCoordinator {
             original: original, to: chosen, in: translation,
             source: capture.text,
             primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            formality: settings.formality, model: settings.activeModel),
+            formality: isManual ? manualFormality : settings.formality, model: settings.activeModel),
             bucket: .translate)
         if !Task.isCancelled { schedulePrefetch() }
     }
@@ -531,7 +564,7 @@ final class AppCoordinator {
                 case .finished(let reason):
                     let truncated = reason == "length"
                     popup.finish(truncated: truncated)
-                    if let bucket { actionCache[bucket] = .text(accumulated, truncated: truncated) }
+                    if let bucket { actionCache[bucket] = (accumulated, truncated: truncated) }
                 }
             }
         } catch let error as TranslationError {
@@ -546,8 +579,8 @@ final class AppCoordinator {
     private func schedulePrefetch() {
         if Task.isCancelled { return }
         prefetchTask?.cancel()
-        // Free against a resident local model, but the cloud meters every call: three guessed verbs per capture spend 4x the day's budget.
-        guard settings.provider == .local else { return }
+        // Only prefetch for a resident local model; cloud calls spend the daily budget.
+        guard !isManual, settings.provider == .local else { return }
         guard let source = lastCapture?.text else { return }
         let signature = currentCacheSignature()
         prefetchTask = Task { @MainActor [weak self] in
@@ -565,13 +598,6 @@ final class AppCoordinator {
     /// `signature` pins the settings snapshot this prefetch runs under: a result generated after a mid-flight
     /// model/language switch must not land in the cache under the old stamp.
     private func prefetchOne(_ action: Action, source: String, signature: String) async {
-        if action == .reply {
-            guard let drafts = try? await llm.reply(to: source, model: settings.activeModel),
-                  !drafts.isEmpty, !Task.isCancelled,
-                  currentCacheSignature() == signature else { return }
-            actionCache[.reply] = .replies(drafts)
-            return
-        }
         var accumulated = ""
         do {
             for try await event in llm.run(
@@ -585,7 +611,7 @@ final class AppCoordinator {
                 case .token(let token): accumulated += token
                 case .finished(let reason):
                     guard currentCacheSignature() == signature else { return }
-                    actionCache[action] = .text(accumulated, truncated: reason == "length")
+                    actionCache[action] = (accumulated, truncated: reason == "length")
                 }
             }
         } catch {

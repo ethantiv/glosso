@@ -242,7 +242,7 @@ private final class FallbackLog: @unchecked Sendable {
         let fallbacks = FallbackLog()
         let client = makeClient(local: local, cloud: StubBackend(text: "cloud", delay: 5, clock: clock),
                                 provider: .cloud, fallbacks: fallbacks, clock: clock)
-        let task = Task { try await client.reply(to: "Hi", model: "m") }
+        let task = Task { try await client.alternatives(for: "Hi", in: "Hi there", source: "Cześć", primary: .polish, second: .english, model: "m") }
         await clock.waitForSleepers(2)
         await clock.advance(by: .milliseconds(50))
         _ = try await task.value

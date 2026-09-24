@@ -1,6 +1,6 @@
 # Glosso
 
-A macOS menu-bar app that translates, fixes, summarizes, or answers whatever you have selected when you hit **Cmd+C twice in a row**. It uses a local LLM (Gemma via [Ollama](https://ollama.com)) and shows the result in a small panel next to the cursor. Copy a link instead and it opens the whole article, translated, in a reader window.
+A macOS menu-bar app that translates or fixes the text you have selected when you hit **Cmd+C twice in a row**. It uses a local LLM (Gemma via [Ollama](https://ollama.com)) and shows the result in a small panel next to the cursor. Copy a link instead and it opens the whole article, translated, in a reader window.
 
 No Dock icon, only a bubble in the menu bar. Both Cmd+C presses still copy as usual.
 
@@ -38,12 +38,18 @@ The release workflow builds and publishes a new version when `MARKETING_VERSION`
 
 The panel opens under the cursor and streams the result as the model produces it.
 
-- **Verbs.** A strip at the top switches what the model does with the selection: Translate (the default), Fix (grammar, spelling, and punctuation, keeping the original language), Reply (drafts a few possible responses to the copied message; pick the one you like), and Summarize (a short bulleted list). Picking a verb re-runs over the same selection, and on the local engine the other verbs are pre-computed in the background, so switching is usually instant.
+- **Actions.** The top bar offers **Translate** and **Fix** (grammar, spelling, and punctuation in the original language), alongside the language pair. Switching actions processes the same selection. The local engine precomputes the correction after translating.
 - **Tone.** For a translation, switch the tone between automatic, formal, and informal register. A "What changed?" button names what the switch actually did to the text.
 - **Editable source.** Tweak the captured text in place and re-run, instead of copying again.
 - **Grammar diff.** Fix highlights what changed; click a change to learn why, with reasons grounded in Polish Language Council spelling rules or, for English, in a base of mistakes Polish speakers typically make. If there are more than three changes, the pane splits into the diff and the clean corrected text, and an eye button hides the diff.
 - **Per-word alternatives.** In a finished translation each word is clickable: a dropdown offers context-aware alternatives and a "Why?" explanation. Picking one re-translates just that part, and an undo button brings the previous version back.
 - **Replace.** Paste the result straight back over the still-selected source text, or copy it from the header.
+
+## Translate typed or pasted text
+
+Choose **Translator…** from the menu bar to open a separate window. Type or paste text, choose **Translate** or **Fix**, then click the matching button or press **Cmd+Enter**. Press **Enter** to add a paragraph. Editing the source cancels the current request and clears its result.
+
+The window stays open when you switch apps. Choosing **Translator…** again brings it forward with your text intact. Double-pressing **Cmd+C** in another app opens a separate popup. Closing the translator discards its session.
 
 ## Article reader
 
