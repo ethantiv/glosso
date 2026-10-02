@@ -30,6 +30,40 @@ import Testing
         #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
     }
 
+    @Test func correctsProseWithoutSemicolonsAgainstLiveOllama() async throws {
+        try #require(await ollamaReachable(), "Local Ollama is required for live tests")
+
+        let cases: [(text: String, anchor: String)] = [
+            ("The connection is working; I just need to update its config on the sandbox. In 30 minutes, you will be able to log in.", "30"),
+            ("Polaczenie dziala; musze tylko zaktualizowac konfiguracje na sandboxie. Za 30 minut bedziesz mogl sie zalogowac.", "30"),
+            ("Hej, wyslalem ci plik, sprawdz go jak bedziesz miec chwile. Spotkanie jest o 15:00.", "15:00"),
+            ("The connection is working, I just need to update its config on the sandbox. In 30 minutes you can log in.", "30"),
+        ]
+        let client = OllamaClient()
+        for style in [false, true] {
+            for (text, anchor) in cases {
+                var output = ""
+                for try await event in client.run(
+                    text, action: .fixGrammar, model: LLMConfig.default.model,
+                    primary: .polish, second: .english, formality: .automatic, style: style
+                ) {
+                    if case let .token(value) = event { output += value }
+                }
+
+                #expect(!output.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
+                #expect(!output.contains(";"), "style=\(style), input=\(text), output=\(output)")
+                #expect(output.contains(anchor), "Lost a fact: \(output)")
+                let recognizer = NLLanguageRecognizer()
+                recognizer.languageConstraints = [.polish, .english]
+                recognizer.processString(text)
+                let language = recognizer.dominantLanguage
+                recognizer.reset()
+                recognizer.processString(output)
+                #expect(recognizer.dominantLanguage == language, "Changed language: \(output)")
+            }
+        }
+    }
+
     @Test func translatesDutchToPolishAgainstLiveOllama() async throws {
         try #require(await ollamaReachable(), "Local Ollama is required for live tests")
 

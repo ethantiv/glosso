@@ -92,6 +92,23 @@ import Testing
 
     // MARK: Style modifier — fixGrammar-only
 
+    @Test(arguments: [false, true], Formality.allCases)
+    func correctionForbidsProseSemicolonsRegardlessOfStyleOrRegister(style: Bool, formality: Formality) {
+        for primary in PrimaryLanguage.allCases {
+            let prompt = PromptBuilder.build(
+                for: "Polaczenie dziala; za 30 minut mozesz sie zalogowac. `let x = 1;` &amp;",
+                action: .fixGrammar, primary: primary, second: .english, formality: formality, style: style)
+
+            #expect(prompt.contains("Never introduce or retain semicolons"))
+            #expect(prompt.contains("even in a formal register or when only correcting grammar"))
+            #expect(prompt.contains("overrides preserving sentence boundaries and punctuation style"))
+            #expect(prompt.contains("never an English comma splice"))
+            #expect(prompt.contains("Preserve semicolons inside code, URLs, HTML entities and literal quotations"))
+            #expect(prompt.contains("`let x = 1;` &amp;"))
+            #expect(prompt.contains("The connection is working. I just need to update its config on the sandbox."))
+        }
+    }
+
     @Test func styleAddsDirectiveOnlyWhenOn() {
         let on = PromptBuilder.build(for: "i has went", action: .fixGrammar, primary: .polish, second: .english, formality: .automatic, style: true)
         #expect(on.contains("improve the style"))
