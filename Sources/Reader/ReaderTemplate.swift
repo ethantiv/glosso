@@ -264,6 +264,9 @@ enum ReaderTemplate {
                      background: var(--paper); border: 1px solid var(--hairline);
                      border-radius: 1.6em; padding: .4em .9em; }
       .glosso-chip:hover { background: color-mix(in srgb, var(--ink) 6%, var(--paper)); }
+      .glosso-chip-extension { width: 100%;
+                               background: color-mix(in srgb, var(--accent) 10%, var(--paper)); }
+      .glosso-chip-extension:hover { background: color-mix(in srgb, var(--accent) 16%, var(--paper)); }
       .glosso-chip:disabled, #glosso-chat-form button:disabled { opacity: .4; cursor: default; }
       #glosso-chat-form { display: flex; gap: .5em; align-items: center; }
       #glosso-chat-input { flex: 1; font-family: inherit; font-size: .9em;
@@ -530,14 +533,19 @@ enum ReaderTemplate {
       let questions = [];
       try { questions = JSON.parse(json); } catch (e) {}
       if (!questions.length) { return; }
-      for (const q of questions) {
-        if (glosso.asked.includes(q.trim())) { continue; }
+      const suggestions = questions.map(q => ({
+        text: q.replace(/^\\[extension\\]\\s*/i, '').trim(),
+        extension: /^\\[extension\\]/i.test(q)
+      })).sort((a, b) => Number(a.extension) - Number(b.extension));
+      for (const {text, extension} of suggestions) {
+        if (!text || glosso.asked.includes(text)) { continue; }
         const chip = document.createElement('button');
         chip.type = 'button';
-        chip.className = 'glosso-chip';
-        chip.textContent = q;
-        chip.title = q;
-        chip.addEventListener('click', function() { glossoAsk(q); });
+        chip.className = 'glosso-chip' + (extension ? ' glosso-chip-extension' : '');
+        chip.textContent = text;
+        chip.title = extension ? text + ' — \(loc("Rozwinięcie tematu", "Explore the topic"))' : text;
+        chip.setAttribute('aria-label', chip.title);
+        chip.addEventListener('click', function() { glossoAsk(text); });
         box.appendChild(chip);
       }
       glossoSuggestLabel();

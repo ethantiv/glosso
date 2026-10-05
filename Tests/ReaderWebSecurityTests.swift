@@ -96,6 +96,38 @@ import WebKit
         #expect(try await web.evaluateReaderString("document.querySelector('#glosso-saved-empty').style.display") == "block")
     }
 
+    @Test func extensionQuestionsAreTintedLastAndSendOnlyTheirText() async throws {
+        let web = try await makeWeb()
+        let questions = #"["[extension] Jak powstają mazurki?","Co komponował Chopin?","[extension] Co wyróżnia nokturn?","Jak autor opisuje muzykę?"]"#
+        _ = try await web.evaluateReaderString(ReaderTemplate.call("glossoSetQuestions", questions))
+        #expect(try await web.evaluateReaderString("""
+        JSON.stringify(Array.from(document.querySelectorAll('.glosso-chip'), chip =>
+          [chip.textContent, chip.classList.contains('glosso-chip-extension')]))
+        """) == #"[["Co komponował Chopin?",false],["Jak autor opisuje muzykę?",false],["Jak powstają mazurki?",true],["Co wyróżnia nokturn?",true]]"#)
+        #expect(try await web.evaluateReaderString("""
+        String(document.querySelector('.glosso-chip-extension').getAttribute('aria-label') !==
+          document.querySelector('.glosso-chip-extension').textContent)
+        """) == "true")
+        for scheme in ["light", "dark"] {
+            #expect(try await web.evaluateReaderString("""
+            document.documentElement.style.colorScheme = '\(scheme)';
+            String(getComputedStyle(document.querySelector('.glosso-chip')).backgroundColor !==
+              getComputedStyle(document.querySelector('.glosso-chip-extension')).backgroundColor)
+            """) == "true")
+        }
+        _ = try await web.evaluateReaderString("""
+        let sentQuestion = '';
+        glossoPost = message => { sentQuestion = message.question; };
+        document.querySelector('.glosso-chip-extension').click();
+        sentQuestion
+        """)
+        #expect(try await web.evaluateReaderString("sentQuestion") == "Jak powstają mazurki?")
+        #expect(try await web.evaluateReaderString("document.querySelector('.glosso-chat-q').textContent") == "Jak powstają mazurki?")
+        _ = try await web.evaluateReaderString(ReaderTemplate.call("glossoSetQuestions", questions))
+        #expect(try await web.evaluateReaderString("String(document.querySelectorAll('.glosso-chip').length)") == "3")
+        #expect(try await web.evaluateReaderString("document.querySelector('.glosso-chip:last-child').textContent") == "Co wyróżnia nokturn?")
+    }
+
     @Test func responsiveImagesRetainValidatedSourcesIncludingOnReplay() async throws {
         let web = try await makeWeb()
         var html = #"<picture><source media="(min-width: 800px)" srcset="/wide.webp 800w, /large.webp 1600w"><img srcset="../small.jpg 1x, /large.jpg 2x" sizes="100vw"></picture>"#

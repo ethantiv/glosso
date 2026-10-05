@@ -526,6 +526,8 @@ import Testing
         #expect(prompt.contains("explicitly mentioned but only briefly explained"))
         #expect(prompt.contains("Never include more than 2 extension questions"))
         #expect(prompt.contains("fewer extension questions than article-answerable questions"))
+        #expect(prompt.contains("Prefix each extension question with the exact marker [extension]"))
+        #expect(prompt.contains("leave article-answerable questions unmarked"))
         #expect(prompt.contains("If there is no useful topic to expand, propose only article-answerable questions"))
     }
 

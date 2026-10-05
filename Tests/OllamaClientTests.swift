@@ -167,7 +167,7 @@ import Testing
 
     @Test func articleQuestionsParsesOnePerLineAndStripsMarkers() async throws {
         http.handler = { request in
-            let body = #"{"model":"m","response":"1. Jak działa bateria?\n- Kto ją wynalazł?\nCo dalej?","done":true}"#.data(using: .utf8)!
+            let body = #"{"model":"m","response":"1. Jak działa bateria?\n- [extension] Kto ją wynalazł?\nCo dalej?","done":true}"#.data(using: .utf8)!
             let response = HTTPURLResponse(url: request.url!, statusCode: 200, httpVersion: nil, headerFields: nil)!
             return (response, body)
         }
@@ -175,7 +175,7 @@ import Testing
 
         let client = makeClient()
         let result = try await client.articleQuestions(about: "A long article.", into: .polish, model: "m")
-        #expect(result == ["Jak działa bateria?", "Kto ją wynalazł?", "Co dalej?"])
+        #expect(result == ["Jak działa bateria?", "[extension] Kto ją wynalazł?", "Co dalej?"])
     }
 
     @Test func articleQuestionsCapsAtFive() async throws {
