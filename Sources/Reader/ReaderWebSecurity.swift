@@ -4,7 +4,8 @@ import WebKit
 @MainActor
 enum ReaderWebSecurity {
     static let world = WKContentWorld.world(name: "GlossoReader")
-    static let videoHosts: Set<String> = [
+    /// The one copy of the allowlist: the template's CSP and the sanitizer are both generated from it.
+    nonisolated static let videoHosts: Set<String> = [
         "dailymotion.com", "www.dailymotion.com", "youtube.com", "www.youtube.com",
         "youtube-nocookie.com", "www.youtube-nocookie.com", "player.vimeo.com", "www.player.vimeo.com",
         "v.qq.com", "www.v.qq.com", "player.twitch.tv", "www.player.twitch.tv",
@@ -24,7 +25,9 @@ enum ReaderWebSecurity {
         }
         let config = [session, sourceURL?.absoluteString ?? "about:blank"]
         let json = String(decoding: try JSONEncoder().encode(config), as: UTF8.self)
+        let hosts = String(decoding: try JSONEncoder().encode(videoHosts.sorted()), as: UTF8.self)
         return "const [glossoDocumentID, glossoSourceURL] = \(json);\n" +
+            "const glossoVideoHosts = new Set(\(hosts));\n" +
             (try resource("purify.min")) + "\n" + (try resource("ReaderSanitizer")) + "\n" + ReaderTemplate.script
     }
 

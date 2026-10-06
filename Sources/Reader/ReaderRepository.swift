@@ -54,7 +54,7 @@ actor ReaderRepository {
         ensureIndex(); observeIO()
         let stored = try saved.save(entry, sweeping: false)
         index?[entry.url] = SavedArticleMetadata(stored)
-        try sweep()
+        sweep()
         try cache.save(stored, primary: primary)
         return stored
     }
@@ -78,19 +78,19 @@ actor ReaderRepository {
             return $0.savedAt > $1.savedAt
         }
     }
-    func setRetention(days: Int) throws {
+    func setRetention(days: Int) {
         ensureIndex()
         guard SettingsStore.retentionChoices.contains(days) else { return }
         saved = SavedArticleStore(directory: saved.directory, ttl: TimeInterval(days) * 86400)
-        try sweep()
+        sweep()
     }
-    private func isLive(_ entry: SavedArticleMetadata) -> Bool {
-        entry.pinned == true || Date.now.timeIntervalSince(entry.savedAt) <= saved.ttl
-    }
-    private func sweep() throws {
+    private func isLive(_ entry: SavedArticleMetadata) -> Bool { saved.isLive(pinned: entry.pinned, savedAt: entry.savedAt) }
+    /// Housekeeping, so best effort: a failed delete must not fail the article that triggered it. The entry stays
+    /// indexed (and filtered out of `list`) and is retried on the next sweep.
+    private func sweep() {
         for entry in (index ?? [:]).values where !isLive(entry) {
             observeIO()
-            try saved.remove(entry.url)
+            guard (try? saved.remove(entry.url)) != nil else { continue }
             index?.removeValue(forKey: entry.url)
         }
     }

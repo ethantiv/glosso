@@ -59,6 +59,8 @@ final class ArticleExtractor: ArticleExtracting {
         }
       }
       const doc = document.cloneNode(true);
+      // Unmark the live page: the hydration retry must re-judge visibility, not inherit the first pass's verdict.
+      for (const el of document.querySelectorAll('[data-glosso-hidden]')) { el.removeAttribute('data-glosso-hidden'); }
       for (const el of doc.querySelectorAll('[data-glosso-hidden]')) { el.remove(); }
       const LAZY = ['data-src', 'data-lazy-src', 'data-original', 'data-url'];
       for (const img of doc.querySelectorAll('img')) {
@@ -130,7 +132,10 @@ final class ArticleExtractor: ArticleExtracting {
     """
 
     func extract(from url: URL) async throws -> ExtractedArticle {
-        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1024, height: 768))
+        let configuration = WKWebViewConfiguration()
+        // macOS lets WKWebView autoplay with sound by default; this view is never on screen.
+        configuration.mediaTypesRequiringUserActionForPlayback = .all
+        let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 1024, height: 768), configuration: configuration)
         let navigator = NavigationWatcher()
         webView.navigationDelegate = navigator
 
@@ -139,11 +144,11 @@ final class ArticleExtractor: ArticleExtracting {
         }
         // ponytail: fixed 500ms settle for client-side rendering; a readiness
         // probe replaces it if popular pages still come up short.
-        try? await Task.sleep(for: .milliseconds(500))
+        try await Task.sleep(for: .milliseconds(500))
 
         if let article = try await runReadability(in: webView) { return article }
         // JS-heavy pages may hydrate late — one more chance, then give up.
-        try? await Task.sleep(for: .milliseconds(1500))
+        try await Task.sleep(for: .milliseconds(1500))
         if let article = try await runReadability(in: webView) { return article }
         throw ReaderError.extractionFailed
     }
@@ -151,7 +156,8 @@ final class ArticleExtractor: ArticleExtracting {
     private func runReadability(in webView: WKWebView) async throws -> ExtractedArticle? {
         guard !Self.readabilityJS.isEmpty else { throw ReaderError.extractionFailed }
         let script = Self.readabilityJS + "\n" + Self.driverJS
-        guard let json = try await webView.evaluateStringResult(script), !json.isEmpty
+        // A page exception (no <body> on an XML feed, a Readability throw) is "no article yet", not a failed load.
+        guard let json = try? await webView.evaluateStringResult(script), !json.isEmpty
         else { return nil }
         return try? JSONDecoder().decode(ExtractedArticle.self, from: Data(json.utf8))
     }

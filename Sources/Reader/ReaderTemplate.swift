@@ -75,7 +75,7 @@ enum ReaderTemplate {
     <html>
     <head>
     <meta charset="utf-8">
-    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; media-src http: https:; frame-src https://dailymotion.com https://www.dailymotion.com https://youtube.com https://www.youtube.com https://youtube-nocookie.com https://www.youtube-nocookie.com https://player.vimeo.com https://www.player.vimeo.com https://v.qq.com https://www.v.qq.com https://player.twitch.tv https://www.player.twitch.tv; object-src 'none'; base-uri 'none'; form-action 'none'">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'none'; style-src 'unsafe-inline'; img-src http: https: data:; media-src http: https:; frame-src \(ReaderWebSecurity.videoHosts.sorted().map { "https://" + $0 }.joined(separator: " ")); object-src 'none'; base-uri 'none'; form-action 'none'">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
       :root { color-scheme: light dark;
@@ -443,6 +443,8 @@ enum ReaderTemplate {
       // Swift passes "1"/"" — `call` JSON-encodes every argument as a string, so coerce before comparing.
       open = !!open;
       if (width) { document.body.style.setProperty('--glosso-chat-w', width); }
+      // An open with no usable width falls back to the default, not to an earlier open's measurement.
+      else if (open) { document.body.style.removeProperty('--glosso-chat-w'); }
       if (open === document.body.classList.contains('glosso-chat-open')) { return; }
       const cs = getComputedStyle(document.body);
       document.body.style.width = cs.width;

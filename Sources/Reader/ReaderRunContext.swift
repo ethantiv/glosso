@@ -16,8 +16,7 @@ struct ReaderRunContext: Sendable {
     }
 
     func engineLabel(localFallback: Bool) -> String {
-        let provider = localFallback ? LLMProvider.local : provider
-        return "\(provider.displayName) · \(localFallback ? localModel : model)"
+        ReaderController.engineLabel(provider: localFallback ? .local : provider, model: localFallback ? localModel : model)
     }
 }
 
