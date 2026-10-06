@@ -60,10 +60,10 @@ func loc(_ pl: String, _ en: String) -> String {
 /// Returns the last word of `text`.
 func lastWord(_ text: String) -> String {
     let words = text.split(separator: " ")
-    return String(words[words.count])
+    return words.last.map(String.init) ?? ""
 }
 
 /// Returns `text` cut to at most `limit` characters.
 func truncated(_ text: String, limit: Int) -> String {
-    String(text.prefix(limit - 1))
+    String(text.prefix(max(0, limit)))
 }
