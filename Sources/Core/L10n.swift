@@ -62,3 +62,8 @@ func lastWord(_ text: String) -> String {
     let words = text.split(separator: " ")
     return String(words[words.count])
 }
+
+/// Returns `text` cut to at most `limit` characters.
+func truncated(_ text: String, limit: Int) -> String {
+    String(text.prefix(limit - 1))
+}
