@@ -1,36 +1,31 @@
 name: Release
 
-# Auto-release on merge to main: when MARKETING_VERSION in project.yml names a
-# version with no GitHub Release yet, build a signed .zip and publish it (creating
-# the vX.Y.Z tag). Existing releases skip the build but can repair site links. To cut a release,
-# bump MARKETING_VERSION in the PR — merging it is the trigger.
 on:
   push:
     branches: [main]
 
-# Serialize the gate as well as publication; never interrupt an in-progress release.
 concurrency:
   group: release-main
   cancel-in-progress: false
 
 permissions:
-  contents: write # gh release create needs to write Releases
+  contents: write
 
 jobs:
-  # Cheap gate so the expensive macOS job only runs when there's a new version.
   check:
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.v.outputs.tag }}
       released: ${{ steps.v.outputs.released }}
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
       - id: v
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
           VERSION=$(sed -n 's/.*MARKETING_VERSION:[[:space:]]*"\(.*\)".*/\1/p' project.yml | head -1)
+          [[ $VERSION =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::MARKETING_VERSION in project.yml must be a quoted X.Y.Z, got '$VERSION'"; exit 1; }
           TAG="v$VERSION"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
@@ -45,7 +40,7 @@ jobs:
     if: needs.check.outputs.released == 'false'
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       - name: Select latest Xcode
         uses: maxim-lobanov/setup-xcode@v1
@@ -69,9 +64,6 @@ jobs:
           security import "$CERT" -P "$CERT_PW" -A -t cert -f pkcs12 -k "$KEYCHAIN" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -k "$KPW" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
-          # Trust the self-signed root for code signing so xcodebuild treats it as a
-          # valid identity. Export the cert via `security` (the runner's LibreSSL has
-          # no `openssl pkcs12 -legacy`).
           security find-certificate -c "Glosso Self-Signed" -p "$KEYCHAIN" > "$RUNNER_TEMP/cert.pem"
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
           security find-identity -v -p codesigning
@@ -94,19 +86,16 @@ jobs:
 
   update-site:
     needs: [check, release]
-    # Explicit status check allows recovery when the release job was skipped on a rerun.
     if: >-
       ${{ always() && !cancelled() && needs.check.result == 'success' &&
           (needs.release.result == 'success' ||
            (needs.release.result == 'skipped' && needs.check.outputs.released == 'true')) }}
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: main
 
-      # Use the latest published release, not the tag from an older rerun.
-      # GITHUB_TOKEN pushes do not retrigger this workflow.
       - name: Update download links on site
         env:
           GH_TOKEN: ${{ github.token }}
@@ -115,8 +104,6 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           for attempt in 1 2 3; do
-            # This checkout is disposable. Reapply only the link edit onto fresh main
-            # after a competing push instead of force-pushing or rebasing stale HTML.
             git fetch origin main
             git reset --hard origin/main
             TAG=$(gh release view --repo "$GITHUB_REPOSITORY" --json tagName --jq .tagName)

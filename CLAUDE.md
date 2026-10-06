@@ -43,6 +43,7 @@ Environment notes:
 - The user verifies native Glosso UI manually. Don't drive the app with Computer Use, capture its windows or synthesize UI gestures. Rely on offline tests and tell the user what to check by hand. The `docs/` landing page can be checked in a browser.
 - Put larger changes on a feature branch, not directly on `main`.
 - User-facing changes bump `MARKETING_VERSION` in `project.yml`: minor for features, patch for fixes. Merging a new version into `main` *is* the release: `.github/workflows/release.yml` builds, signs and publishes it, then a bot commit updates the download links in `docs/index.html` and `docs/en/index.html`.
+- `.github/workflows/claude-code-review.yml` reviews a non-draft PR only when it touches `Sources/`, `Tests/`, `TestsIntegration/`, `Vendor/`, `scripts/`, `.github/workflows/` or `project.yml`, so a docs-only PR without a review is expected. A new push cancels the review in progress; the next run covers everything since the last successful review. `claude.yml` responds to `@claude` mentions in issues and PRs.
 - Commit messages use `feat:`, `fix:`, `test:`, `refactor:`, `docs:` and `chore:` prefixes.
 - Keep the signing identity (`Glosso Self-Signed`, manual style, no team). macOS pins the Accessibility (TCC) grant to it, so changing it forces every user to re-grant. Hardened runtime and the debug dylib are disabled in Debug only because library validation otherwise rejects the self-signed test bundle.
 
