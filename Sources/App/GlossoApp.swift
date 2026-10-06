@@ -120,6 +120,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
     nonisolated static let updateNotificationID = "glosso.update"
     /// One banner per outage, not one per call: a single capture prefetches every verb.
     nonisolated static let fallbackNotificationID = "glosso.fallback"
+    /// Shared with the reader's scoped client, whose article makes one call per block.
+    static func postFallback(_ error: TranslationError) {
+        SystemUserNotifier.post(
+            error.userMessage + " " + loc("Przełączam na model lokalny.", "Switching to the local model."),
+            identifier: fallbackNotificationID
+        )
+    }
     let appState = AppState()
     let settings: SettingsStore
     override convenience init() { self.init(settings: SettingsStore()) }
@@ -189,17 +196,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             ),
             provider: { [settings] in await MainActor.run { settings.provider } },
             localModel: { [settings] in await MainActor.run { settings.modelName } },
-            onFallback: { [weak self] error, longForm in
-                Task { @MainActor in
-                    // Only the reader's own long-form calls may relabel its footer; a popup capture's hand-over says
-                    // nothing about the engine still translating the article.
-                    if longForm { self?.articleReader?.engineFallback() }
-                    SystemUserNotifier.post(
-                        error.userMessage + " " + loc("Przełączam na model lokalny.",
-                                                      "Switching to the local model."),
-                        identifier: Self.fallbackNotificationID
-                    )
-                }
+            // The reader's own calls go through `RoutingLLMClient.scoped`, which brings its own handler.
+            onFallback: { error, _ in
+                Task { @MainActor in Self.postFallback(error) }
             },
             // Cloud-only installs never download an engine, so there is nothing for the deadline to hand over to. Anything short of `.needsDownload` is enough, since the local path provisions on demand — the same bar the error-driven fallbacks already clear. `status`, not `activeBaseURL`: the latter provisions here and now, spawning `ollama serve` and waiting up to ~2min inside an uncancellable task, which would outlast the very deadline it gates.
             localReady: { [engine] in await engine.status() != .needsDownload }

@@ -47,7 +47,7 @@ import Testing
         #expect(await repository.loadSaved(source.url)?.pinned == true)
         _ = try await repository.save(source, primary: .polish)
         #expect(await repository.list().first?.pinned == true)
-        try await repository.setRetention(days: 7)
+        await repository.setRetention(days: 7)
         #expect(await repository.list().count == 1)
         #expect(await repository.cached(source.url, primary: .english) == nil)
         #expect(await repository.cached(source.url, primary: .polish) != nil)

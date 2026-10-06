@@ -33,10 +33,12 @@ struct SavedArticleStore: Sendable {
         return entry
     }
 
-    /// The one retention rule — load, list and the sweep must agree on it.
-    private func isLive(_ entry: ReaderCache.Entry) -> Bool {
-        entry.pinned == true || Date.now.timeIntervalSince(entry.savedAt) <= ttl
+    /// The one retention rule — load, list, the sweep and `ReaderRepository`'s index must agree on it.
+    func isLive(pinned: Bool?, savedAt: Date) -> Bool {
+        pinned == true || Date.now.timeIntervalSince(savedAt) <= ttl
     }
+
+    private func isLive(_ entry: ReaderCache.Entry) -> Bool { isLive(pinned: entry.pinned, savedAt: entry.savedAt) }
 
     func isPinned(_ url: URL) -> Bool {
         decode(fileURL(for: url))?.pinned == true

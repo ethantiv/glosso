@@ -79,7 +79,7 @@ final class ReaderController: ReaderPresenting {
                         self.localFallback = true
                         self.setEngine(context.engineLabel(localFallback: true))
                     } else if self.documentSession != session { return }
-                    SystemUserNotifier.post(error.userMessage)
+                    AppDelegate.postFallback(error)
                 }
             }
         } else { client = llm }
@@ -100,20 +100,26 @@ final class ReaderController: ReaderPresenting {
     /// is browsing from it) and the pipeline is a pure replay — zero fetch, zero LLM.
     func showSavedArticle(_ url: URL) {
         resetForArticle(url)
-        _ = makeRun()
+        // A replay makes no model calls; only `insertArticle` reads the frozen language.
+        activeContext = ReaderRunContext(settings: settings)
         let webView = ensureWindow(titled: url.host() ?? loc("Artykuł", "Article"))
         translationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.repository.setRetention(days: self.settings.readerRetentionDays)
-                guard let entry = await self.repository.loadSaved(url), !Task.isCancelled else { return }
+                await self.repository.setRetention(days: self.settings.readerRetentionDays)
+                let entry = await self.repository.loadSaved(url)
+                try Task.checkCancellation()
+                guard let entry else {
+                    // Expired or deleted since the list was drawn. The reset already dropped the old page's session,
+                    // so leaving it up would leave every in-page control dead; a fresh page keeps the panel live.
+                    try await self.loadTemplate(in: webView, baseURL: nil)
+                    self.setStatus(loc("Ten artykuł wygasł lub został usunięty.", "This article has expired or was removed."))
+                    return
+                }
                 self.lastEntry = entry
                 self.window?.title = entry.translatedTitle.isEmpty ? entry.title : entry.translatedTitle
                 self.refreshPinItem()
                 try await self.loadTemplate(in: webView, baseURL: url)
-                // The template reload wiped the page — restore the panel before any content paints,
-                // or the finished article jumps by a panel width after the replay.
-                if !Task.isCancelled { self.pushPanelState(in: webView) }
                 try await self.replay(entry, in: webView)
             } catch is CancellationError {
             } catch let error as ReaderError {
@@ -137,7 +143,7 @@ final class ReaderController: ReaderPresenting {
         translationTask = Task { @MainActor [weak self] in
             guard let self else { return }
             do {
-                try await self.repository.setRetention(days: self.settings.readerRetentionDays)
+                await self.repository.setRetention(days: self.settings.readerRetentionDays)
                 let entries = await self.repository.list()
                 try Task.checkCancellation()
                 if let newest = entries.first {
@@ -146,7 +152,7 @@ final class ReaderController: ReaderPresenting {
                     return
                 }
                 try await self.loadTemplate(in: webView, baseURL: nil)
-                if !Task.isCancelled { self.setPanelContent(.saved); self.pushPanelState(in: webView) }
+                if !Task.isCancelled { self.setPanelContent(.saved) }
             } catch { if !Task.isCancelled { self.reportStorageError() } }
         }
     }
@@ -188,7 +194,7 @@ final class ReaderController: ReaderPresenting {
     func run(url: URL, in webView: WKWebView, run: ReaderRun) async {
         do {
             try await loadTemplate(in: webView, baseURL: url)
-            try await repository.setRetention(days: settings.readerRetentionDays)
+            await repository.setRetention(days: settings.readerRetentionDays)
             let cached = await repository.cached(url, primary: run.context.primary)
             try Task.checkCancellation()
             if let entry = cached {
@@ -255,6 +261,10 @@ final class ReaderController: ReaderPresenting {
         try Task.checkCancellation()
         guard documentSession == session else { throw CancellationError() }
         _ = try await webView.evaluateReaderString(ReaderWebSecurity.bootstrap(session: session, sourceURL: baseURL))
+        try Task.checkCancellation()
+        // The reload wiped the page's panel. Restored here, for every caller, and before any content paints —
+        // or the article jumps by a panel width, and "Translate again" leaves a widened window with no panel in it.
+        pushPanelState(in: webView)
     }
 
     private func replay(_ entry: ReaderCache.Entry, in webView: WKWebView) async throws {
@@ -361,8 +371,7 @@ final class ReaderController: ReaderPresenting {
         settings.readerRetentionDays = days
         Task { @MainActor [weak self] in
             guard let self else { return }
-            do { try await self.repository.setRetention(days: days) }
-            catch { self.reportStorageError() }
+            await self.repository.setRetention(days: days)
             if let webView = self.webView { self.pushSavedList(in: webView) }
         }
     }
@@ -546,14 +555,6 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
-    /// Gated on `translating` like `cloudWait`: the same closure fires for popup captures, and only a running
-    /// pipeline means the article itself is being served locally.
-    func engineFallback() {
-        guard translating else { return }
-        localFallback = true
-        setEngine(currentEngineLabel)
-    }
-
     /// The limiter blocks rather than failing, so without this the status bar would simply stop moving mid-article.
     func cloudWait(_ seconds: TimeInterval) {
         guard translating else { return }
@@ -670,7 +671,8 @@ final class ReaderController: ReaderPresenting {
         var frame = chatFrameTarget ?? window.frame
         if open {
             let visible = window.screen?.visibleFrame
-            let target = min(frame.width + Self.chatPanelWidth, visible?.width ?? .greatestFiniteMagnitude)
+            // Never below the current width: a window wider than the screen would otherwise shrink on open.
+            let target = max(frame.width, min(frame.width + Self.chatPanelWidth, visible?.width ?? .greatestFiniteMagnitude))
             chatWidthDelta = target - frame.width
             frame.size.width = target
             let before = frame.origin.x
@@ -679,7 +681,8 @@ final class ReaderController: ReaderPresenting {
             }
             chatShiftX = before - frame.origin.x
         } else {
-            frame.size.width -= chatWidthDelta
+            // Floored: the user may have narrowed the window while the panel was open.
+            frame.size.width = max(frame.width - chatWidthDelta, Self.chatPanelWidth)
             chatWidthDelta = 0
             // Undo the open's left shift, clamped to the screen — otherwise every open/close at the right
             // edge walks the window left by a panel width.

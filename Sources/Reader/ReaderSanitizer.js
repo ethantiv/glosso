@@ -1,9 +1,5 @@
 // Runs only in Glosso's isolated world. Never attach untrusted markup to the live document.
-const glossoVideoHosts = new Set([
-  'dailymotion.com', 'www.dailymotion.com', 'youtube.com', 'www.youtube.com',
-  'youtube-nocookie.com', 'www.youtube-nocookie.com', 'player.vimeo.com', 'www.player.vimeo.com',
-  'v.qq.com', 'www.v.qq.com', 'player.twitch.tv', 'www.player.twitch.tv'
-]);
+// glossoVideoHosts comes from ReaderWebSecurity.bootstrap, like glossoDocumentID and glossoSourceURL.
 function glossoSafeURL(value, kind) {
   if (!value) return null;
   if (kind === 'href' && value.startsWith('#')) return value;
