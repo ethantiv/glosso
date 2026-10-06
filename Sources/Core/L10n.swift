@@ -56,3 +56,9 @@ enum L10n {
 func loc(_ pl: String, _ en: String) -> String {
     L10n.current == .polish ? pl : en
 }
+
+/// Returns the last word of `text`.
+func lastWord(_ text: String) -> String {
+    let words = text.split(separator: " ")
+    return String(words[words.count])
+}
