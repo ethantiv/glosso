@@ -1,12 +1,10 @@
 # CLAUDE.md
 
-This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
-
 ## What this is
 
 Glosso is a macOS 26+ menu-bar agent (`LSUIElement`, no Dock icon, Swift 6 strict concurrency). On **double Cmd+C** it translates or grammar-fixes the selection with an LLM and streams the result into a floating panel near the cursor; a copied bare URL opens a translated reader window instead. `README.md` is the user-facing feature description; `docs/DISTRIBUTION.md` owns signing and release details.
 
-Two load-bearing LLM decisions (guarded by `Tests/SanityTests.swift`): `think: false` is mandatory (Gemma otherwise spends 10–26 s on reasoning tokens for the same translation), and the app uses Ollama's native `/api/generate`, not the OpenAI-compatible `/v1` layer, which doesn't expose `keep_alive`.
+Two load-bearing LLM decisions (`Tests/SanityTests.swift` pins `think: false`, temperature, model and `keepAlive`): `think: false` is mandatory (Gemma otherwise spends 10–26 s on reasoning tokens for the same translation), and the app uses Ollama's native `/api/generate`, not the OpenAI-compatible `/v1` layer, which doesn't expose `keep_alive`.
 
 ## Commands
 
@@ -31,18 +29,19 @@ xcodegen generate && xcodebuild test -project Glosso.xcodeproj -scheme Glosso \
 
 Pass/fail counts: `xcrun xcresulttool get test-results summary --path <result.xcresult>`.
 
-To iterate on a `PromptBuilder` prompt without rebuilding, post it straight to Ollama with the app's fixed options: `curl -s localhost:11434/api/generate -d '{"model":"gemma4:26b-mlx","prompt":"…","stream":false,"think":false,"options":{"temperature":0}}' | jq -r .response`.
+To iterate on a `PromptBuilder` prompt without rebuilding, post it straight to Ollama with the app's fixed options (assumes Ollama already runs on 11434; otherwise `EngineManager` spawns its own `ollama serve` on a random free port): `curl -s localhost:11434/api/generate -d '{"model":"gemma4:26b-mlx","prompt":"…","stream":false,"think":false,"options":{"temperature":0}}' | jq -r .response`.
 
 Environment notes:
 - `xcodebuild`, `gh` and network calls fail inside the Claude Code sandbox (`Operation not permitted`, or TLS `OSStatus -26276`). Run them with `dangerouslyDisableSandbox: true`.
 - Editor diagnostics such as "Cannot find type X" or "No such module 'Testing'" before a build are SourceKit noise. Trust an actual `scripts/build.sh` or `scripts/test.sh` run.
 - A Keychain password prompt during `scripts/run.sh` comes from `codesign` reading the signing key, not from the app.
+- `GLOSSO_FORCE_DARK=1` forces dark appearance for checking dark-mode UI by hand.
 
 ## Workflow conventions
 
 - The user verifies native Glosso UI manually. Don't drive the app with Computer Use, capture its windows or synthesize UI gestures. Rely on offline tests and tell the user what to check by hand. The `docs/` landing page can be checked in a browser.
 - Put larger changes on a feature branch, not directly on `main`.
-- User-facing changes bump `MARKETING_VERSION` in `project.yml`: minor for features, patch for fixes. Merging a new version into `main` *is* the release: `.github/workflows/release.yml` builds, signs and publishes it, then a bot commit updates the download links in `docs/index.html` and `docs/en/index.html`.
+- User-facing changes bump `MARKETING_VERSION` in `project.yml` (must stay a quoted `"X.Y.Z"`; CI parses it): minor for features, patch for fixes. Merging a new version into `main` *is* the release: `.github/workflows/release.yml` builds, signs and publishes it, then a bot commit to `main` updates the download links in `docs/index.html` and `docs/en/index.html`, so pull before branching again.
 - `.github/workflows/claude-code-review.yml` reviews a non-draft PR only when it touches `Sources/`, `Tests/`, `TestsIntegration/`, `Vendor/`, `scripts/`, `.github/workflows/` or `project.yml`, so a docs-only PR without a review is expected. A new push cancels the review in progress; the next run covers everything since the last successful review. `claude.yml` responds to `@claude` mentions in issues and PRs.
 - Commit messages use `feat:`, `fix:`, `test:`, `refactor:`, `docs:` and `chore:` prefixes.
 - Keep the signing identity (`Glosso Self-Signed`, manual style, no team). macOS pins the Accessibility (TCC) grant to it, so changing it forces every user to re-grant. Hardened runtime and the debug dylib are disabled in Debug only because library validation otherwise rejects the self-signed test bundle.
@@ -63,7 +62,7 @@ Environment notes:
 **LLM layer** (`Sources/LLM/`):
 - The prompt layer exists once, in `PromptRunning.swift`: `extension LLMClient where Self: GenerationBackend` implements every `LLMClient` method on top of three transport primitives (`generate`, `streamGeneration`, `prewarm`). A new engine implements only those three.
 - `OllamaClient` serves two providers. Without a `keyProvider` it is the local engine. With a `keyProvider` and `OllamaCloudCatalog.baseURL` it is Ollama Cloud: it signs requests and maps failures to the cloud error cases. `GeminiClient` serves Google AI behind the client-side `GeminiRateLimiter`, which blocks rather than fails.
-- `RoutingLLMClient` picks the backend per call from `SettingsStore.provider`. It falls back to local on the errors listed in `RoutingLLMClient.fallsBack` and when a cloud stream stays silent past a deadline (6 s). Cloud errors must map to those cases, or the fallback silently stops working.
+- `RoutingLLMClient` picks the backend per call from `SettingsStore.provider`. It falls back to local (with `modelName`, not the passed model) on the errors listed in `RoutingLLMClient.fallsBack` and when a cloud stream stays silent past a deadline (6 s). The deadline applies only to interactive calls (no `timeout`) and stands down when no local engine is installed; reader runs reach it through `scoped(to:)`. Cloud errors must map to those cases, or the fallback silently stops working.
 - Call sites pass `SettingsStore.activeModel`, never `modelName`, because the three engines name models differently.
 - `DirectionDetector` (`NLLanguageRecognizer`, constrained to the configured pair) chooses the translation direction in code, with a 0.8 confidence floor. Below the floor it returns `.unknown`, and the prompt falls back to letting the model decide.
 - `PolishSpellingRules` and `EnglishGrammarRules` ground the explanations for grammar fixes.
@@ -78,10 +77,9 @@ Storage goes through the `ReaderRepository` actor: `ReaderCache` (Caches directo
 **Supporting modules**:
 - `Engine/` finds or downloads the Ollama binary and pulls models.
 - `Settings/` contains `SettingsStore`, which is `@Observable` and UserDefaults-backed. API keys are stored in the Keychain through `APIKeyStore`, one account per provider. The module also holds onboarding.
-- `Update/` checks GitHub `releases/latest`.
-- `Notify/` posts user notifications.
+- `Update/` checks GitHub `releases/latest`; `Notify/` posts user notifications.
 
-**Bundled JS**: any `.js` file must be listed in `project.yml` with `buildPhase: resources`, because XcodeGen otherwise tries to compile it. `Vendor/` holds Readability.js and DOMPurify.
+**Bundled JS**: any `.js` file must be listed in `project.yml` with `buildPhase: resources`, because XcodeGen otherwise tries to compile it. A `.js` under `Sources/` must also go in the `Sources` entry's `excludes` (see `ReaderSanitizer.js`). `Vendor/` holds Readability.js and DOMPurify.
 
 **Localization**: UI strings go through `loc("polski", "English")` (`Sources/Core/L10n.swift`). The UI language follows macOS and is fixed per process. It is independent of `PrimaryLanguage`, the user's translation axis.
 
