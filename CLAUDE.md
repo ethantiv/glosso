@@ -16,7 +16,7 @@ scripts/run.sh                   # build, kill the previous Debug instance, laun
 scripts/test.sh                  # offline tests → unique .build/TestResults-*.xcresult
 scripts/test.sh --adhoc          # same, ad hoc signing (no "Glosso Self-Signed" cert needed)
 scripts/test.sh --live local     # live suites; also: google (GEMINI_API_KEY), ollama-cloud (OLLAMA_API_KEY)
-scripts/package.sh               # Release zip → .build/release/Glosso.zip; outside CI also installs into /Applications
+scripts/package.sh               # Release zip → .build/release/Glosso.zip; outside CI also quits the running Glosso and replaces /Applications/Glosso.app
 ```
 
 Run a single suite or test:
