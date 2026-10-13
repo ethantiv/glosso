@@ -252,9 +252,15 @@ enum ReaderTemplate {
       /* A tinted bubble, not tinted text: red on the received-bubble gray is barely a signal. */
       .glosso-chat-error { background: color-mix(in srgb, red 12%, var(--paper));
                            color: color-mix(in srgb, red 70%, var(--ink)); }
-      #glosso-suggest-label { font-size: .72rem; font-weight: 600;
+      #glosso-suggest-label { font-family: inherit; font-size: .72rem; font-weight: 600;
                               margin-bottom: -.45em; color: var(--ink-soft);
-                              display: none; }
+                              background: none; border: 0; padding: 0; cursor: pointer;
+                              align-self: flex-start; display: none; }
+      #glosso-suggest-label:hover { color: var(--ink); }
+      #glosso-suggest-label::after { content: '▾'; display: inline-block; margin-left: .3em;
+                                     transition: transform .15s; }
+      body.glosso-suggest-collapsed #glosso-suggest-label::after { transform: rotate(-90deg); }
+      body.glosso-suggest-collapsed #glosso-chat-suggestions { display: none; }
       /* The same wrapped list before and during the conversation — `glossoAsk` already removes a chip once it has been
          asked, so the list shrinks on its own and doesn't need a second, truncated layout to squeeze into. */
       #glosso-chat-suggestions { display: flex; flex-wrap: wrap; gap: .4em; }
@@ -294,7 +300,7 @@ enum ReaderTemplate {
       <div id="glosso-chat-body">
         <div class="glosso-chat-label">\(loc("Zapytaj artykuł", "Ask the article"))</div>
         <div id="glosso-chat-messages"></div>
-        <div id="glosso-suggest-label">\(loc("Podpowiedzi", "Suggestions"))</div>
+        <button type="button" id="glosso-suggest-label" aria-expanded="true" aria-controls="glosso-chat-suggestions" title="\(loc("Pokaż lub ukryj podpowiedzi", "Show or hide suggestions"))">\(loc("Podpowiedzi", "Suggestions"))</button>
         <div id="glosso-chat-suggestions"></div>
         <form id="glosso-chat-form">
           <textarea id="glosso-chat-input" rows="1" autocomplete="off" placeholder="\(loc("Zadaj pytanie…", "Ask a question…"))"></textarea>
@@ -547,11 +553,24 @@ enum ReaderTemplate {
         chip.textContent = text;
         chip.title = extension ? text + ' — \(loc("Rozwinięcie tematu", "Explore the topic"))' : text;
         chip.setAttribute('aria-label', chip.title);
-        chip.addEventListener('click', function() { glossoAsk(text); });
+        chip.addEventListener('click', function() {
+          glossoCollapseSuggestions(true);
+          glossoAsk(text);
+        });
         box.appendChild(chip);
       }
       glossoSuggestLabel();
     }
+    // No argument toggles; the page reloads per article, so a new article starts expanded.
+    function glossoCollapseSuggestions(collapse) {
+      const label = document.getElementById('glosso-suggest-label');
+      if (collapse === undefined) { collapse = label.getAttribute('aria-expanded') === 'true'; }
+      document.body.classList.toggle('glosso-suggest-collapsed', collapse);
+      label.setAttribute('aria-expanded', String(!collapse));
+    }
+    document.getElementById('glosso-suggest-label').addEventListener('click', function() {
+      glossoCollapseSuggestions();
+    });
     function glossoSuggestLabel() {
       const any = document.querySelector('#glosso-chat-suggestions .glosso-chip');
       document.getElementById('glosso-suggest-label').style.display = any ? 'block' : 'none';
