@@ -3,15 +3,15 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Glosso: fix, summarize and translate any selection with ⌘C C, locally</title>
-<meta name="description" content="Glosso is a macOS menu-bar app. Select text, hold Cmd and tap C twice, and a local AI model fixes, summarizes or translates it right at your cursor. Copy a link and read the whole article in your language. Full AI: offline, private, no subscription.">
+<title>Glosso: fix and translate any selection with ⌘C C, locally</title>
+<meta name="description" content="Glosso is a macOS menu-bar app. Select text, hold Cmd and tap C twice, and a local AI model fixes or translates it right at your cursor. Copy a link and read the whole article in your language. Full AI: offline, private, no subscription.">
 <link rel="icon" type="image/png" href="../glosso-icon-256.png">
 <link rel="canonical" href="https://ethantiv.github.io/glosso/en/">
 <link rel="alternate" hreflang="pl" href="https://ethantiv.github.io/glosso/">
 <link rel="alternate" hreflang="en" href="https://ethantiv.github.io/glosso/en/">
 <link rel="alternate" hreflang="x-default" href="https://ethantiv.github.io/glosso/">
-<meta property="og:title" content="Glosso: fix, summarize and translate any selection, locally">
-<meta property="og:description" content="Select text, tap ⌘C C and let a local AI model fix, summarize or translate it. Offline, private, no subscription. Copy a link and read the whole article in your language.">
+<meta property="og:title" content="Glosso: fix and translate any selection, locally">
+<meta property="og:description" content="Select text, tap ⌘C C and let a local AI model fix or translate it. Offline, private, no subscription. Copy a link and read the whole article in your language.">
 <meta property="og:image" content="../glosso-icon.png">
 <meta property="og:type" content="website">
 <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -45,7 +45,7 @@
   <div class="hero__main">
   <div class="hero__copy">
     <p class="hero__eyebrow"><span class="hero__dot" aria-hidden="true"></span>macOS · local AI model · open source</p>
-    <h1 class="hero__title">Fix, summarize,<br>translate.<br><em class="hero__accent">Locally.</em></h1>
+    <h1 class="hero__title">Fix,<br>translate.<br><em class="hero__accent">Locally.</em></h1>
     <p class="hero__gesture"><span class="kbd-inline hero__chord"><kbd>⌘</kbd><kbd>C</kbd><kbd class="kbd-2">C</kbd></span> over any selection</p>
     <p class="hero__lede">Select any text and a local AI model takes it from there. The result shows up in a panel next to your cursor, or gets pasted quietly back in place. Full AI, offline and with <strong>no subscription</strong>.</p>
     <div class="hero__actions">
@@ -74,8 +74,6 @@
         <div class="gseg">
           <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>Translate</span>
           <span class="gseg__i gseg__i--on"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="m8.5 12 2.2 2.2L15.5 9.5"/></svg>Fix</span>
-          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>Reply</span>
-          <span class="gseg__i"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>Summarize</span>
         </div>
         <div class="gpop__acts">
           <span class="gcirc"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h9M3 12h9M3 18h13"/><path d="m17 5 3 3-3 3"/></svg></span>
@@ -116,14 +114,16 @@
 <section class="capa" id="how">
   <div class="capa__inner">
     <header class="section__head">
-      <h2 class="section__title">One gesture, four jobs</h2>
-      <p class="section__lede">Select, tap ⌘C C and pick what happens to the text: translate it, fix it, answer it or summarize it. Select a link instead, and the <a href="#reader">reader opens with the whole article</a>.</p>
+      <h2 class="section__title">Translate and fix text</h2>
+      <p class="section__lede">Select, tap ⌘C C and pick what happens to the text: translate it or fix it. Select a link instead, and the <a href="#reader">reader opens with the whole article</a>.</p>
     </header>
     <ol class="flow">
       <li class="flow__step"><span class="flow__n">1</span> Select text</li>
       <li class="flow__step"><span class="flow__n">2</span> Hold <span class="kbd-inline"><kbd>⌘</kbd></span>, tap <span class="kbd-inline"><kbd>C</kbd><kbd>C</kbd></span></li>
       <li class="flow__step"><span class="flow__n">3</span> Result at your cursor</li>
     </ol>
+
+    <p class="section__lede">You can also pick <strong>Translator…</strong> from the menu bar, type or paste text and run it with the button or ⌘Enter. That window keeps your text while you use the panel over a selection.</p>
 
     <div class="vgrid">
       <div class="vcard" data-reveal>
@@ -135,24 +135,10 @@
       </div>
       <div class="vcard" data-reveal>
         <div class="vcard__head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/></svg>
-          <h3>Summarize</h3>
-        </div>
-        <p>A long paragraph, email or article becomes a short list of the points that matter. Same language as the original.</p>
-      </div>
-      <div class="vcard" data-reveal>
-        <div class="vcard__head">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/><path d="M4 17h16"/><path d="m10.8 13 2.2-7 2.2 7"/><path d="M11.5 10.7h3"/></svg>
           <h3>Translate</h3>
         </div>
         <p>English ↔ Polish, German, Russian, Spanish, Dutch, French. You can also leave the second language on automatic — Glosso detects it from the selection.</p>
-      </div>
-      <div class="vcard" data-reveal>
-        <div class="vcard__head">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h7a9 9 0 0 1 9 9v2"/></svg>
-          <h3>Reply</h3>
-        </div>
-        <p>Copy a message and Glosso drafts a few possible answers. Pick the one that fits and paste it back in place.</p>
       </div>
     </div>
   </div>
@@ -187,7 +173,7 @@
           <p class="phase__cap">Shortcuts at hand.</p>
         </div>
         <ul class="phase__list">
-          <li><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd>C</kbd></span> open the panel over a selection: fix, summarize or translate.</li>
+          <li><span class="kbd-inline"><kbd>⌘</kbd><kbd>C</kbd><kbd>C</kbd></span> open the panel over a selection: fix or translate.</li>
           <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>G</kbd></span> fix the selection in place, no panel.</li>
           <li><span class="kbd-inline"><kbd>⌃</kbd><kbd>⌘</kbd><kbd>T</kbd></span> translate the selection in place.</li>
           <li><kbd>Esc</kbd> closes an open dropdown first, then the panel. The model and languages live in Settings.</li>
@@ -201,7 +187,7 @@
   <div class="pillars__lead">
     <h2>No cloud by default,<br>and no subscription.</h2>
     <p>The model (Gemma via Ollama) runs locally, with no account and no monthly bill. Whatever you fix or translate never leaves your Mac.</p>
-    <p>If you'd rather not download it, Settings can switch to Google AI or Ollama Cloud on your own key. The text then goes to that provider, which is why local stays the default.</p>
+    <p>If you'd rather not download it, switch to Google AI (free, just an API key) or Ollama Cloud on your own key. The text then goes to that provider, which is why local stays the default.</p>
   </div>
   <div class="pillars__list">
     <div class="pillar">
@@ -226,10 +212,11 @@
       <p class="section__lede">The same gesture works on a URL. Select a link, tap ⌘C C, and Glosso opens the article in its own window, translated paragraph by paragraph.</p>
       <ul class="reader__list">
         <li>A summary up front, then the whole text with its images and captions.</li>
-        <li>Translated by the local model, so the article never leaves your Mac.</li>
+        <li>By default the local model translates it, so the article never leaves your Mac.</li>
         <li>A toolbar switch shows the original; clicking one paragraph slides its original in underneath.</li>
-        <li>Ask the article your questions in the chat beside it.</li>
-        <li>Once translated, an article reopens instantly.</li>
+        <li>Ask questions in the chat beside it — about the article, or the background it only mentions.</li>
+        <li>Cinema mode dims everything on screen except the reader.</li>
+        <li>Every translation lands in the article library, kept for 7, 30 or 90 days; pinned ones never expire.</li>
       </ul>
     </div>
     <div class="reader__demo" data-reveal>
@@ -276,7 +263,7 @@
 <section class="panelfeat" id="panel">
   <div class="section__head">
     <h2 class="section__title">The panel is more than the result.</h2>
-    <p class="section__lede">Whatever you get back, you can correct it, question it and paste it right back, without copying anything again.</p>
+    <p class="section__lede">Whatever you get back, you can correct it, question it and paste it over the still-selected source, without copying anything again.</p>
   </div>
 
   <div class="shots">
@@ -297,7 +284,7 @@
       </div>
       <div class="shot__cap">
         <h3>Clickable words</h3>
-        <p>Every word in a finished translation opens a list of context-aware alternatives. Picking one re-translates that part.</p>
+        <p>Every word in a finished translation opens a list of context-aware alternatives. Picking one re-translates that part, and undo brings the previous version back.</p>
       </div>
     </div>
 
