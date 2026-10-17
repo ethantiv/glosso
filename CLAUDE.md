@@ -15,7 +15,7 @@ scripts/build.sh                 # Debug build → .build/dd/Build/Products/Debu
 scripts/run.sh                   # build, kill the previous Debug instance, launch
 scripts/test.sh                  # offline tests → unique .build/TestResults-*.xcresult
 scripts/test.sh --adhoc          # same, ad hoc signing (no "Glosso Self-Signed" cert needed)
-scripts/test.sh --live local     # live suites; also: google (GEMINI_API_KEY), ollama-cloud (OLLAMA_API_KEY)
+scripts/test.sh --live local     # live suites: local (Ollama on :11434 with gemma4:26b-mlx), google (GEMINI_API_KEY), ollama-cloud (OLLAMA_API_KEY)
 scripts/package.sh               # Release zip → .build/release/Glosso.zip; outside CI also quits the running Glosso and replaces /Applications/Glosso.app
 ```
 
@@ -24,7 +24,7 @@ Run a single suite or test:
 ```bash
 xcodegen generate && xcodebuild test -project Glosso.xcodeproj -scheme Glosso \
   -destination 'platform=macOS,arch=arm64' -derivedDataPath .build/dd \
-  -only-testing:GlossoTests/AppCoordinatorTests
+  -only-testing:GlossoTests/AppCoordinatorTests   # one test: …/AppCoordinatorTests/<testName>()
 ```
 
 Pass/fail counts: `xcrun xcresulttool get test-results summary --path <result.xcresult>`.
@@ -39,12 +39,12 @@ Environment notes:
 
 ## Workflow conventions
 
-- The user verifies native Glosso UI manually. Don't drive the app with Computer Use, capture its windows or synthesize UI gestures. Rely on offline tests and tell the user what to check by hand. The `docs/` landing page can be checked in a browser.
+- The user verifies native Glosso UI manually. Don't drive the app with Computer Use, capture its windows or synthesize UI gestures. Rely on offline tests and tell the user what to check by hand (`docs/test-sentences.txt` has graded sentences for that). The `docs/` landing page can be checked in a browser.
 - Put larger changes on a feature branch, not directly on `main`.
 - User-facing changes bump `MARKETING_VERSION` in `project.yml` (must stay a quoted `"X.Y.Z"`; CI parses it): minor for features, patch for fixes. Merging a new version into `main` *is* the release: `.github/workflows/release.yml` builds, signs and publishes it, then a bot commit to `main` updates the download links in `docs/index.html` and `docs/en/index.html`, so pull before branching again.
-- `.github/workflows/claude-code-review.yml` reviews a non-draft PR only when it touches `Sources/`, `Tests/`, `TestsIntegration/`, `Vendor/`, `scripts/`, `.github/workflows/` or `project.yml`, so a docs-only PR without a review is expected. A new push cancels the review in progress; the next run covers everything since the last successful review. `claude.yml` responds to `@claude` mentions in issues and PRs.
+- `.github/workflows/claude-code-review.yml` reviews a non-draft PR only when it touches `Sources/`, `Tests/`, `TestsIntegration/`, `Vendor/`, `scripts/`, `.github/workflows/` or `project.yml`, so a docs-only PR without a review is expected. A new push cancels a running review; the next one covers everything since the last successful review. `claude.yml` responds to `@claude` mentions. No workflow builds or tests a PR, so run `scripts/test.sh` before merging.
 - Commit messages use `feat:`, `fix:`, `test:`, `refactor:`, `docs:` and `chore:` prefixes.
-- Keep the signing identity (`Glosso Self-Signed`, manual style, no team). macOS pins the Accessibility (TCC) grant to it, so changing it forces every user to re-grant. Hardened runtime and the debug dylib are disabled in Debug only because library validation otherwise rejects the self-signed test bundle.
+- Keep the signing identity (`Glosso Self-Signed`, manual style, no team). macOS pins the Accessibility (TCC) grant to it, so changing it forces every user to re-grant. Hardened runtime is off in Debug and `ENABLE_DEBUG_DYLIB` is `NO`, because library validation otherwise rejects the self-signed test bundle.
 
 ## Architecture
 
@@ -56,7 +56,7 @@ Environment notes:
 1. `GlobalHotkeyMonitor` passively watches keyDown for the typed character "c" + Command (layout-independent), so the only permission needed is Accessibility. It samples the pasteboard `changeCount` at the *first* press as the baseline. The same monitor resolves the two configurable in-place chords.
 2. `captureAndTranslate` polls the pasteboard until `changeCount` rises above the baseline, because the second Cmd+C only triggers the copy. On timeout it falls back to `AXSelectionReader`, but only if the frontmost app's PID still matches the one at the press. As a last resort it retries against `trailingChangeCounts`, pasteboard snapshots taken every 2 s. This covers apps like VS Code, where key events arrive after the copy, so the baseline already reflects it. That retry always streams to the popup and never opens the reader, because its baseline can be seconds old.
 3. `route()` sends a bare article URL to the reader (`URLDetector`) and everything else to the popup.
-4. In-place chords (`fixGrammarInPlace`) read the selection through AX (falling back to a synthesized Cmd+C), run silently and paste back through `SystemSelectionReplacer`: a synthesized Cmd+V with clipboard save and restore. Pasting is deliberately not AX-based, because AX replacement reports false success in web and Electron apps.
+4. In-place chords (`fixGrammarInPlace`) read the selection through AX (falling back to a synthesized Cmd+C), run silently and paste back through `SystemSelectionReplacer`: a synthesized Cmd+V with clipboard save and restore. Pasting is deliberately not AX-based, because AX replacement reports false success in web and Electron apps. In a terminal, or when the AX selection snapshot no longer matches, the result goes to the clipboard instead.
 5. Results are cached per `Action`. A background prefetch of the other action runs **only for the local provider**, because cloud calls spend a metered daily quota.
 
 **LLM layer** (`Sources/LLM/`):
@@ -75,6 +75,7 @@ Environment notes:
 Storage goes through the `ReaderRepository` actor: `ReaderCache` (Caches directory, 1-week TTL, key includes the app version) and `SavedArticleStore` (Application Support, user-chosen retention, pinned entries kept). `ReaderRunContext` freezes provider, model and language at the start of a run, so a Settings change mid-run can't mix outputs.
 
 **Supporting modules**:
+- `Popup/` holds the floating `NSPanel` (`TranslationPopupController`, `FloatingPanel`) and the Translator… window.
 - `Engine/` finds or downloads the Ollama binary and pulls models.
 - `Settings/` contains `SettingsStore`, which is `@Observable` and UserDefaults-backed. API keys are stored in the Keychain through `APIKeyStore`, one account per provider. The module also holds onboarding.
 - `Update/` checks GitHub `releases/latest`; `Notify/` posts user notifications.
@@ -86,6 +87,6 @@ Storage goes through the `ReaderRepository` actor: `ReaderCache` (Caches directo
 ## Tests
 
 - Swift Testing (`import Testing`, `@Suite`, `@Test`, `#expect`), not XCTest. Files need `@testable import Glosso`. Name suites `<Feature>Tests`.
-- `Tests/` is offline and deterministic. Use the fakes in `Tests/Support/`: `CoordinatorFakes` for the protocol seams, `MockURLProtocol` to stub `URLSession` for the HTTP clients, and `ManualTestClock` for time. Default tests never touch the network or the Keychain.
+- `Tests/` is offline and deterministic. Use the fakes in `Tests/Support/`: `CoordinatorFakes` for the protocol seams, `MockURLProtocol` to stub `URLSession` for the HTTP clients, `ManualTestClock` for time, and `TestResources` (`TestDefaults`, `TestDirectory`, `TestPasteboard`) for self-cleaning UserDefaults, temp dirs and pasteboards. Default tests never touch the network or the Keychain.
 - Tests that assert on `loc()` output must pin the language with `L10n.$override.withValue(.polish) { … }`, because the default follows the machine's language.
 - `TestsIntegration/` is a separate `GlossoLiveTests` target and `GlossoLive` scheme. It runs only through `scripts/test.sh --live …`, and missing keys or services fail the run.
