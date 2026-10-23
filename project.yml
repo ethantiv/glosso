@@ -13,7 +13,7 @@ settings:
     # signing identity constant across releases so the Accessibility (TCC) grant
     # survives manual updates. Not notarized — fine for personal/free distribution.
     CODE_SIGN_STYLE: Manual
-    CODE_SIGN_IDENTITY: "Glosso Self-Signed"
+    CODE_SIGN_IDENTITY: "Local Self-Signed"
     CODE_SIGN_INJECT_BASE_ENTITLEMENTS: YES
     # Xcode's Debug "debug dylib" is signed without a Team ID; the xctest runner
     # refuses to load it under library validation, crashing the test host. Disabling

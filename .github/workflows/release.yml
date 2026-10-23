@@ -64,7 +64,7 @@ jobs:
           security import "$CERT" -P "$CERT_PW" -A -t cert -f pkcs12 -k "$KEYCHAIN" -T /usr/bin/codesign
           security set-key-partition-list -S apple-tool:,apple: -k "$KPW" "$KEYCHAIN" >/dev/null
           security list-keychains -d user -s "$KEYCHAIN" $(security list-keychains -d user | sed 's/"//g')
-          security find-certificate -c "Glosso Self-Signed" -p "$KEYCHAIN" > "$RUNNER_TEMP/cert.pem"
+          security find-certificate -c "Local Self-Signed" -p "$KEYCHAIN" > "$RUNNER_TEMP/cert.pem"
           sudo security add-trusted-cert -d -r trustRoot -p codeSign -k /Library/Keychains/System.keychain "$RUNNER_TEMP/cert.pem"
           security find-identity -v -p codesigning
 

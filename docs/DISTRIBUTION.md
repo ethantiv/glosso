@@ -8,7 +8,7 @@ Glosso is shared with a small group without an Apple Developer Program account, 
 
 Keychain Access → **Certificate Assistant → Create a Certificate**:
 
-- Name: `Glosso Self-Signed` (must match `CODE_SIGN_IDENTITY` in `project.yml`)
+- Name: `Local Self-Signed` (must match `CODE_SIGN_IDENTITY` in `project.yml`)
 - Identity Type: **Self-Signed Root**
 - Certificate Type: **Code Signing**
 - Optionally override defaults to set a long validity (e.g. 3650 days)
@@ -16,7 +16,7 @@ Keychain Access → **Certificate Assistant → Create a Certificate**:
 Trust it for signing: double-click the certificate → **Trust → Code Signing: Always Trust**. Verify:
 
 ```bash
-security find-identity -v -p codesigning   # must list "Glosso Self-Signed"
+security find-identity -v -p codesigning   # must list "Local Self-Signed"
 ```
 
 > After first building with this certificate, the old TCC grant (from the previous identity) is stale. Reset and re-grant once:
@@ -55,3 +55,5 @@ The repository must be **public** so the unauthenticated GitHub API (`releases/l
 5. The setup wizard guides you through choosing a model and language.
 
 Updates: when the menu shows a new version, download it and drag it over the old one. You will **not** need to grant Accessibility again.
+
+> The first release signed with `Local Self-Signed` (replacing `Glosso Self-Signed`) is the exception: its release notes must tell users to re-grant Accessibility once (`tccutil reset Accessibility com.mirek.glosso`, then grant it again).
