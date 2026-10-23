@@ -56,4 +56,4 @@ The repository must be **public** so the unauthenticated GitHub API (`releases/l
 
 Updates: when the menu shows a new version, download it and drag it over the old one. You will **not** need to grant Accessibility again.
 
-> The first release signed with `Local Self-Signed` (replacing `Glosso Self-Signed`) is the exception: its release notes must tell users to re-grant Accessibility once (`tccutil reset Accessibility com.mirek.glosso`, then grant it again).
+> The first release signed with `Local Self-Signed` (it replaced the previous identity) is the exception: its release notes must tell users to re-grant Accessibility once (`tccutil reset Accessibility com.mirek.glosso`, then grant it again).
