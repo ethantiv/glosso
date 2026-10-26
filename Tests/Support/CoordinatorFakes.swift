@@ -647,8 +647,10 @@ final class FakePopup: TranslationPopupPresenting {
 final class FakeSelectionReplacer: SelectionReplacing {
     private(set) var replacedText: String?
     private(set) var copyCount = 0
+    /// Plays the target app's side of the synthetic Cmd+C, e.g. writing to the pasteboard.
+    var onCopy: (() -> Void)?
     func replace(with text: String) { replacedText = text }
-    func synthesizeCopy() { copyCount += 1 }
+    func synthesizeCopy() { copyCount += 1; onCopy?() }
 }
 
 @MainActor

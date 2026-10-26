@@ -17,11 +17,6 @@ struct SavedArticleStore: Sendable {
         self.ttl = ttl
     }
 
-    /// Deletes what the current retention no longer covers — called when the user shortens the period.
-    func sweep() {
-        sweepExpired()
-    }
-
     /// nil on miss or decode failure; an expired unpinned entry is deleted and reported as a miss.
     func load(_ url: URL) -> ReaderCache.Entry? {
         let file = fileURL(for: url)
@@ -33,26 +28,21 @@ struct SavedArticleStore: Sendable {
         return entry
     }
 
-    /// The one retention rule — load, list, the sweep and `ReaderRepository`'s index must agree on it.
+    /// The one retention rule — `load` and `ReaderRepository`'s list and sweep must agree on it.
     func isLive(pinned: Bool?, savedAt: Date) -> Bool {
         pinned == true || Date.now.timeIntervalSince(savedAt) <= ttl
     }
 
     private func isLive(_ entry: ReaderCache.Entry) -> Bool { isLive(pinned: entry.pinned, savedAt: entry.savedAt) }
 
-    func isPinned(_ url: URL) -> Bool {
-        decode(fileURL(for: url))?.pinned == true
-    }
-
     /// Stamps a fresh `savedAt` — the retention window starts at translation time. A nil `pinned` keeps whatever
     /// the stored entry has, so a re-translation can't silently unpin an article. Returns what was written.
     @discardableResult
-    func save(_ entry: ReaderCache.Entry, sweeping: Bool = true) throws -> ReaderCache.Entry {
+    func save(_ entry: ReaderCache.Entry) throws -> ReaderCache.Entry {
         var entry = entry
         entry.savedAt = .now
         if entry.pinned == nil { entry.pinned = decode(fileURL(for: entry.url))?.pinned }
         try write(entry)
-        if sweeping { sweepExpired() }
         return entry
     }
 
@@ -63,16 +53,6 @@ struct SavedArticleStore: Sendable {
         entry.pinned = on
         if !on, !isLive(entry) { entry.savedAt = .now }
         try write(entry)
-    }
-
-    /// Pinned first, then newest first. Expired entries are filtered, not deleted — the sweep owns deletion.
-    /// ponytail: decodes full entries (content included); a sidecar index if the panel ever hitches.
-    func list() -> [ReaderCache.Entry] {
-        let files = (try? FileManager.default.contentsOfDirectory(at: directory, includingPropertiesForKeys: nil)) ?? []
-        return files.compactMap(decode).filter(isLive).sorted {
-            if ($0.pinned == true) != ($1.pinned == true) { return $0.pinned == true }
-            return $0.savedAt > $1.savedAt
-        }
     }
 
     func metadata() -> [SavedArticleMetadata] {
@@ -98,21 +78,6 @@ struct SavedArticleStore: Sendable {
     private func decode(_ file: URL) -> ReaderCache.Entry? {
         guard let data = try? Data(contentsOf: file) else { return nil }
         return try? JSONDecoder().decode(ReaderCache.Entry.self, from: data)
-    }
-
-    /// Only files whose mtime already passed the TTL are decoded (to check the pin) — the mtime is never
-    /// older than `savedAt`, so the pre-filter can't sweep a live entry, and fresh files cost no decode.
-    private func sweepExpired() {
-        let fm = FileManager.default
-        let files = (try? fm.contentsOfDirectory(
-            at: directory, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
-        for file in files {
-            guard let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?
-                .contentModificationDate,
-                Date.now.timeIntervalSince(modified) > ttl else { continue }
-            guard let entry = decode(file), !isLive(entry) else { continue }
-            try? fm.removeItem(at: file)
-        }
     }
 
     private func fileURL(for url: URL) -> URL {

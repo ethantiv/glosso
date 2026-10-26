@@ -4,10 +4,16 @@ import Testing
 
 @Suite struct SavedArticleStoreTests {
     private let directory = TestDirectory()
+    private let cacheDirectory = TestDirectory()
     private let store: SavedArticleStore
 
     init() {
         store = SavedArticleStore(directory: directory.url)
+    }
+
+    /// Listing and sweeping live in the repository; the store only reads and writes single entries.
+    private func makeRepository(saved: SavedArticleStore? = nil) -> ReaderRepository {
+        ReaderRepository(cache: ReaderCache(directory: cacheDirectory.url), saved: saved ?? store)
     }
 
     private func makeEntry(url: String = "https://example.com/article",
@@ -71,7 +77,6 @@ import Testing
 
         let loaded = try #require(store.load(makeEntry().url))
         #expect(loaded.pinned == nil)
-        #expect(store.isPinned(loaded.url) == false)
     }
 
     @Test func setPinnedFlipsTheFlagWithoutTouchingSavedAt() throws {
@@ -80,11 +85,11 @@ import Testing
         let before = try #require(store.load(entry.url)).savedAt
 
         try store.setPinned(true, for: entry.url)
-        #expect(store.isPinned(entry.url))
+        #expect(store.load(entry.url)?.pinned == true)
         #expect(store.load(entry.url)?.savedAt == before)
 
         try store.setPinned(false, for: entry.url)
-        #expect(!store.isPinned(entry.url))
+        #expect(store.load(entry.url)?.pinned == false)
     }
 
     // Un-pinning must not silently destroy an article the TTL already outlived — it restarts the window.
@@ -121,13 +126,13 @@ import Testing
         #expect(store.load(entry.url) != nil)
     }
 
-    @Test func pinnedEntrySurvivesShortenedRetentionSweep() throws {
+    @Test func pinnedEntrySurvivesShortenedRetentionSweep() async throws {
         let long = SavedArticleStore(directory: store.directory, ttl: 90 * 24 * 3600)
         let entry = makeEntry(pinned: true)
         try long.save(entry)
         try backdate(entry.url, by: 10 * 24 * 3600)
 
-        store.sweep()
+        await makeRepository(saved: long).setRetention(days: 7)
 
         #expect(store.load(entry.url)?.pinned == true)
     }
@@ -139,29 +144,29 @@ import Testing
 
         try store.save(makeEntry(pinned: nil))
 
-        #expect(store.isPinned(entry.url))
+        #expect(store.load(entry.url)?.pinned == true)
     }
 
-    @Test func saveSweepsExpiredUnpinnedSiblings() throws {
+    @Test func saveSweepsExpiredUnpinnedSiblings() async throws {
         let old = makeEntry(url: "https://example.com/old")
         try store.save(old)
         try backdate(old.url, by: 8 * 24 * 3600)
 
-        try store.save(makeEntry(url: "https://example.com/new"))
+        try await makeRepository().save(makeEntry(url: "https://example.com/new"), primary: .polish)
 
         #expect(store.load(old.url) == nil)
         let files = try FileManager.default.contentsOfDirectory(atPath: store.directory.path)
         #expect(files.count == 1)
     }
 
-    @Test func listPutsPinnedFirstThenNewestFirst() throws {
+    @Test func listPutsPinnedFirstThenNewestFirst() async throws {
         try store.save(makeEntry(url: "https://example.com/a"))
         try backdate(URL(string: "https://example.com/a")!, by: 3600)
         try store.save(makeEntry(url: "https://example.com/b"))
         try store.save(makeEntry(url: "https://example.com/c", pinned: true))
         try backdate(URL(string: "https://example.com/c")!, by: 2 * 3600)
 
-        let urls = store.list().map(\.url.absoluteString)
+        let urls = await makeRepository().list().map(\.url.absoluteString)
         #expect(urls == ["https://example.com/c", "https://example.com/b", "https://example.com/a"])
     }
 
@@ -175,14 +180,14 @@ import Testing
         #expect(store.load(entry.url) == nil)
     }
 
-    // Shortening the period deletes immediately via sweep(), not at the next translation.
-    @Test func sweepAppliesAShortenedRetentionAtOnce() throws {
+    // Shortening the period deletes immediately, not at the next translation.
+    @Test func sweepAppliesAShortenedRetentionAtOnce() async throws {
         let long = SavedArticleStore(directory: store.directory, ttl: 90 * 24 * 3600)
         let entry = makeEntry()
         try long.save(entry)
         try backdate(entry.url, by: 10 * 24 * 3600)
 
-        store.sweep()
+        await makeRepository(saved: long).setRetention(days: 7)
 
         let files = try FileManager.default.contentsOfDirectory(atPath: store.directory.path)
         #expect(files.isEmpty)

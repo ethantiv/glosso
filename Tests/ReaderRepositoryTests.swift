@@ -15,7 +15,7 @@ import Testing
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
         let store = SavedArticleStore(directory: root.appendingPathComponent("saved"))
-        for n in 0..<count { try store.save(entry(n, bytes: 16_384), sweeping: false) }
+        for n in 0..<count { try store.save(entry(n, bytes: 16_384)) }
         let calls = Mutex(0)
         let mainThreadIO = Mutex(false)
         let repository = ReaderRepository(cache: ReaderCache(directory: root.appendingPathComponent("cache")), saved: store,

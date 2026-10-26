@@ -24,8 +24,8 @@ actor EngineManager: EngineProviding {
     /// The resolved engine, kept with its base so liveness can be re-probed: the user can quit Ollama.app,
     /// and a spawned `serve` can die — a cached URL served blindly would fail every call until relaunch.
     private var resolved: (base: String, url: URL)?
-    private var resolveTask: Task<URL, Error>?
-    private var ensureTask: Task<Void, Error>?
+    /// One in-flight start for both entry points: a second concurrent `serve` would kill the first through `box`.
+    private var startTask: Task<URL, Error>?
 
     private static let reuseBase = "http://localhost:11434"
 
@@ -42,12 +42,7 @@ actor EngineManager: EngineProviding {
             if await reachable(resolved.base) { return resolved.url }
             self.resolved = nil
         }
-        if let resolveTask { return try await resolveTask.value }
-        let task = Task { try await self.resolve() }
-        resolveTask = task
-        defer { resolveTask = nil }
-        let url = try await task.value
-        return url
+        return try await start(download: nil)
     }
 
     /// The engine we already know about, without provisioning one: a poll must never spawn `ollama serve`.
@@ -57,25 +52,21 @@ actor EngineManager: EngineProviding {
         // Idempotent for real: a live engine — reused *or already spawned* — must not be respawned,
         // and a second concurrent caller joins the first instead of racing it past the reachability check.
         if let resolved, await reachable(resolved.base) { return }
-        if let ensureTask { return try await ensureTask.value }
-        let task = Task { try await self.provision(progress: progress) }
-        ensureTask = task
-        defer { ensureTask = nil }
-        try await task.value
+        // A translation's start may be in flight without a download; only if it found no engine do we download.
+        if let joined = startTask {
+            if (try? await joined.value) != nil { return }
+            // Its creator's defer may not have run yet; `start` must not rejoin the failed task.
+            if startTask == joined { startTask = nil }
+        }
+        _ = try await start(download: progress)
     }
 
-    private func provision(progress: @escaping @Sendable (Double) -> Void) async throws {
-        if await reachable(Self.reuseBase) {
-            resolved = (Self.reuseBase, Self.generate(Self.reuseBase))
-            return
-        }
-        if OllamaEngineDownloader.installedBinary() == nil {
-            try await downloader.download(progress: progress)
-        }
-        guard let binary = OllamaEngineDownloader.installedBinary() else {
-            throw TranslationError.engineUnavailable
-        }
-        _ = try await spawnAndRemember(binary: binary)
+    private func start(download progress: (@Sendable (Double) -> Void)?) async throws -> URL {
+        if let startTask { return try await startTask.value }
+        let task = Task { try await self.resolve(download: progress) }
+        startTask = task
+        defer { if startTask == task { startTask = nil } }
+        return try await task.value
     }
 
     func status() async -> EngineStatus {
@@ -85,10 +76,14 @@ actor EngineManager: EngineProviding {
         return .needsDownload
     }
 
-    private func resolve() async throws -> URL {
+    /// `progress` non-nil allows the engine download; a translation call never downloads.
+    private func resolve(download progress: (@Sendable (Double) -> Void)?) async throws -> URL {
         if await reachable(Self.reuseBase) {
             resolved = (Self.reuseBase, Self.generate(Self.reuseBase))
             return Self.generate(Self.reuseBase)
+        }
+        if let progress, OllamaEngineDownloader.installedBinary() == nil {
+            try await downloader.download(progress: progress)
         }
         guard let binary = OllamaEngineDownloader.installedBinary() else {
             throw TranslationError.engineUnavailable
