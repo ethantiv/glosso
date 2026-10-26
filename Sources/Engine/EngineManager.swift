@@ -53,7 +53,11 @@ actor EngineManager: EngineProviding {
         // and a second concurrent caller joins the first instead of racing it past the reachability check.
         if let resolved, await reachable(resolved.base) { return }
         // A translation's start may be in flight without a download; only if it found no engine do we download.
-        if let startTask, (try? await startTask.value) != nil { return }
+        if let joined = startTask {
+            if (try? await joined.value) != nil { return }
+            // Its creator's defer may not have run yet; `start` must not rejoin the failed task.
+            if startTask == joined { startTask = nil }
+        }
         _ = try await start(download: progress)
     }
 
