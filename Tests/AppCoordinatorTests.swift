@@ -550,6 +550,34 @@ import Testing
         #expect(messages.count == 1)
     }
 
+    @Test func failedSyntheticCopyGivesBackTheUsersClipboard() async {
+        let image = Data([0x89, 0x50, 0x4E, 0x47])
+        pasteboard.clearContents()
+        pasteboard.setData(image, forType: .png)
+        let axReader = FakeAXSelectionReader()
+        axReader.text = nil
+        let replacer = FakeSelectionReplacer()
+        // The target app's copy lands on the pasteboard, but too late or unreadable for the poll.
+        replacer.onCopy = { [pasteboard] in
+            pasteboard.clearContents()
+            pasteboard.setString("selection", forType: .string)
+        }
+        let coordinator = AppCoordinator(
+            llm: FakeLLMClient(), monitor: FakeHotkeyMonitor(),
+            reader: FakePasteboardReader(), axReader: axReader, popup: FakePopup(),
+            settings: makeSettings(), replacer: replacer,
+            pollStepMs: 1, pollMaxAttempts: 5,
+            frontmostBundleID: { "com.apple.TextEdit" }, pasteboard: pasteboard, notify: { _ in }
+        )
+        defer { coordinator.stop() }
+
+        await coordinator.fixGrammarInPlace(sourcePID: 42)
+
+        #expect(replacer.copyCount == 1)
+        #expect(pasteboard.data(forType: .png) == image)
+        #expect(pasteboard.string(forType: .string) == nil)
+    }
+
     @Test func fixGrammarReadsASelectionTheTerminalCopiedOnSelection() async {
         let llm = FakeLLMClient(events: [.token("the cat"), .finished(doneReason: "stop")])
         let axReader = FakeAXSelectionReader()

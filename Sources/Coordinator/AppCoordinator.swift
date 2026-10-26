@@ -22,8 +22,7 @@ final class AppCoordinator {
     private let notify: @MainActor (String) -> Void
 
     // A terminal's "selection" is a mouse highlight the shell won't replace — Cmd+V
-    // appends at the prompt — so even a provably fresh synthetic copy must not be
-    // pasted back there.
+    // appends at the prompt — so a result must never be pasted back there.
     // ponytail: VS Code's *integrated* terminal shares com.microsoft.VSCode with the
     // editor — indistinguishable by bundle id; add an AX-role probe if it bites.
     private static let terminalBundleIDs: Set<String> = [
@@ -308,7 +307,7 @@ final class AppCoordinator {
         let selection = axReader.snapshot()
         var captured = try? SelectionGuard.nonEmptyText(selection?.text ?? axReader.selectedText())
         if captured == nil, let fallback = await captureViaSyntheticCopy() {
-            captured = try? SelectionGuard.nonEmptyText(fallback.text)
+            captured = try? SelectionGuard.nonEmptyText(fallback)
         }
         if Task.isCancelled { return }
         guard let text = captured else {
@@ -357,14 +356,13 @@ final class AppCoordinator {
         pasteboard.setString(text, forType: .string)
     }
 
-    private func captureViaSyntheticCopy() async -> (text: String, fresh: Bool)? {
+    private func captureViaSyntheticCopy() async -> String? {
         let pasteboard = self.pasteboard
         // Every flavor, not just the string: restoring only text would destroy a copied image or file list.
         let original = PasteboardSnapshot.capture(pasteboard)
         let baseline = reader.currentChangeCount
         replacer.synthesizeCopy()
         var captured: String?
-        var fresh = true
         for _ in 0..<pollMaxAttempts {
             if Task.isCancelled { break }
             if let text = try? reader.readSelection(baselineChangeCount: baseline) {
@@ -385,11 +383,9 @@ final class AppCoordinator {
         // pasteboard can tell the two apart; only a real selection read (AX) could.
         if captured == nil, let trailing = trailingChangeCounts.first {
             captured = try? reader.readSelection(baselineChangeCount: trailing)
-            fresh = false
         }
         PasteboardSnapshot.restore(original, to: pasteboard)
-        guard let captured else { return nil }
-        return (captured, fresh)
+        return captured
     }
 
     private func rerunLastCapture(text: String? = nil, action: Action? = nil, invalidatingCache: Bool = true) {

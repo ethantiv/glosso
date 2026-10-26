@@ -3,24 +3,12 @@ import ApplicationServices
 @MainActor
 final class AXSelectionReader: AXSelectionReading {
     func selectedText() -> String? {
-        let systemWide = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(systemWide, 0.2)
-        guard let focused = copyAttribute(systemWide, "AXFocusedUIElement"),
-              CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement
-        AXUIElementSetMessagingTimeout(element, 0.2)
-        guard let value = copyAttribute(element, "AXSelectedText"),
-              let text = value as? String else { return nil }
-        return text
+        guard let element = focusedElement() else { return nil }
+        return copyAttribute(element, kAXSelectedTextAttribute) as? String
     }
 
     func snapshot() -> SelectionSnapshot? {
-        let system = AXUIElementCreateSystemWide()
-        AXUIElementSetMessagingTimeout(system, 0.2)
-        guard let focused = copyAttribute(system, kAXFocusedUIElementAttribute),
-              CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
-        let element = focused as! AXUIElement
-        AXUIElementSetMessagingTimeout(element, 0.2)
+        guard let element = focusedElement() else { return nil }
         var pid: pid_t = 0
         guard AXUIElementGetPid(element, &pid) == .success,
               let text = copyAttribute(element, kAXSelectedTextAttribute) as? String,
@@ -32,6 +20,16 @@ final class AXSelectionReader: AXSelectionReading {
               range.location >= 0, range.length > 0 else { return nil }
         return SelectionSnapshot(pid: pid, element: element,
                                  range: NSRange(location: range.location, length: range.length), text: text)
+    }
+
+    private func focusedElement() -> AXUIElement? {
+        let system = AXUIElementCreateSystemWide()
+        AXUIElementSetMessagingTimeout(system, 0.2)
+        guard let focused = copyAttribute(system, kAXFocusedUIElementAttribute),
+              CFGetTypeID(focused) == AXUIElementGetTypeID() else { return nil }
+        let element = focused as! AXUIElement
+        AXUIElementSetMessagingTimeout(element, 0.2)
+        return element
     }
 
     private func copyAttribute(_ element: AXUIElement, _ attribute: String) -> CFTypeRef? {

@@ -52,7 +52,7 @@ actor ReaderRepository {
     @discardableResult
     func save(_ entry: ReaderCache.Entry, primary: PrimaryLanguage) throws -> ReaderCache.Entry {
         ensureIndex(); observeIO()
-        let stored = try saved.save(entry, sweeping: false)
+        let stored = try saved.save(entry)
         index?[entry.url] = SavedArticleMetadata(stored)
         sweep()
         try cache.save(stored, primary: primary)
@@ -62,7 +62,7 @@ actor ReaderRepository {
         ensureIndex(); observeIO()
         if saved.load(url) == nil, var fallback, fallback.url == url {
             fallback.pinned = on
-            let stored = try saved.save(fallback, sweeping: false)
+            let stored = try saved.save(fallback)
             index?[url] = SavedArticleMetadata(stored)
             return stored
         }
