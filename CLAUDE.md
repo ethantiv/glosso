@@ -2,7 +2,7 @@
 
 ## What this is
 
-Glosso is a macOS 26+ menu-bar agent (`LSUIElement`, no Dock icon, Swift 6 strict concurrency). On **double Cmd+C** it translates or grammar-fixes the selection with an LLM and streams the result into a floating panel near the cursor; a copied bare URL opens a translated reader window instead. `README.md` is the user-facing feature description; `docs/DISTRIBUTION.md` owns signing and release details.
+Glosso is a macOS 26+ menu-bar agent (`LSUIElement`, no Dock icon, Swift 6 strict concurrency). On **double Cmd+C** it translates or grammar-fixes the selection with an LLM and streams the result into a floating panel near the cursor; a copied bare URL opens a translated reader window instead. `README.md` covers only install and build; `docs/DISTRIBUTION.md` owns signing and release details.
 
 Two load-bearing LLM decisions (`Tests/SanityTests.swift` pins `think: false`, temperature, model and `keepAlive`): `think: false` is mandatory (Gemma otherwise spends 10–26 s on reasoning tokens for the same translation), and the app uses Ollama's native `/api/generate`, not the OpenAI-compatible `/v1` layer, which doesn't expose `keep_alive`.
 

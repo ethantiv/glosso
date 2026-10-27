@@ -1,80 +1,30 @@
 # Glosso
 
-A macOS menu-bar app that translates or fixes the text you have selected when you hit **Cmd+C twice in a row**. It uses a local LLM (Gemma via [Ollama](https://ollama.com)) and shows the result in a small panel next to the cursor. Copy a link instead and it opens the whole article, translated, in a reader window.
+Aplikacja na pasek menu macOS, która tłumaczy albo poprawia zaznaczony tekst, gdy dwa razy naciśniesz **Cmd+C**. Wymaga macOS 26 lub nowszego.
 
-No Dock icon, only a bubble in the menu bar. Both Cmd+C presses still copy as usual.
+## Instalacja
 
-## Install
+1. Pobierz `Glosso.zip` z [Releases](https://github.com/ethantiv/glosso/releases/latest), rozpakuj go i przeciągnij **Glosso.app** do folderu Aplikacje.
+2. Otwórz aplikację. macOS zablokuje pierwsze uruchomienie, bo Apple nie notaryzowało aplikacji. Kliknij **Gotowe**, otwórz **Ustawienia systemowe > Prywatność i ochrona** i kliknij **Otwórz mimo to**.
+3. Gdy aplikacja poprosi, przyznaj uprawnienie **Dostępność**.
+4. W kreatorze pierwszego uruchomienia wybierz języki i silnik:
+   - **Lokalny**: aplikacja pobiera Ollamę i model o rozmiarze 7–20 GB. Jeśli masz już Ollamę, aplikacja jej użyje.
+   - **Google AI**: wklej darmowy klucz API z [Google AI Studio](https://aistudio.google.com/apikey). Zaznaczony tekst trafia wtedy poza twojego Maca.
 
-Download the latest `Glosso.zip` from [Releases](https://github.com/ethantiv/glosso/releases/latest):
+Żeby później zmienić silnik albo użyć **Ollama Cloud** z kluczem z ollama.com, otwórz **Ustawienia** z paska menu.
 
-1. Unzip and drag **Glosso.app** to your Applications folder.
-2. macOS blocks the first launch because the app is signed but not notarized by Apple. Click **Done**, then open **System Settings → Privacy & Security**, scroll to the bottom, and click **Open Anyway**. You only need to do this once.
-3. Grant **Accessibility** when asked. It's the only permission the app needs.
-4. A first-run wizard guides you through downloading a translation model and selecting your languages.
+## Budowanie ze źródeł
 
-By default everything runs locally. The model and its engine download on first use, so you don't need to install [Ollama](https://ollama.com) yourself (if you already have a local installation, the app reuses it).
-
-If you'd rather not download a 7–20 GB model, the wizard also offers **Google AI**: the same Gemma models plus Gemini Flash Lite, served by the Gemini API, free, with only an API key to paste. Settings adds a third option, **Ollama Cloud**, which runs the bigger Gemma on Ollama's own servers against your key. Either option sends the selected text off the machine, so local stays the default.
-
-## Requirements
-
-- macOS 26 or later
-- To build from source: [XcodeGen](https://github.com/yonaskolb/XcodeGen) + Xcode
-
-## Build and run
-
-The Xcode project is generated from `project.yml` — don't edit `*.xcodeproj` by hand. The scripts regenerate it for you:
+Zainstaluj [XcodeGen](https://github.com/yonaskolb/XcodeGen) i Xcode, a potem uruchom:
 
 ```bash
-scripts/run.sh      # build and launch
-scripts/test.sh     # run the tests
-scripts/package.sh  # build a signed .zip you can drop into /Applications
+scripts/run.sh      # zbuduj i uruchom
+scripts/test.sh     # uruchom testy
+scripts/package.sh  # zbuduj podpisany .zip
 ```
 
-The release workflow builds and publishes a new version when `MARKETING_VERSION` is bumped and merged into `main`. See [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
+Skrypty generują projekt Xcode z `project.yml`, więc nie edytuj ręcznie `*.xcodeproj`. Podpisywanie i wydania opisuje [`docs/DISTRIBUTION.md`](docs/DISTRIBUTION.md).
 
-## Using the popup
-
-The panel opens under the cursor and streams the result as the model produces it.
-
-- **Actions.** The top bar offers **Translate** and **Fix** (grammar, spelling, and punctuation in the original language), alongside the language pair. Switching actions processes the same selection. The local engine precomputes the correction after translating.
-- **Tone.** For a translation, switch the tone between automatic, formal, and informal register. A "What changed?" button names what the switch actually did to the text.
-- **Editable source.** Tweak the captured text in place and re-run, instead of copying again.
-- **Grammar diff.** Fix highlights what changed; click a change to learn why, with reasons grounded in Polish Language Council spelling rules or, for English, in a base of mistakes Polish speakers typically make. If there are more than three changes, the pane splits into the diff and the clean corrected text, and an eye button hides the diff.
-- **Per-word alternatives.** In a finished translation each word is clickable: a dropdown offers context-aware alternatives and a "Why?" explanation. Picking one re-translates just that part, and an undo button brings the previous version back.
-- **Replace.** Paste the result straight back over the still-selected source text, or copy it from the header.
-
-## Translate typed or pasted text
-
-Choose **Translator…** from the menu bar to open a separate window. Type or paste text, choose **Translate** or **Fix**, then click the matching button or press **Cmd+Enter**. Press **Enter** to add a paragraph. Editing the source cancels the current request and clears its result.
-
-The window stays open when you switch apps. Choosing **Translator…** again brings it forward with your text intact. Double-pressing **Cmd+C** in another app opens a separate popup. Closing the translator discards its session.
-
-## Article reader
-
-Double-press Cmd+C on a bare link and instead of the popup you get a reader window: the article is extracted from the page, summarized in two or three sentences and translated block by block into your primary language. A toolbar switch flips the whole page between the translation and the original, and clicking a single translated paragraph slides its original underneath. A side chat answers questions about the article, with a few suggested ones to start. The window subtitle tracks progress and names the engine that did the work. Translated articles are cached for a week, so reopening the same link is instant. Cinema mode dims everything on screen except the reader; it's on by default, the moon button in the toolbar toggles it, the choice is remembered, and the dimming steps aside whenever you switch to another app. Every translation also lands in a saved-articles list (the tray button, or **Article library…** in the menu-bar menu), kept for 7, 30, or 90 days by your choice; pinned articles never expire.
-
-## In-place shortcuts
-
-Two headless chords act on the current selection without opening the panel and paste the result straight back: **Fix in place** (grammar, default Ctrl+Cmd+G) and **Translate in place** (default Ctrl+Cmd+T). Both are rebindable in Settings.
-
-## Settings
-
-From the menu bar you can pick the engine (local Ollama, Google AI, or Ollama Cloud), the model, the primary language (Polish or English), and the second language (Polish, English, German, Russian, Spanish, Dutch, or French, or automatic detection). The translation direction is detected per capture. The app's UI language follows your macOS language, independently of these settings.
-
-Either cloud engine reveals a field for its API key ([free from Google AI Studio](https://aistudio.google.com/apikey), or from ollama.com) and a choice of model; the local model stays on screen as the fallback. Keys live in the Keychain, one per provider.
-
-Google AI also shows today's request count, because that tier is metered. Glosso paces itself to each model's own limits: Gemma (the default) gets 30 requests and 16,000 input tokens per minute and 14,400 per day, Gemini Flash Lite 15 requests and 250,000 tokens per minute and 500 per day. It waits instead of getting rejected, counts each model's day separately, and hands the work to the local model when the quota runs out.
-
-**Keep model loaded** sets how long the local Ollama model stays in memory after the last request (5 minutes to 2 hours, or always; 1 hour by default). A longer value avoids the reload pause after a break, at the cost of RAM held while idle.
-
-A **Launch at login** toggle starts the app quietly in the menu bar. **Check for updates…** compares your version against the latest release and downloads the new `.zip` to `~/Downloads`; installing is still a manual drag.
-
-## How it works
-
-The app is split into small modules — hotkey, capture, LLM, popup, settings — each behind a protocol. For the details and the reasoning behind the design decisions, see [`CLAUDE.md`](CLAUDE.md).
-
-## License
+## Licencja
 
 [MIT](LICENSE)
