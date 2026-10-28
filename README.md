@@ -13,6 +13,8 @@ Aplikacja na pasek menu macOS, która tłumaczy albo poprawia zaznaczony tekst, 
 
 Żeby później zmienić silnik albo użyć **Ollama Cloud** z kluczem z ollama.com, otwórz **Ustawienia** z paska menu.
 
+Funkcje mowy (odsłuch wyniku, czytanie artykułu na głos, tłumaczenie przytrzymanym skrótem) działają na lokalnej Ollamie w wersji 0.40.12 lub nowszej. Przy pierwszym użyciu pobierają model mowy o rozmiarze około 2 GB.
+
 ## Budowanie ze źródeł
 
 Zainstaluj [XcodeGen](https://github.com/yonaskolb/XcodeGen) i Xcode, a potem uruchom:

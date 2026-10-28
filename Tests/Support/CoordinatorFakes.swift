@@ -590,6 +590,8 @@ final class FakePopup: TranslationPopupPresenting {
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
     var onSourceChange: (@MainActor () -> Void)?
     var onUndo: (@MainActor () -> Void)?
+    var onToggleSpeech: (@MainActor (_ text: String) -> Void)?
+    private(set) var speechStates: [SpeechPlaybackState] = []
     private(set) var presented = false
     private(set) var presentedDirection: TranslationDirection?
     private(set) var presentedSourceText: String?
@@ -626,6 +628,7 @@ final class FakePopup: TranslationPopupPresenting {
     }
     func append(token: String) { tokens.append(token); firstToken.release() }
     func showError(_ message: String) { errorMessage = message }
+    func setSpeech(_ state: SpeechPlaybackState) { speechStates.append(state) }
     func finish(truncated: Bool) { finished = true; self.truncated = truncated }
     func restartTranslation() {
         idle = false
@@ -670,6 +673,8 @@ final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
     var onFixGrammar: (@MainActor () -> Void)?
     var onTranslateInPlace: (@MainActor () -> Void)?
+    var onSpeechStart: (@MainActor () -> Void)?
+    var onSpeechEnd: (@MainActor () -> Void)?
     private(set) var startCount = 0
     private(set) var stopCount = 0
     var startError: (any Error)?
@@ -678,4 +683,75 @@ final class FakeHotkeyMonitor: HotkeyMonitor {
         if let startError { throw startError }
     }
     func stop() { stopCount += 1 }
+}
+
+final class Locked<Value>: @unchecked Sendable {
+    private let lock = NSLock()
+    private var stored: Value
+    init(_ value: Value) { stored = value }
+    var value: Value { lock.withLock { stored } }
+    func set(_ value: Value) { lock.withLock { stored = value } }
+    func update(_ body: (inout Value) -> Void) { lock.withLock { body(&stored) } }
+}
+
+/// Both halves of the speech model. Each `synthesize` yields one 0.1 s buffer, after `gate` opens.
+final class FakeSpeechSynthesizer: SpeechSynthesizing, SpeechTranscribing, @unchecked Sendable {
+    private let recorded = Locked<(texts: [String], voices: [String], wavs: [Data])>(([], [], []))
+    var synthesizeError: (any Error)?
+    var transcript = ""
+    var transcribeError: (any Error)?
+    var gate: StreamGate?
+
+    var texts: [String] { recorded.value.texts }
+    var voices: [String] { recorded.value.voices }
+    var transcribedWavs: [Data] { recorded.value.wavs }
+
+    func prepare(progress: @escaping @Sendable (Double?) -> Void) async throws {}
+
+    func synthesize(_ text: String, voice: String) -> AsyncThrowingStream<Data, Error> {
+        recorded.update { $0.texts.append(text); $0.voices.append(voice) }
+        let error = synthesizeError, gate = self.gate
+        return AsyncThrowingStream { continuation in
+            let task = Task {
+                await gate?.wait()
+                continuation.yield(Data(repeating: 0, count: 4_800))
+                if let error { continuation.finish(throwing: error) } else { continuation.finish() }
+            }
+            continuation.onTermination = { @Sendable _ in task.cancel() }
+        }
+    }
+
+    func transcribe(wav: Data) async throws -> String {
+        recorded.update { $0.wavs.append(wav) }
+        if let transcribeError { throw transcribeError }
+        return transcript
+    }
+}
+
+@MainActor
+final class FakeSpeechPlayer: SpeechPlaying {
+    private(set) var enqueued: [Data] = []
+    private(set) var pauseCount = 0
+    private(set) var resumeCount = 0
+    private(set) var stopCount = 0
+    var queuedDuration: TimeInterval = 0
+    func enqueue(_ pcm: Data) { enqueued.append(pcm) }
+    func drain() async {}
+    func pause() { pauseCount += 1 }
+    func resume() { resumeCount += 1 }
+    func stop() { stopCount += 1 }
+}
+
+@MainActor
+final class FakeSpeechRecorder: SpeechRecording {
+    var wav: Data?
+    var startError: (any Error)?
+    private(set) var stopCount = 0
+    func start() async throws {
+        if let startError { throw startError }
+    }
+    func stop() -> Data? {
+        stopCount += 1
+        return wav
+    }
 }

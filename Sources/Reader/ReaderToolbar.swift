@@ -19,6 +19,7 @@ extension NSToolbarItem.Identifier {
     static let glossoCinema = NSToolbarItem.Identifier("glosso.cinema")
     static let glossoBrowse = NSToolbarItem.Identifier("glosso.browse")
     static let glossoChat = NSToolbarItem.Identifier("glosso.chat")
+    static let glossoSpeak = NSToolbarItem.Identifier("glosso.speak")
 }
 
 /// `ReaderController` is not an `NSObject`, so toolbar target/action goes through a proxy — the same shape as
@@ -28,7 +29,7 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
     /// One leading flexible space, then the group: a unified toolbar shares its row with the title and subtitle, so
     /// spreading the items across the whole width pushes the last one into the overflow menu.
     static let itemIdentifiers: [NSToolbarItem.Identifier] =
-        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoCinema, .glossoBrowse, .glossoChat]
+        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoCinema, .glossoBrowse, .glossoSpeak, .glossoChat]
 
     private weak var controller: ReaderController?
     private(set) var modeControl: NSSegmentedControl?
@@ -37,6 +38,7 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
     private(set) var cinemaItem: NSToolbarItem?
     private(set) var browseItem: NSToolbarItem?
     private(set) var chatItem: NSToolbarItem?
+    private(set) var speakItem: NSToolbarItem?
 
     init(controller: ReaderController) {
         self.controller = controller
@@ -96,6 +98,21 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             item.toolTip = loc("Przełącz oryginał i tłumaczenie", "Switch between original and translation")
             if flag { modeControl = control }
             return item
+        case .glossoSpeak:
+            // A click toggles read / pause / resume; stopping lives in the item's menu, so one control covers all four.
+            let item = NSMenuToolbarItem(itemIdentifier: identifier)
+            set(item, symbol: "speaker.wave.2", label: loc("Czytaj na głos", "Read aloud"))
+            item.target = self
+            item.action = #selector(toggleReadAloud)
+            item.isBordered = true
+            item.autovalidates = false
+            let menu = NSMenu()
+            let stop = NSMenuItem(title: loc("Zatrzymaj", "Stop"), action: #selector(stopReadAloud), keyEquivalent: "")
+            stop.target = self
+            menu.addItem(stop)
+            item.menu = menu
+            if flag { speakItem = item }
+            return item
         case .glossoChat:
             let item = button(identifier, symbol: "bubble.left.and.text.bubble.right",
                               label: loc("Zapytaj artykuł", "Ask the article"),
@@ -147,6 +164,14 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
 
     @objc private func toggleBrowse() {
         controller?.toggleBrowsePanel()
+    }
+
+    @objc private func toggleReadAloud() {
+        controller?.toggleReadAloud()
+    }
+
+    @objc private func stopReadAloud() {
+        controller?.stopReadAloud()
     }
 
     @objc private func toggleChat() {
