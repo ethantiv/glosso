@@ -55,6 +55,19 @@ import Testing
         #expect(synth.voices == ["female-polish", "female-polish"])
     }
 
+    @Test func numbersReachTheModelAsWords() async {
+        let narrator = makeNarrator()
+        let done = StreamGate()
+        narrator.start(
+            language: .polish,
+            next: source(["Mur upadł w 1989 roku."]),
+            onState: { state in if state == .idle { done.release() } },
+            onError: { _ in Issue.record("unexpected error") })
+        await done.wait()
+
+        #expect(synth.texts.first?.contains("1989") == false)
+    }
+
     @Test func aNewSessionEndsThePreviousOne() async {
         let narrator = makeNarrator()
         synth.gate = StreamGate()  // never opens: the first session stays mid-chunk

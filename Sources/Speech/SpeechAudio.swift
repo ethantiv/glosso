@@ -42,6 +42,22 @@ enum SpeechAudio {
         return "\(gender.rawValue)-\(name)"
     }
 
+    /// The model reads digits with an English accent in every other language ("1989" came back as "W następstwie
+    /// tego roku"), so numbers reach it as words. `%` gets its word only in Polish, the language this was measured on.
+    /// shortcut: cardinal nominative only ("w tysiąc dziewięćset osiemdziesiąt dziewięć roku", "1,25 zł" without
+    /// "złotych"), no declension — switch Polish to a native synthesizer if that grates.
+    static func spellingOutNumbers(_ text: String, language: NLLanguage?) -> String {
+        guard let language, language != .english else { return text }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .spellOut
+        formatter.locale = Locale(identifier: language.rawValue)
+        let withPercent = language == .polish ? text.replacingOccurrences(of: "%", with: " procent") : text
+        return withPercent.replacing(/\d+(?:[.,]\d+)?/) { match in
+            let value = Double(match.output.replacingOccurrences(of: ",", with: "."))
+            return value.flatMap { formatter.string(from: NSNumber(value: $0)) } ?? String(match.output)
+        }
+    }
+
     /// Whole sentences packed up to `maxChunkLength`; an overlong sentence splits at spaces. URLs are dropped, since
     /// read aloud they are noise.
     static func chunks(_ text: String) -> [String] {
