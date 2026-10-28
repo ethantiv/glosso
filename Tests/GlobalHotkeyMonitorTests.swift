@@ -33,6 +33,33 @@ import Testing
         #expect(monitor.resolveChord(key: "f", modifiers: NSEvent.ModifierFlags([.command, .control]).rawValue, isRepeat: false) == nil)
     }
 
+    @Test func speechChordStartsOnPressAndEndsOnItsKeyUp() {
+        let cmdCtrl = NSEvent.ModifierFlags([.command, .control]).rawValue
+        let monitor = GlobalHotkeyMonitor(speechChordProvider: { KeyChord(key: "m", modifiers: cmdCtrl) })
+        #expect(monitor.resolveSpeech(key: "m", modifiers: cmdCtrl, keyCode: 46, isRepeat: false, isKeyUp: false) == .start)
+        #expect(monitor.resolveSpeech(key: "m", modifiers: cmdCtrl, keyCode: 46, isRepeat: true, isKeyUp: false) == nil)
+        #expect(monitor.resolveSpeech(key: "x", modifiers: 0, keyCode: 7, isRepeat: false, isKeyUp: true) == nil)
+        // The modifiers may already be up when the key itself is released.
+        #expect(monitor.resolveSpeech(key: "m", modifiers: 0, keyCode: 46, isRepeat: false, isKeyUp: true) == .end)
+        #expect(monitor.resolveSpeech(key: "m", modifiers: 0, keyCode: 46, isRepeat: false, isKeyUp: true) == nil)
+    }
+
+    @Test func aLostKeyUpIsRecoveredByTheNextPress() {
+        let cmdCtrl = NSEvent.ModifierFlags([.command, .control]).rawValue
+        let monitor = GlobalHotkeyMonitor(speechChordProvider: { KeyChord(key: "m", modifiers: cmdCtrl) })
+        #expect(monitor.resolveSpeech(key: "m", modifiers: cmdCtrl, keyCode: 46, isRepeat: false, isKeyUp: false) == .start)
+        // The key-up went missing; the next press closes the stuck take, the one after starts a new one.
+        #expect(monitor.resolveSpeech(key: "m", modifiers: cmdCtrl, keyCode: 46, isRepeat: false, isKeyUp: false) == .end)
+        #expect(monitor.resolveSpeech(key: "m", modifiers: cmdCtrl, keyCode: 46, isRepeat: false, isKeyUp: false) == .start)
+    }
+
+    @Test func noSpeechChordMeansNoSpeech() {
+        let cmdCtrl = NSEvent.ModifierFlags([.command, .control]).rawValue
+        let monitor = GlobalHotkeyMonitor()
+        #expect(monitor.resolveSpeech(key: "m", modifiers: cmdCtrl, keyCode: 46, isRepeat: false, isKeyUp: false) == nil)
+        #expect(monitor.resolveChord(key: "m", modifiers: cmdCtrl, isRepeat: false) == nil)
+    }
+
     @Test func baselineComesFromTheFirstPress() {
         let monitor = GlobalHotkeyMonitor()
         #expect(monitor.registerPress(changeCount: 5, at: 0) == nil)

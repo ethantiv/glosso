@@ -10,6 +10,8 @@ final class AppState {
     var checkingForUpdates: Bool = false
     /// `nil` under a cloud provider: the indicator exists only for the local engine.
     var localModel: LocalModelStatus? = nil
+    /// Hold-to-talk is listening; the menu bar glyph shows a red dot.
+    var recordingSpeech: Bool = false
 }
 
 /// Whether the local model is resident in memory (instant answer) or unloaded (the next call pays the load).

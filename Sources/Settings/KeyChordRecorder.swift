@@ -15,26 +15,28 @@ extension KeyChord {
 }
 
 struct KeyChordRecorder: NSViewRepresentable {
-    @Binding var chord: KeyChord
-    let otherChord: KeyChord
+    /// nil shows "—": the hold-to-talk chord is unassigned until the user records one.
+    @Binding var chord: KeyChord?
+    /// The app's other chords; recording one of them here would make one press fire two actions.
+    let otherChords: [KeyChord]
 
     func makeNSView(context: Context) -> RecorderView {
         let view = RecorderView()
         view.chord = chord
-        view.otherChord = otherChord
+        view.otherChords = otherChords
         view.onChange = { chord = $0 }
         return view
     }
 
     func updateNSView(_ view: RecorderView, context: Context) {
         view.chord = chord
-        view.otherChord = otherChord
+        view.otherChords = otherChords
         view.onChange = { chord = $0 }
     }
 
     final class RecorderView: NSView {
-        var chord: KeyChord = .fixGrammarDefault { didSet { needsDisplay = true } }
-        var otherChord: KeyChord = .translateInPlaceDefault
+        var chord: KeyChord? { didSet { needsDisplay = true } }
+        var otherChords: [KeyChord] = []
         var onChange: ((KeyChord) -> Void)?
         private var isRecording = false { didSet { needsDisplay = true } }
 
@@ -60,7 +62,7 @@ struct KeyChordRecorder: NSViewRepresentable {
             let candidate = KeyChord(key: key, modifiers: flags.rawValue)
             // ponytail: only guards against the sibling field; no global/system
             // collision detection — add a CGSSymbolicHotKey probe if it bites.
-            guard candidate != otherChord else { NSSound.beep(); return }
+            guard !otherChords.contains(candidate) else { NSSound.beep(); return }
             onChange?(candidate)
             window?.makeFirstResponder(nil)
         }
@@ -74,7 +76,7 @@ struct KeyChordRecorder: NSViewRepresentable {
             path.lineWidth = isRecording ? 1.5 : 0.5
             path.stroke()
 
-            let text = isRecording ? loc("Naciśnij…", "Press…") : chord.displayString
+            let text = isRecording ? loc("Naciśnij…", "Press…") : chord?.displayString ?? "—"
             let attrs: [NSAttributedString.Key: Any] = [
                 .font: NSFont.systemFont(ofSize: 12, weight: .medium),
                 .foregroundColor: isRecording ? NSColor.controlAccentColor : NSColor.labelColor,

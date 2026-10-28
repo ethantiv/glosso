@@ -57,12 +57,20 @@ final class ReaderController: ReaderPresenting {
     // can't act on a half-translated article. A `cache.load` probe here would lie past the 7-day TTL.
     private var lastEntry: ReaderCache.Entry?
 
+    private let narrator: Narrator?
+    private var readAloudState: SpeechPlaybackState = .idle
+    /// -1 while the title is next, then the index of the next block in `glossoSpeakable()`.
+    private var readIndex = -1
+    private var readQueue: [String] = []
+    private var showingSpeechDownload = false
+
     init(llm: any LLMClient, settings: SettingsStore, repository: ReaderRepository = ReaderRepository(),
-         extractor: any ArticleExtracting = ArticleExtractor()) {
+         extractor: any ArticleExtracting = ArticleExtractor(), narrator: Narrator? = nil) {
         self.llm = llm
         self.settings = settings
         self.repository = repository
         self.extractor = extractor
+        self.narrator = narrator
     }
 
     func makeRun(activate: Bool = true) -> ReaderRun {
@@ -159,6 +167,7 @@ final class ReaderController: ReaderPresenting {
 
     /// The shared new-article reset; panel handling stays with the callers, which disagree about it.
     private func resetForArticle(_ url: URL) {
+        stopReadAloud()
         documentSession = nil
         activeContext = nil
         runSeq += 1
@@ -768,6 +777,102 @@ final class ReaderController: ReaderPresenting {
         }
     }
 
+    // MARK: Read aloud
+
+    func toggleReadAloud() {
+        guard let narrator else { return }
+        switch readAloudState {
+        case .idle:
+            readIndex = -1
+            readQueue = []
+            narrator.start(
+                // The translation is in the primary language by construction.
+                language: (activeContext?.primary ?? settings.primaryLanguage).nl,
+                next: { [weak self] in await self?.nextReadChunk() },
+                onState: { [weak self] state in self?.showReadAloud(state) },
+                onError: { [weak self] message in self?.setStatus(message) })
+        case .preparing:
+            narrator.stop()
+        case .playing:
+            narrator.pause()
+        case .paused:
+            narrator.resume()
+        }
+    }
+
+    func stopReadAloud() {
+        if readAloudState != .idle { narrator?.stop() }
+    }
+
+    private struct Speakable: Decodable {
+        struct Block: Decodable {
+            let text: String?
+            let pending: Bool?
+        }
+        let title: String?
+        let count: Int
+        let block: Block
+    }
+
+    /// The title, then each block in order. A block still being translated is waited for, not skipped — reading
+    /// the original in its place would switch language mid-article.
+    private func nextReadChunk() async -> String? {
+        while !Task.isCancelled {
+            if !readQueue.isEmpty { return readQueue.removeFirst() }
+            guard let webView,
+                  let json = try? await webView.evaluateReaderString("glossoSpeakable(\(max(readIndex, 0)))"),
+                  let page = try? JSONDecoder().decode(Speakable.self, from: Data(json.utf8)) else { return nil }
+            if readIndex < 0 {
+                if page.title == nil, translating {
+                    try? await Task.sleep(for: .milliseconds(500))
+                    continue
+                }
+                readIndex = 0
+                readQueue = SpeechAudio.chunks(page.title ?? "")
+                continue
+            }
+            guard readIndex < page.count else { return nil }
+            let block = page.block
+            if block.pending == true, translating {
+                try? await Task.sleep(for: .milliseconds(500))
+                continue
+            }
+            readIndex += 1
+            readQueue = SpeechAudio.chunks(block.text ?? "")
+        }
+        return nil
+    }
+
+    private func showReadAloud(_ state: SpeechPlaybackState) {
+        readAloudState = state
+        let symbol: String
+        let label: String
+        switch state {
+        case .idle:
+            symbol = "speaker.wave.2"
+            label = loc("Czytaj na głos", "Read aloud")
+        case .preparing:
+            // The engine check and model load take seconds; a click here cancels, so the icon must say so.
+            symbol = "stop.fill"
+            label = loc("Przygotowuję mowę… Kliknij, aby przerwać.", "Preparing speech… Click to cancel.")
+        case .playing:
+            symbol = "pause.fill"
+            label = loc("Wstrzymaj czytanie", "Pause reading")
+        case .paused:
+            symbol = "play.fill"
+            label = loc("Wznów czytanie", "Resume reading")
+        }
+        toolbarProxy?.set(toolbarProxy?.speakItem, symbol: symbol, label: label)
+        if case .preparing(let progress?) = state {
+            showingSpeechDownload = true
+            setStatus(loc("Pobieram model mowy (około 2 GB)… \(Int(progress * 100))%",
+                          "Downloading the speech model (about 2 GB)… \(Int(progress * 100))%"))
+        } else if showingSpeechDownload {
+            showingSpeechDownload = false
+            setStatus("")
+        }
+    }
+
     /// The status and the engine label share the window's subtitle: two slots in a bar the page had to lay out itself,
     /// and one line the system already draws under the title.
     private func setStatus(_ message: String) {
@@ -897,6 +1002,7 @@ final class ReaderController: ReaderPresenting {
     }
 
     private func windowWillClose() {
+        stopReadAloud()
         documentSession = nil
         activeContext = nil
         savedListTask?.cancel()

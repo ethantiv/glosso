@@ -12,6 +12,7 @@ struct PopupView: View {
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
     var sourceChanged: () -> Void = {}
+    var toggleSpeech: () -> Void = {}
     let undo: () -> Void
     let resizeBy: (_ translation: CGSize, _ ended: Bool) -> Void
     let reportSize: (CGSize) -> Void
@@ -483,6 +484,8 @@ struct PopupView: View {
                     ProgressView()
                         .controlSize(.small)
                         .accessibilityLabel(loc("Trwa tłumaczenie", "Translating"))
+                } else if canCopy {
+                    speechButton
                 }
             }
             content
@@ -491,6 +494,41 @@ struct PopupView: View {
         .padding(.bottom, PopupTheme.padPane)
         .padding(.top, PopupTheme.padPaneTop)
         .frame(width: Self.translationWidth + paneWidthDelta, alignment: .leading)
+    }
+
+    /// In the result pane's header rather than the toolbar: it acts on the result, and the toolbar is at its width budget.
+    @ViewBuilder
+    private var speechButton: some View {
+        switch model.speech {
+        case .preparing(let progress):
+            Group {
+                if let progress {
+                    ProgressView(value: progress).progressViewStyle(.circular)
+                } else {
+                    ProgressView()
+                }
+            }
+            .controlSize(.small)
+            .contentShape(Rectangle())
+            .onTapGesture(perform: toggleSpeech)
+            .help(loc("Przygotowuję mowę… Kliknij, aby przerwać.", "Preparing speech… Click to cancel."))
+            .accessibilityLabel(loc("Przygotowuję mowę", "Preparing speech"))
+            .accessibilityAddTraits(.isButton)
+            .accessibilityAction(.default, toggleSpeech)
+        case .idle:
+            speechToggle(loc("Czytaj na głos", "Read aloud"), systemImage: "speaker.wave.2")
+        case .playing, .paused:
+            speechToggle(loc("Zatrzymaj czytanie", "Stop reading"), systemImage: "stop.fill")
+        }
+    }
+
+    private func speechToggle(_ title: String, systemImage: String) -> some View {
+        Button(title, systemImage: systemImage, action: toggleSpeech)
+            .labelStyle(.iconOnly)
+            .buttonStyle(.glass)
+            .buttonBorderShape(.circle)
+            .controlSize(.small)
+            .help(title)
     }
 
     @ViewBuilder

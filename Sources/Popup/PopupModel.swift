@@ -28,6 +28,7 @@ final class PopupModel {
     var formality: Formality = .automatic
     var action: Action = .translate
     var sizeDelta: CGSize = .zero
+    var speech: SpeechPlaybackState = .idle
 
     var selectedWordID: Int? = nil
     var alternatives: [String] = []

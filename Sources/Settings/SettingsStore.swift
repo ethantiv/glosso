@@ -19,6 +19,8 @@ final class SettingsStore {
         static let readerRetentionDays = "reader.retentionDays"
         static let keepAliveMinutes = "llm.keepAliveMinutes"
         static let readerCinemaMode = "reader.cinemaMode"
+        static let speechChord = "shortcut.speech"
+        static let speechVoice = "speech.voice"
     }
 
     /// The retention periods the reader's saved-list picker offers.
@@ -149,6 +151,21 @@ final class SettingsStore {
         didSet { defaults.set(try? JSONEncoder().encode(translateInPlaceChord), forKey: Key.translateInPlaceChord) }
     }
 
+    /// Hold-to-talk chord; nil (the default) leaves the feature off, so nobody gets a microphone prompt uninvited.
+    var speechChord: KeyChord? {
+        didSet {
+            if let speechChord {
+                defaults.set(try? JSONEncoder().encode(speechChord), forKey: Key.speechChord)
+            } else {
+                defaults.removeObject(forKey: Key.speechChord)
+            }
+        }
+    }
+
+    var speechVoice: SpeechVoice {
+        didSet { defaults.set(speechVoice.rawValue, forKey: Key.speechVoice) }
+    }
+
     var hasCompletedOnboarding: Bool {
         didSet { defaults.set(hasCompletedOnboarding, forKey: Key.hasCompletedOnboarding) }
     }
@@ -223,6 +240,10 @@ final class SettingsStore {
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .fixGrammarDefault
         self.translateInPlaceChord = defaults.data(forKey: Key.translateInPlaceChord)
             .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) } ?? .translateInPlaceDefault
+        self.speechChord = defaults.data(forKey: Key.speechChord)
+            .flatMap { try? JSONDecoder().decode(KeyChord.self, from: $0) }
+        self.speechVoice = defaults.string(forKey: Key.speechVoice)
+            .flatMap(SpeechVoice.init(rawValue:)) ?? .female
         self.hasCompletedOnboarding = defaults.bool(forKey: Key.hasCompletedOnboarding)
         self.lastNotifiedVersion = defaults.string(forKey: Key.lastNotifiedVersion) ?? ""
         let storedRetention = defaults.integer(forKey: Key.readerRetentionDays)

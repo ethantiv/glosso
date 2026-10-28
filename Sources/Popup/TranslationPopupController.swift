@@ -16,6 +16,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     var onRetranslate: (@MainActor (_ source: String) -> Void)?
     var onSourceChange: (@MainActor () -> Void)?
     var onUndo: (@MainActor () -> Void)?
+    var onToggleSpeech: (@MainActor (_ text: String) -> Void)?
 
     private var panel: FloatingPanel?
     /// The alternatives dropdown lives in its own child window: inside the panel it straddled the card's bottom edge,
@@ -101,6 +102,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
             replace: { [weak self] text in self?.onReplace?(text) },
             retranslate: { [weak self] source in self?.onRetranslate?(source) },
             sourceChanged: { [weak self] in self?.onSourceChange?() },
+            toggleSpeech: { [weak self] in
+                guard let self else { return }
+                self.onToggleSpeech?(self.model.text)
+            },
             undo: { [weak self] in
                 self?.model.undo()
                 self?.onUndo?()
@@ -199,6 +204,10 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.errorMessage = message
     }
 
+    func setSpeech(_ state: SpeechPlaybackState) {
+        model.speech = state
+    }
+
     func finish(truncated: Bool) {
         model.truncated = truncated
         model.phase = .done
@@ -228,6 +237,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.errorMessage = nil
         model.truncated = false
         model.diffHidden = false
+        model.speech = .idle
         model.phase = .capturing
     }
 

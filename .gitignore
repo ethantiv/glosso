@@ -14,5 +14,6 @@
 *.pem
 
 # Claude Code and agent tooling
+.claude/settings.local.json
 .claude/scheduled_tasks.lock
 graphify-out/

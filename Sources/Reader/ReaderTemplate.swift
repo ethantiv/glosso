@@ -436,6 +436,24 @@ enum ReaderTemplate {
       glossoRefreshSummary();
       document.body.classList.toggle('glosso-original', toOriginal);
     }
+    // Read-aloud's view of block `index` in reading order: its translated plain text, {pending} while it is still on
+    // its way, {} for anything that won't be read (media, tables, code, blocks an abort left in the original).
+    // One block per call, so reading an article doesn't re-parse every block before each one.
+    function glossoSpeakable(index) {
+      const els = document.querySelectorAll('#glosso-content [data-glosso-id]');
+      let block = {};
+      const el = els[index];
+      if (el) {
+        const id = Number(el.dataset.glossoId);
+        if (glosso.pending.has(id)) { block = {pending: true}; }
+        else if (id in glosso.translated) {
+          // A detached parse: nothing in it loads or runs.
+          const text = new DOMParser().parseFromString(glosso.translated[id], 'text/html').body.textContent || '';
+          block = {text: text.replace(/\\s+/g, ' ').trim()};
+        }
+      }
+      return JSON.stringify({title: glosso.translatedTitle || null, count: els.length, block: block});
+    }
     function glossoAbort() {
       glosso.pending.clear();
       glosso.translatedTitle = glosso.translatedTitle || glosso.originalTitle;

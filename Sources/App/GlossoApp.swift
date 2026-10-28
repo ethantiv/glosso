@@ -52,7 +52,8 @@ struct GlossoApp: App {
             Button(loc("Zakończ", "Quit")) { NSApplication.shared.terminate(nil) }
         } label: {
             Image(nsImage: MenuBarGlyph.image(update: appDelegate.appState.updateAvailable != nil,
-                                              model: appDelegate.appState.localModel))
+                                              model: appDelegate.appState.localModel,
+                                              recording: appDelegate.appState.recordingSpeech))
                 .accessibilityLabel("Glosso")
         }
 
@@ -74,9 +75,9 @@ struct GlossoApp: App {
 
 /// A template image can't carry a second colour, so a dotted glyph is drawn non-template with `labelColor` for the glyph itself — that colour resolves at draw time, so it still follows the light/dark menu bar.
 enum MenuBarGlyph {
-    static func image(update: Bool, model: LocalModelStatus?) -> NSImage {
+    static func image(update: Bool, model: LocalModelStatus?, recording: Bool = false) -> NSImage {
         let base = NSImage(named: update ? "MenuBarIconUpdate" : "MenuBarIcon")!
-        guard let model else { return base }
+        guard model != nil || recording else { return base }
         let image = NSImage(size: base.size, flipped: false) { rect in
             let tinted = base.copy() as! NSImage
             tinted.isTemplate = false
@@ -87,7 +88,8 @@ enum MenuBarGlyph {
             NSGraphicsContext.current?.compositingOperation = .clear
             NSBezierPath(ovalIn: dot.insetBy(dx: -1, dy: -1)).fill()
             NSGraphicsContext.current?.compositingOperation = .sourceOver
-            (model == .idle ? NSColor.systemOrange : NSColor.systemGreen).setFill()
+            // Recording outranks the model's state: it is the one the user is acting on right now.
+            (recording ? NSColor.systemRed : model == .idle ? NSColor.systemOrange : NSColor.systemGreen).setFill()
             NSBezierPath(ovalIn: dot).fill()
             return true
         }
@@ -112,6 +114,10 @@ private struct LanguageMenus: View {
 
     var body: some View {
         LanguagePickers(store: store)
+        // Here rather than in Settings: the form is at the height `SettingsLayoutTests` allows.
+        Picker(loc("Głos czytania", "Reading voice"), selection: $store.speechVoice) {
+            ForEach(SpeechVoice.allCases, id: \.self) { Text($0.displayName).tag($0) }
+        }
     }
 }
 
@@ -203,19 +209,37 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             // Cloud-only installs never download an engine, so there is nothing for the deadline to hand over to. Anything short of `.needsDownload` is enough, since the local path provisions on demand — the same bar the error-driven fallbacks already clear. `status`, not `activeBaseURL`: the latter provisions here and now, spawning `ollama serve` and waiting up to ~2min inside an uncancellable task, which would outlast the very deadline it gates.
             localReady: { [engine] in await engine.status() != .needsDownload }
         )
-        let articleReader = ReaderController(llm: llm, settings: settings)
+        let speech = OllamaSpeechClient(
+            endpointProvider: Self.endpointProvider(engine),
+            modelManager: modelManager,
+            keepAliveProvider: { [settings] in await MainActor.run { settings.keepAlive } },
+            onDownload: {
+                SystemUserNotifier.post(
+                    loc("Pobieram model mowy (około 2 GB). Pierwsze użycie potrwa kilka minut.",
+                        "Downloading the speech model (about 2 GB). The first use takes a few minutes."),
+                    identifier: "glosso.speech-download")
+            }
+        )
+        // One narrator for the whole app: whatever starts reading stops whatever was reading before.
+        let narrator = Narrator(synthesizer: speech, player: PCMStreamPlayer(), voice: { [settings] in settings.speechVoice })
+        let articleReader = ReaderController(llm: llm, settings: settings, narrator: narrator)
         self.articleReader = articleReader
         let coordinator = AppCoordinator(
             llm: llm,
             monitor: GlobalHotkeyMonitor(
                 changeCountProvider: { reader.currentChangeCount },
-                chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) }
+                chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) },
+                speechChordProvider: { [settings] in settings.speechChord }
             ),
             reader: reader,
             axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
             settings: settings,
-            articleReader: articleReader
+            articleReader: articleReader,
+            narrator: narrator,
+            recorder: MicrophoneRecorder(),
+            transcriber: speech,
+            onRecordingChange: { [appState] on in appState.recordingSpeech = on }
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator
@@ -225,7 +249,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             reader: reader,
             axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
-            settings: settings
+            settings: settings,
+            narrator: narrator
         )
 
         UNUserNotificationCenter.current().delegate = self
