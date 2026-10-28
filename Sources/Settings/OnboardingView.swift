@@ -142,7 +142,7 @@ struct OnboardingView: View {
     /// The active pick is always in the list, even before it is downloaded — a selection with no matching tag leaves the
     /// picker blank and nothing on screen names the model in use.
     private var modelChoices: [String] {
-        var ids = Set(installed)
+        var ids = Set(installed.filter { !SpeechAudio.isSpeechModel($0) })
         ids.insert(store.modelName)
         return ids.sorted()
     }
@@ -218,8 +218,27 @@ struct OnboardingView: View {
                     .fixedSize(horizontal: false, vertical: true)
             }
             Section { accessibilityBox }
+            Section {
+                speechModelRow
+            } header: {
+                Text(loc("Funkcje mowy (opcjonalnie)", "Speech features (optional)"))
+            } footer: {
+                Text(loc("Odsłuch tłumaczenia, czytanie artykułów na głos i tłumaczenie mowy działają na osobnym modelu (około 2 GB), zawsze na Twoim komputerze. Pobierz go teraz albo dopiero przy pierwszym użyciu.",
+                         "Listening to translations, reading articles aloud and speech translation run on a separate model (about 2 GB), always on your Mac. Download it now or on first use."))
+            }
         }
         .formStyle(.grouped)
+    }
+
+    @ViewBuilder private var speechModelRow: some View {
+        if installed.contains(where: SpeechAudio.isSpeechModel) {
+            Label(loc("Model mowy pobrany.", "Speech model downloaded."), systemImage: "checkmark.circle.fill")
+                .symbolRenderingMode(.multicolor)
+        } else if let progress = pulling[SpeechAudio.speechModel] {
+            ProgressView(value: progress) { Text(loc("Pobieram model mowy…", "Downloading the speech model…")) }
+        } else {
+            Button(loc("Pobierz model mowy", "Download the speech model")) { downloadSpeechModel() }
+        }
     }
 
     @ViewBuilder private var accessibilityBox: some View {
@@ -250,6 +269,24 @@ struct OnboardingView: View {
 
     private func refresh() async {
         installed = (try? await lister.availableModels()) ?? []
+    }
+
+    /// Separate from `download`: the speech model must not become the active translation model.
+    private func downloadSpeechModel() {
+        let id = SpeechAudio.speechModel
+        pulling[id] = 0
+        Task {
+            do {
+                try await downloadModel(id, engine: engine, modelManager: modelManager) { value in
+                    pulling[id] = value
+                }
+                await refresh()
+            } catch {
+                SystemUserNotifier.post(loc("Nie udało się pobrać modelu mowy. Spróbuj ponownie albo pobierze się przy pierwszym użyciu.",
+                                            "Couldn't download the speech model. Try again, or it downloads on first use."))
+            }
+            pulling[id] = nil
+        }
     }
 
     private func download(_ id: String) {

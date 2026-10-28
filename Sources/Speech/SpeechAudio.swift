@@ -20,6 +20,11 @@ enum SpeechAudio {
     static let sampleRate = 24_000
     /// The oldest engine every speech endpoint was verified on; `/v1/audio/speech` alone dates from 0.40.8.
     static let minimumEngineVersion = [0, 40, 12]
+    /// Ollama lists the model as `lfm3-audio:<tag>`. It can't translate text, so the translation-model pickers hide it.
+    static func isSpeechModel(_ name: String) -> Bool {
+        name == speechModel || name.hasPrefix(speechModel + ":")
+    }
+
     /// Short enough that the first chunk starts playing quickly and the next one generates while it plays.
     static let maxChunkLength = 400
     static let minimumSpeechSeconds = 0.5

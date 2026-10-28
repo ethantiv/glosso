@@ -78,6 +78,13 @@ import Testing
         #expect(SpeechAudio.spellingOutNumbers("1989", language: nil) == "1989")
     }
 
+    @Test func speechModelIsRecognizedWithAnyTag() {
+        #expect(SpeechAudio.isSpeechModel("lfm3-audio"))
+        #expect(SpeechAudio.isSpeechModel("lfm3-audio:latest"))
+        #expect(!SpeechAudio.isSpeechModel("lfm3-audiobook:2b"))
+        #expect(!SpeechAudio.isSpeechModel("gemma4:26b-mlx"))
+    }
+
     @Test func silenceIsNotSpeech() {
         #expect(!SpeechAudio.containsSpeech(wav: Self.wav(samples: Array(repeating: 0, count: 16_000))))
     }

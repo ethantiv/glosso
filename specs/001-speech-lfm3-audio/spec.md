@@ -84,7 +84,7 @@ Użytkownik przytrzymuje skrót klawiszowy, mówi zdanie po polsku (albo po angi
 
 **Wspólne**
 
-- **FR-001**: Aplikacja MUSI pobierać model mowy przy pierwszym użyciu dowolnej funkcji mowy, z informacją o rozmiarze i postępem, tak jak dziś pobiera modele tekstowe. Bez użycia funkcji mowy model nie jest pobierany.
+- **FR-001**: Aplikacja MUSI pobierać model mowy przy pierwszym użyciu dowolnej funkcji mowy, z informacją o rozmiarze i postępem, tak jak dziś pobiera modele tekstowe. Bez użycia funkcji mowy model nie jest pobierany, chyba że użytkownik sam wybierze „Pobierz model mowy” w ostatnim kroku kreatora pierwszego uruchomienia.
 - **FR-002**: Synteza i rozpoznawanie mowy MUSZĄ działać lokalnie, niezależnie od wybranego dostawcy tłumaczenia. Dźwięk (nagrania i synteza) nie opuszcza Maca. Rozpoznany tekst wypowiedzi trafia do wybranego dostawcy tłumaczenia tak jak każdy inny tekst (FR-032).
 - **FR-003**: Aplikacja MUSI wybierać głos według języka czytanego tekstu (polski albo angielski). Użytkownik MUSI móc wybrać głos żeński albo męski (menu paska, obok języków).
 - **FR-004**: W danej chwili MOŻE grać tylko jedno odtwarzanie. Rozpoczęcie nowego kończy poprzednie.
