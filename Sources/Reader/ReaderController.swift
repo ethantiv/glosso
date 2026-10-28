@@ -849,12 +849,12 @@ final class ReaderController: ReaderPresenting {
         let label: String
         switch state {
         case .idle:
-            symbol = "speaker.wave.2"
+            symbol = "play.fill"
             label = loc("Czytaj na głos", "Read aloud")
         case .preparing:
-            // The engine check and model load take seconds; a click here cancels, so the icon must say so.
-            symbol = "stop.fill"
-            label = loc("Przygotowuję mowę… Kliknij, aby przerwać.", "Preparing speech… Click to cancel.")
+            // The engine check and model load take seconds; the stop button cancels meanwhile.
+            symbol = "play.fill"
+            label = loc("Przygotowuję mowę…", "Preparing speech…")
         case .playing:
             symbol = "pause.fill"
             label = loc("Wstrzymaj czytanie", "Pause reading")
@@ -863,6 +863,12 @@ final class ReaderController: ReaderPresenting {
             label = loc("Wznów czytanie", "Resume reading")
         }
         toolbarProxy?.set(toolbarProxy?.speakItem, symbol: symbol, label: label)
+        if case .preparing = state {
+            toolbarProxy?.speakItem?.isEnabled = false
+        } else {
+            toolbarProxy?.speakItem?.isEnabled = true
+        }
+        toolbarProxy?.speakStopItem?.isEnabled = state != .idle
         if case .preparing(let progress?) = state {
             showingSpeechDownload = true
             setStatus(loc("Pobieram model mowy (około 2 GB)… \(Int(progress * 100))%",

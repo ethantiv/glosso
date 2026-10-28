@@ -65,6 +65,26 @@ import Testing
         #expect(SpeechAudio.voice(language: nil, gender: .male) == "male")
     }
 
+    @Test func digitsBecomeWordsOutsideEnglish() {
+        let spoken = SpeechAudio.spellingOutNumbers("W 1989 roku głosowało 62% uprawnionych, chleb kosztował 1,25 zł.", language: .polish)
+        #expect(spoken.rangeOfCharacter(from: .decimalDigits) == nil, "\(spoken)")
+        #expect(spoken.contains("tysiąc dziewięćset osiemdziesiąt dziewięć"))
+        #expect(spoken.contains("procent"))
+        #expect(!spoken.contains("%"))
+    }
+
+    @Test func englishAndUnknownTextKeepTheirDigits() {
+        #expect(SpeechAudio.spellingOutNumbers("In 1989, 62% voted.", language: .english) == "In 1989, 62% voted.")
+        #expect(SpeechAudio.spellingOutNumbers("1989", language: nil) == "1989")
+    }
+
+    @Test func speechModelIsRecognizedWithAnyTag() {
+        #expect(SpeechAudio.isSpeechModel("lfm3-audio"))
+        #expect(SpeechAudio.isSpeechModel("lfm3-audio:latest"))
+        #expect(!SpeechAudio.isSpeechModel("lfm3-audiobook:2b"))
+        #expect(!SpeechAudio.isSpeechModel("gemma4:26b-mlx"))
+    }
+
     @Test func silenceIsNotSpeech() {
         #expect(!SpeechAudio.containsSpeech(wav: Self.wav(samples: Array(repeating: 0, count: 16_000))))
     }

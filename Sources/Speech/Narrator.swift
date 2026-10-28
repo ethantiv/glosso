@@ -76,8 +76,10 @@ final class Narrator {
             }
             while let text = await next() {
                 try Task.checkCancellation()
-                for try await pcm in synthesizer.synthesize(text, voice: SpeechAudio.voice(
-                    language: language ?? NLLanguageRecognizer.dominantLanguage(for: text), gender: voice())) {
+                let textLanguage = language ?? NLLanguageRecognizer.dominantLanguage(for: text)
+                for try await pcm in synthesizer.synthesize(
+                    SpeechAudio.spellingOutNumbers(text, language: textLanguage),
+                    voice: SpeechAudio.voice(language: textLanguage, gender: voice())) {
                     try Task.checkCancellation()
                     player.enqueue(pcm)
                     if case .preparing = state { state = .playing }

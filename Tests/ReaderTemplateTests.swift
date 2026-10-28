@@ -148,6 +148,8 @@ import Testing
     @Test func scriptExposesTheReadAloudView() {
         // Read-aloud asks the page for its blocks by this name; renaming it would silence the feature.
         #expect(ReaderTemplate.script.contains("function glossoSpeakable(index)"))
+        // Read-aloud reads the article, not the photo captions registered as blocks next to it.
+        #expect(ReaderTemplate.script.contains("!el.closest('figcaption')"))
         // Escaped once for Swift: the page must receive a whitespace class, not a literal "s".
         #expect(ReaderTemplate.script.contains(#"replace(/\s+/g, ' ')"#))
     }

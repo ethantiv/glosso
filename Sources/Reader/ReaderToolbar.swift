@@ -20,6 +20,7 @@ extension NSToolbarItem.Identifier {
     static let glossoBrowse = NSToolbarItem.Identifier("glosso.browse")
     static let glossoChat = NSToolbarItem.Identifier("glosso.chat")
     static let glossoSpeak = NSToolbarItem.Identifier("glosso.speak")
+    static let glossoSpeakStop = NSToolbarItem.Identifier("glosso.speakStop")
 }
 
 /// `ReaderController` is not an `NSObject`, so toolbar target/action goes through a proxy — the same shape as
@@ -29,7 +30,7 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
     /// One leading flexible space, then the group: a unified toolbar shares its row with the title and subtitle, so
     /// spreading the items across the whole width pushes the last one into the overflow menu.
     static let itemIdentifiers: [NSToolbarItem.Identifier] =
-        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoCinema, .glossoBrowse, .glossoSpeak, .glossoChat]
+        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoCinema, .glossoBrowse, .glossoSpeak, .glossoSpeakStop, .glossoChat]
 
     private weak var controller: ReaderController?
     private(set) var modeControl: NSSegmentedControl?
@@ -39,6 +40,7 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
     private(set) var browseItem: NSToolbarItem?
     private(set) var chatItem: NSToolbarItem?
     private(set) var speakItem: NSToolbarItem?
+    private(set) var speakStopItem: NSToolbarItem?
 
     init(controller: ReaderController) {
         self.controller = controller
@@ -99,19 +101,19 @@ final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
             if flag { modeControl = control }
             return item
         case .glossoSpeak:
-            // A click toggles read / pause / resume; stopping lives in the item's menu, so one control covers all four.
-            let item = NSMenuToolbarItem(itemIdentifier: identifier)
-            set(item, symbol: "speaker.wave.2", label: loc("Czytaj na głos", "Read aloud"))
-            item.target = self
-            item.action = #selector(toggleReadAloud)
-            item.isBordered = true
-            item.autovalidates = false
-            let menu = NSMenu()
-            let stop = NSMenuItem(title: loc("Zatrzymaj", "Stop"), action: #selector(stopReadAloud), keyEquivalent: "")
-            stop.target = self
-            menu.addItem(stop)
-            item.menu = menu
+            // Play, pause and resume; the controller swaps the glyph as the narrator's state changes.
+            let item = button(identifier, symbol: "play.fill",
+                              label: loc("Czytaj na głos", "Read aloud"),
+                              action: #selector(toggleReadAloud))
             if flag { speakItem = item }
+            return item
+        case .glossoSpeakStop:
+            let item = button(identifier, symbol: "stop.fill",
+                              label: loc("Zatrzymaj czytanie", "Stop reading"),
+                              action: #selector(stopReadAloud))
+            // Nothing to stop until reading starts; the controller enables it.
+            item.isEnabled = false
+            if flag { speakStopItem = item }
             return item
         case .glossoChat:
             let item = button(identifier, symbol: "bubble.left.and.text.bubble.right",

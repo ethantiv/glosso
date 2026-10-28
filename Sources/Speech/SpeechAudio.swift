@@ -20,6 +20,11 @@ enum SpeechAudio {
     static let sampleRate = 24_000
     /// The oldest engine every speech endpoint was verified on; `/v1/audio/speech` alone dates from 0.40.8.
     static let minimumEngineVersion = [0, 40, 12]
+    /// Ollama lists the model as `lfm3-audio:<tag>`. It can't translate text, so the translation-model pickers hide it.
+    static func isSpeechModel(_ name: String) -> Bool {
+        name == speechModel || name.hasPrefix(speechModel + ":")
+    }
+
     /// Short enough that the first chunk starts playing quickly and the next one generates while it plays.
     static let maxChunkLength = 400
     static let minimumSpeechSeconds = 0.5
@@ -40,6 +45,22 @@ enum SpeechAudio {
     static func voice(language: NLLanguage?, gender: SpeechVoice) -> String {
         guard let language, let name = voiceLanguages[language] else { return gender.rawValue }
         return "\(gender.rawValue)-\(name)"
+    }
+
+    /// The model reads digits with an English accent in every other language ("1989" came back as "W następstwie
+    /// tego roku"), so numbers reach it as words. `%` gets its word only in Polish, the language this was measured on.
+    /// shortcut: cardinal nominative only ("w tysiąc dziewięćset osiemdziesiąt dziewięć roku", "1,25 zł" without
+    /// "złotych"), no declension — switch Polish to a native synthesizer if that grates.
+    static func spellingOutNumbers(_ text: String, language: NLLanguage?) -> String {
+        guard let language, language != .english else { return text }
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .spellOut
+        formatter.locale = Locale(identifier: language.rawValue)
+        let withPercent = language == .polish ? text.replacingOccurrences(of: "%", with: " procent") : text
+        return withPercent.replacing(/\d+(?:[.,]\d+)?/) { match in
+            let value = Double(match.output.replacingOccurrences(of: ",", with: "."))
+            return value.flatMap { formatter.string(from: NSNumber(value: $0)) } ?? String(match.output)
+        }
     }
 
     /// Whole sentences packed up to `maxChunkLength`; an overlong sentence splits at spaces. URLs are dropped, since

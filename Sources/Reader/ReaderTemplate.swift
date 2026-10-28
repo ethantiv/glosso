@@ -437,13 +437,14 @@ enum ReaderTemplate {
       document.body.classList.toggle('glosso-original', toOriginal);
     }
     // Read-aloud's view of block `index` in reading order: its translated plain text, {pending} while it is still on
-    // its way, {} for anything that won't be read (media, tables, code, blocks an abort left in the original).
+    // its way, {} for anything that won't be read (media, photo captions, tables, code, blocks an abort left in the
+    // original). Captions are skipped before the pending check, so reading never waits on one.
     // One block per call, so reading an article doesn't re-parse every block before each one.
     function glossoSpeakable(index) {
       const els = document.querySelectorAll('#glosso-content [data-glosso-id]');
       let block = {};
       const el = els[index];
-      if (el) {
+      if (el && !el.closest('figcaption')) {
         const id = Number(el.dataset.glossoId);
         if (glosso.pending.has(id)) { block = {pending: true}; }
         else if (id in glosso.translated) {

@@ -26,7 +26,7 @@ struct SettingsView: View {
 
     /// The active pick is always in the list, even when it isn't installed yet — otherwise the picker blanks out and nothing on screen names the model in use.
     private var installedModelChoices: [String] {
-        var ids = Set(models)
+        var ids = Set(models.filter { !SpeechAudio.isSpeechModel($0) })
         ids.insert(store.modelName)
         return ids.sorted()
     }

@@ -21,7 +21,7 @@ Oczekiwane: wszystkie testy zielone; `xcrun xcresulttool get test-results summar
    - Potem dźwięk w mniej niż 1 s, głos w języku wyniku. Drugie kliknięcie, Esc albo zamknięcie panelu przerywa odtwarzanie.
 2. **US2, czytnik.** Skopiuj adres długiego artykułu (podwójne Cmd+C). Kliknij „Czytaj na głos” w pasku narzędzi.
    - Czytanie rusza w mniej niż 2 s, idzie fragmentami bez pauz dłuższych niż 1 s. Gdy tłumaczenie jeszcze trwa, czytanie czeka na kolejne bloki.
-   - Kliknięcie w trakcie wstrzymuje czytanie, kolejne wznawia. Menu przycisku → „Zatrzymaj” kończy czytanie; zamknięcie okna też.
+   - Przycisk ▶︎ zaczyna czytanie, w trakcie zmienia się w ⏸ (wstrzymaj) i z powrotem w ▶︎ (wznów). Przycisk ■ obok kończy czytanie i jest aktywny tylko w trakcie; zamknięcie okna też kończy.
 3. **US3, mowa.** Ustawienia → Skróty → „Przytrzymaj, aby mówić”: przypisz np. ⌃⌘M.
    - Pierwsze użycie: systemowa prośba o mikrofon. Przy odmowie pojawia się komunikat z drogą do Ustawień systemowych.
    - Przytrzymaj skrót, przeczytaj zdanie, puść. Na pasku menu w trakcie nagrywania widać czerwoną kropkę. Panel pokazuje rozpoznany tekst jako oryginał i tłumaczenie.
