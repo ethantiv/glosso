@@ -297,9 +297,6 @@ protocol HotkeyMonitor: AnyObject {
     var onDoubleCopy: (@MainActor (_ baselineChangeCount: Int) -> Void)? { get set }
     var onFixGrammar: (@MainActor () -> Void)? { get set }
     var onTranslateInPlace: (@MainActor () -> Void)? { get set }
-    /// Hold-to-talk: the speech chord went down, and later its key came back up.
-    var onSpeechStart: (@MainActor () -> Void)? { get set }
-    var onSpeechEnd: (@MainActor () -> Void)? { get set }
     func start() throws
     func stop()
 }
@@ -368,8 +365,6 @@ enum SpeechPlaybackState: Sendable, Equatable {
 
 enum SpeechError: Error, Sendable, Equatable {
     case engineTooOld(String)
-    case microphoneDenied
-    case nothingHeard
     case server(String)
 
     var userMessage: String {
@@ -377,12 +372,6 @@ enum SpeechError: Error, Sendable, Equatable {
         case .engineTooOld(let version):
             loc("Ta wersja Ollamy (\(version)) nie obsługuje mowy. Zaktualizuj Ollamę do 0.40.12 lub nowszej.",
                 "This Ollama version (\(version)) doesn't support speech. Update Ollama to 0.40.12 or later.")
-        case .microphoneDenied:
-            loc("Glosso nie ma dostępu do mikrofonu. Włącz go w Ustawieniach systemowych → Prywatność i ochrona → Mikrofon.",
-                "Glosso can't access the microphone. Turn it on in System Settings → Privacy & Security → Microphone.")
-        case .nothingHeard:
-            loc("Nic nie usłyszałem. Przytrzymaj skrót i mów.",
-                "I didn't hear anything. Hold the shortcut and speak.")
         case .server(let message):
             loc("Model mowy zgłosił błąd: \(message)",
                 "The speech model reported an error: \(message)")
@@ -395,21 +384,6 @@ protocol SpeechSynthesizing: Sendable {
     /// Engine version check, on-demand model pull (progress 0…1, nil when nothing downloads), preload with keep_alive.
     func prepare(progress: @escaping @Sendable (Double?) -> Void) async throws
     func synthesize(_ text: String, voice: String) -> AsyncThrowingStream<Data, Error>
-}
-
-/// The same model's speech-to-text side.
-protocol SpeechTranscribing: Sendable {
-    func prepare(progress: @escaping @Sendable (Double?) -> Void) async throws
-    func transcribe(wav: Data) async throws -> String
-}
-
-/// Microphone capture for hold-to-talk; asks for permission on first use.
-@MainActor
-protocol SpeechRecording: AnyObject {
-    /// Throws `SpeechError.microphoneDenied` when the user refused access.
-    func start() async throws
-    /// The WAV recorded so far, nil when nothing was captured; no file outlives the call.
-    func stop() -> Data?
 }
 
 /// Gapless playback of streamed PCM.

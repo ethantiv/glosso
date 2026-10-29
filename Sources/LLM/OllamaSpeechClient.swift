@@ -3,7 +3,7 @@ import Foundation
 /// The local engine's speech side (`lfm3-audio`). Audio only travels through Ollama's OpenAI-compatible
 /// `/v1/audio/*` routes — the native `/api/chat` and `/api/generate` have no audio fields. The native API still
 /// answers the version, model and keep_alive checks, which `/v1` can't.
-final class OllamaSpeechClient: SpeechSynthesizing, SpeechTranscribing {
+final class OllamaSpeechClient: SpeechSynthesizing {
     /// ~0.25 s of 24 kHz 16-bit mono: playback starts on the first one, and an even size keeps samples whole.
     static let bufferBytes = 12_000
 
@@ -87,30 +87,6 @@ final class OllamaSpeechClient: SpeechSynthesizing, SpeechTranscribing {
             }
             continuation.onTermination = { @Sendable _ in task.cancel() }
         }
-    }
-
-    func transcribe(wav: Data) async throws -> String {
-        let boundary = "glosso-\(UUID().uuidString)"
-        var request = URLRequest(url: try await baseURL().appending(path: "v1/audio/transcriptions"))
-        request.httpMethod = "POST"
-        request.setValue("multipart/form-data; boundary=\(boundary)", forHTTPHeaderField: "Content-Type")
-        request.httpBody = Self.multipart(boundary: boundary, model: SpeechAudio.speechModel, wav: wav)
-        let (data, http) = try await send(request)
-        guard http.statusCode == 200 else { throw Self.serverError(data, status: http.statusCode) }
-        // A struct, not [String: String]: an extra non-string field (OpenAI's `usage`) must not fail the decode.
-        struct Transcript: Decodable { let text: String }
-        guard let text = try? JSONDecoder().decode(Transcript.self, from: data).text else {
-            throw TranslationError.malformedStream
-        }
-        return text.trimmingCharacters(in: .whitespacesAndNewlines)
-    }
-
-    static func multipart(boundary: String, model: String, wav: Data) -> Data {
-        var body = Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"model\"\r\n\r\n\(model)\r\n".utf8)
-        body.append(Data("--\(boundary)\r\nContent-Disposition: form-data; name=\"file\"; filename=\"speech.wav\"\r\nContent-Type: audio/wav\r\n\r\n".utf8))
-        body.append(wav)
-        body.append(Data("\r\n--\(boundary)--\r\n".utf8))
-        return body
     }
 
     /// The `/v1` routes wrap errors OpenAI-style (`{"error":{"message":…}}`), the native ones as `{"error":"…"}`.

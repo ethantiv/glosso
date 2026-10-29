@@ -19,21 +19,13 @@ import Testing
         #expect(store.translateInPlaceChord == .translateInPlaceDefault)
     }
 
-    @Test func speechSettingsDefaultOffAndRoundTrip() {
+    @Test func speechVoiceDefaultsFemaleAndRoundTrips() {
         let defaults = transientDefaults()
         let store = SettingsStore(defaults: defaults)
-        #expect(store.speechChord == nil)
         #expect(store.speechVoice == .female)
 
-        let chord = KeyChord(key: "m", modifiers: KeyChord.cmdCtrl)
-        store.speechChord = chord
         store.speechVoice = .male
-        let reloaded = SettingsStore(defaults: defaults)
-        #expect(reloaded.speechChord == chord)
-        #expect(reloaded.speechVoice == .male)
-
-        reloaded.speechChord = nil
-        #expect(SettingsStore(defaults: defaults).speechChord == nil)
+        #expect(SettingsStore(defaults: defaults).speechVoice == .male)
     }
 
     @Test func readerRetentionDefaultsPersistsAndNormalizes() {

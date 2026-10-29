@@ -673,8 +673,6 @@ final class FakeHotkeyMonitor: HotkeyMonitor {
     var onDoubleCopy: (@MainActor (Int) -> Void)?
     var onFixGrammar: (@MainActor () -> Void)?
     var onTranslateInPlace: (@MainActor () -> Void)?
-    var onSpeechStart: (@MainActor () -> Void)?
-    var onSpeechEnd: (@MainActor () -> Void)?
     private(set) var startCount = 0
     private(set) var stopCount = 0
     var startError: (any Error)?
@@ -694,17 +692,14 @@ final class Locked<Value>: @unchecked Sendable {
     func update(_ body: (inout Value) -> Void) { lock.withLock { body(&stored) } }
 }
 
-/// Both halves of the speech model. Each `synthesize` yields one 0.1 s buffer, after `gate` opens.
-final class FakeSpeechSynthesizer: SpeechSynthesizing, SpeechTranscribing, @unchecked Sendable {
-    private let recorded = Locked<(texts: [String], voices: [String], wavs: [Data])>(([], [], []))
+/// The speech model. Each `synthesize` yields one 0.1 s buffer, after `gate` opens.
+final class FakeSpeechSynthesizer: SpeechSynthesizing, @unchecked Sendable {
+    private let recorded = Locked<(texts: [String], voices: [String])>(([], []))
     var synthesizeError: (any Error)?
-    var transcript = ""
-    var transcribeError: (any Error)?
     var gate: StreamGate?
 
     var texts: [String] { recorded.value.texts }
     var voices: [String] { recorded.value.voices }
-    var transcribedWavs: [Data] { recorded.value.wavs }
 
     func prepare(progress: @escaping @Sendable (Double?) -> Void) async throws {}
 
@@ -720,12 +715,6 @@ final class FakeSpeechSynthesizer: SpeechSynthesizing, SpeechTranscribing, @unch
             continuation.onTermination = { @Sendable _ in task.cancel() }
         }
     }
-
-    func transcribe(wav: Data) async throws -> String {
-        recorded.update { $0.wavs.append(wav) }
-        if let transcribeError { throw transcribeError }
-        return transcript
-    }
 }
 
 @MainActor
@@ -740,18 +729,4 @@ final class FakeSpeechPlayer: SpeechPlaying {
     func pause() { pauseCount += 1 }
     func resume() { resumeCount += 1 }
     func stop() { stopCount += 1 }
-}
-
-@MainActor
-final class FakeSpeechRecorder: SpeechRecording {
-    var wav: Data?
-    var startError: (any Error)?
-    private(set) var stopCount = 0
-    func start() async throws {
-        if let startError { throw startError }
-    }
-    func stop() -> Data? {
-        stopCount += 1
-        return wav
-    }
 }

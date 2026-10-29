@@ -8,6 +8,8 @@
 
 **Input**: User description: "Dodaj do aplikacji obsługę modelu lfm3-audio: czytanie przetłumaczonego artykułu na głos w czytniku, tłumaczenie mowy pod przytrzymanym skrótem i odsłuch wyniku z panelu tłumaczenia. Model pobiera się przy pierwszym użyciu. Sprawdź szczegóły w dokumentacji Ollamy (capabilities/speech)."
 
+> **Zmiana zakresu (2026-10-29, v0.28.0):** US3 (tłumaczenie mowy pod przytrzymanym skrótem) usunięta na prośbę użytkownika — do dyktowania służy dyktowanie macOS. Zostaje sama synteza mowy (US1, US2); FR-030…FR-036 nie obowiązują.
+
 Wykonalność potwierdzono testem na lokalnej Ollamie 0.40.12 przed napisaniem specyfikacji. Wyniki są w [feasibility.md](feasibility.md).
 
 ## User Scenarios & Testing *(mandatory)*

@@ -84,12 +84,10 @@ struct SettingsView: View {
             Section(loc("Skróty", "Shortcuts")) {
                 // An HStack, not LabeledContent: the recorder is an NSView with a fixed height, and LabeledContent
                 // drops it below the label's baseline instead of centring it on the row.
-                chordRow(loc("Popraw w miejscu", "Fix in place"), chord: Binding($store.fixChord),
-                         others: [store.translateInPlaceChord, store.speechChord].compactMap { $0 })
-                chordRow(loc("Tłumacz w miejscu", "Translate in place"), chord: Binding($store.translateInPlaceChord),
-                         others: [store.fixChord, store.speechChord].compactMap { $0 })
-                chordRow(loc("Przytrzymaj, aby mówić", "Hold to speak"), chord: $store.speechChord,
-                         others: [store.fixChord, store.translateInPlaceChord], clearable: true)
+                chordRow(loc("Popraw w miejscu", "Fix in place"),
+                         chord: $store.fixChord, other: store.translateInPlaceChord)
+                chordRow(loc("Tłumacz w miejscu", "Translate in place"),
+                         chord: $store.translateInPlaceChord, other: store.fixChord)
             }
         }
         .formStyle(.grouped)
@@ -148,14 +146,11 @@ struct SettingsView: View {
                         "In this mode the selected text is sent to Ollama."))
     }
 
-    private func chordRow(_ label: String, chord: Binding<KeyChord?>, others: [KeyChord], clearable: Bool = false) -> some View {
+    private func chordRow(_ label: String, chord: Binding<KeyChord>, other: KeyChord) -> some View {
         HStack {
             Text(label)
             Spacer(minLength: 12)
-            if clearable, chord.wrappedValue != nil {
-                Button(loc("Usuń", "Clear")) { chord.wrappedValue = nil }
-            }
-            KeyChordRecorder(chord: chord, otherChords: others)
+            KeyChordRecorder(chord: chord, otherChord: other)
                 .frame(width: 96, height: 24)
                 .accessibilityLabel(loc("Skrót: \(label)", "Shortcut: \(label)"))
         }

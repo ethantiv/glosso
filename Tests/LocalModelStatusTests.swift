@@ -34,8 +34,6 @@ import Testing
                 #expect(image.size == (update ? NSImage(named: "MenuBarIconUpdate")!.size : base))
             }
         }
-        // Hold-to-talk needs its dot even under a cloud provider, where there is no model status.
-        #expect(!MenuBarGlyph.image(update: false, model: nil, recording: true).isTemplate)
     }
 
     @Test func parsesOllamaExpiryWithMicrosecondsAndOffset() {

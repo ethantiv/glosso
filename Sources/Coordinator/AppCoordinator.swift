@@ -22,9 +22,6 @@ final class AppCoordinator {
     private let pasteboard: NSPasteboard
     private let notify: @MainActor (String) -> Void
     private let narrator: Narrator?
-    private let recorder: (any SpeechRecording)?
-    private let transcriber: (any SpeechTranscribing)?
-    private let onRecordingChange: @MainActor (Bool) -> Void
 
     // A terminal's "selection" is a mouse highlight the shell won't replace — Cmd+V
     // appends at the prompt — so a result must never be pasted back there.
@@ -44,13 +41,6 @@ final class AppCoordinator {
     /// True while the shared narrator reads this popup's result, so a toggle or dismiss never stops the reader's session.
     private var popupSpeaking = false
     private var popupChunks: [String] = []
-    /// Hold-to-talk: set on key-down, cleared on key-up.
-    private var speechKeyHeld = false
-    /// Resolves to whether the microphone actually started; the first use waits on the permission prompt.
-    private var recordingStart: Task<Bool, Never>?
-    /// The key-down engine check and model pull; the take's transcription awaits it instead of starting a second pull.
-    private var speechPrepare: Task<Void, Error>?
-    private(set) var speechTask: Task<Void, Never>?
 
     private var actionCache: [Action: (text: String, truncated: Bool)] = [:]
     private var isManual = false
@@ -114,10 +104,7 @@ final class AppCoordinator {
         frontmostBundleID: @escaping @MainActor () -> String? = { NSWorkspace.shared.frontmostApplication?.bundleIdentifier },
         pasteboard: NSPasteboard = .general,
         notify: @escaping @MainActor (String) -> Void = { SystemUserNotifier.post($0) },
-        narrator: Narrator? = nil,
-        recorder: (any SpeechRecording)? = nil,
-        transcriber: (any SpeechTranscribing)? = nil,
-        onRecordingChange: @escaping @MainActor (Bool) -> Void = { _ in }
+        narrator: Narrator? = nil
     ) {
         self.llm = llm
         self.monitor = monitor
@@ -135,9 +122,6 @@ final class AppCoordinator {
         self.notify = notify
         self.pasteboard = pasteboard
         self.narrator = narrator
-        self.recorder = recorder
-        self.transcriber = transcriber
-        self.onRecordingChange = onRecordingChange
         connectPopup()
     }
 
@@ -149,8 +133,6 @@ final class AppCoordinator {
         monitor.onDoubleCopy = { [weak self] baseline in self?.handleDoubleCopy(baseline: baseline) }
         monitor.onFixGrammar = { [weak self] in self?.handleFixGrammar() }
         monitor.onTranslateInPlace = { [weak self] in self?.handleTranslateInPlace() }
-        monitor.onSpeechStart = { [weak self] in self?.handleSpeechStart() }
-        monitor.onSpeechEnd = { [weak self] in self?.handleSpeechEnd() }
 
         do {
             try monitor.start()
@@ -223,13 +205,6 @@ final class AppCoordinator {
         prefetchTask?.cancel()
         fixTask?.cancel()
         snapshotTask?.cancel()
-        speechTask?.cancel()
-        if speechKeyHeld {
-            speechKeyHeld = false
-            recordingStart?.cancel()
-            _ = recorder?.stop()
-            onRecordingChange(false)
-        }
         popup.dismiss()
     }
 
@@ -261,82 +236,6 @@ final class AppCoordinator {
 
     private func stopPopupSpeech() {
         if popupSpeaking { narrator?.stop() }
-    }
-
-    func handleSpeechStart() {
-        guard recorder != nil, let transcriber, !speechKeyHeld else { return }
-        speechKeyHeld = true
-        // The microphone would pick up whatever is being read aloud and mix it into the take.
-        narrator?.stop()
-        // Loads the model while the user talks; the first use also starts the download here.
-        speechPrepare = Task { try await transcriber.prepare(progress: { _ in }) }
-        recordingStart = Task { @MainActor [weak self] in
-            guard let recorder = self?.recorder else { return false }
-            do {
-                try await recorder.start()
-            } catch {
-                self?.notify((error as? SpeechError)?.userMessage
-                             ?? loc("Nie udało się włączyć mikrofonu.", "Couldn't start the microphone."))
-                return false
-            }
-            // `stop()` cancelled the take while the permission prompt was up: don't leave the microphone running.
-            if Task.isCancelled {
-                _ = recorder.stop()
-                return false
-            }
-            self?.onRecordingChange(true)
-            return true
-        }
-    }
-
-    func handleSpeechEnd() {
-        guard speechKeyHeld, let transcriber, let start = recordingStart, let prepared = speechPrepare else { return }
-        speechKeyHeld = false
-        recordingStart = nil
-        let mouse = NSEvent.mouseLocation
-        speechTask?.cancel()
-        speechTask = Task { @MainActor [weak self] in
-            // A release during the first-use permission prompt still waits for it; that take is then empty.
-            guard await start.value, let self else { return }
-            self.onRecordingChange(false)
-            guard let wav = self.recorder?.stop(), SpeechAudio.containsSpeech(wav: wav) else {
-                self.notify(SpeechError.nothingHeard.userMessage)
-                return
-            }
-            self.captureTask?.cancel()
-            self.prefetchTask?.cancel()
-            self.popup.dismiss()
-            self.captureTask = Task { @MainActor [weak self] in
-                await self?.translateSpeech(wav, at: mouse, prepared: prepared, transcriber: transcriber)
-            }
-        }
-    }
-
-    /// The recognized text takes the clipboard's place: same popup, same direction detection, provider and cache.
-    private func translateSpeech(_ wav: Data, at point: CGPoint, prepared: Task<Void, Error>,
-                                 transcriber: any SpeechTranscribing) async {
-        lastCapture = nil
-        actionCache.removeAll()
-        lastSourcePID = nil
-        lastSelection = nil
-        popup.present(at: point, formality: settings.formality)
-        let text: String
-        do {
-            try await prepared.value
-            text = try await transcriber.transcribe(wav: wav)
-        } catch {
-            if Task.isCancelled { return }
-            popup.showError((error as? SpeechError)?.userMessage
-                            ?? (error as? TranslationError)?.userMessage
-                            ?? loc("Nie udało się rozpoznać mowy.", "Couldn't recognize the speech."))
-            return
-        }
-        if Task.isCancelled { return }
-        guard !text.isEmpty else {
-            popup.showError(SpeechError.nothingHeard.userMessage)
-            return
-        }
-        await stream(text, at: point, action: .translate)
     }
 
     func handleDoubleCopy(baseline: Int) {

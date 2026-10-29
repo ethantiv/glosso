@@ -27,10 +27,16 @@ extension NSToolbarItem.Identifier {
 /// `ReaderScriptMessageProxy` next door.
 @MainActor
 final class ReaderToolbarProxy: NSObject, NSToolbarDelegate {
-    /// One leading flexible space, then the group: a unified toolbar shares its row with the title and subtitle, so
-    /// spreading the items across the whole width pushes the last one into the overflow menu.
-    static let itemIdentifiers: [NSToolbarItem.Identifier] =
-        [.flexibleSpace, .glossoRefresh, .glossoPin, .glossoMode, .glossoCinema, .glossoBrowse, .glossoSpeak, .glossoSpeakStop, .glossoChat]
+    /// One leading flexible space, then the groups: a unified toolbar shares its row with the title and subtitle, so
+    /// spreading the items across the whole width pushes the last one into the overflow menu. Adjacent items share one
+    /// glass capsule; a `.space` between them splits the bar into separate pills — view, read aloud, article, panels.
+    static let itemIdentifiers: [NSToolbarItem.Identifier] = [
+        .flexibleSpace,
+        .glossoMode, .glossoCinema, .space,
+        .glossoSpeak, .glossoSpeakStop, .space,
+        .glossoRefresh, .glossoPin, .space,
+        .glossoBrowse, .glossoChat,
+    ]
 
     private weak var controller: ReaderController?
     private(set) var modeControl: NSSegmentedControl?

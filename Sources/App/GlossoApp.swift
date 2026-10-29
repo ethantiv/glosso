@@ -52,8 +52,7 @@ struct GlossoApp: App {
             Button(loc("Zakończ", "Quit")) { NSApplication.shared.terminate(nil) }
         } label: {
             Image(nsImage: MenuBarGlyph.image(update: appDelegate.appState.updateAvailable != nil,
-                                              model: appDelegate.appState.localModel,
-                                              recording: appDelegate.appState.recordingSpeech))
+                                              model: appDelegate.appState.localModel))
                 .accessibilityLabel("Glosso")
         }
 
@@ -75,9 +74,9 @@ struct GlossoApp: App {
 
 /// A template image can't carry a second colour, so a dotted glyph is drawn non-template with `labelColor` for the glyph itself — that colour resolves at draw time, so it still follows the light/dark menu bar.
 enum MenuBarGlyph {
-    static func image(update: Bool, model: LocalModelStatus?, recording: Bool = false) -> NSImage {
+    static func image(update: Bool, model: LocalModelStatus?) -> NSImage {
         let base = NSImage(named: update ? "MenuBarIconUpdate" : "MenuBarIcon")!
-        guard model != nil || recording else { return base }
+        guard let model else { return base }
         let image = NSImage(size: base.size, flipped: false) { rect in
             let tinted = base.copy() as! NSImage
             tinted.isTemplate = false
@@ -88,8 +87,7 @@ enum MenuBarGlyph {
             NSGraphicsContext.current?.compositingOperation = .clear
             NSBezierPath(ovalIn: dot.insetBy(dx: -1, dy: -1)).fill()
             NSGraphicsContext.current?.compositingOperation = .sourceOver
-            // Recording outranks the model's state: it is the one the user is acting on right now.
-            (recording ? NSColor.systemRed : model == .idle ? NSColor.systemOrange : NSColor.systemGreen).setFill()
+            (model == .idle ? NSColor.systemOrange : NSColor.systemGreen).setFill()
             NSBezierPath(ovalIn: dot).fill()
             return true
         }
@@ -228,18 +226,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, UNUserNotificationCent
             llm: llm,
             monitor: GlobalHotkeyMonitor(
                 changeCountProvider: { reader.currentChangeCount },
-                chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) },
-                speechChordProvider: { [settings] in settings.speechChord }
+                chordProvider: { [settings] in (settings.fixChord, settings.translateInPlaceChord) }
             ),
             reader: reader,
             axReader: AXSelectionReader(),
             popup: TranslationPopupController(),
             settings: settings,
             articleReader: articleReader,
-            narrator: narrator,
-            recorder: MicrophoneRecorder(),
-            transcriber: speech,
-            onRecordingChange: { [appState] on in appState.recordingSpeech = on }
+            narrator: narrator
         )
         appState.listening = coordinator.start()
         self.coordinator = coordinator
