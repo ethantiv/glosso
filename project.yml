@@ -7,7 +7,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "6.0"
-    MARKETING_VERSION: "0.27.1"
+    MARKETING_VERSION: "0.28.0"
     CURRENT_PROJECT_VERSION: "1"
     # Stable self-signed identity (created once in Keychain): keeps the app's code
     # signing identity constant across releases so the Accessibility (TCC) grant
@@ -51,14 +51,11 @@ targets:
         LSUIElement: true
         CFBundleDisplayName: Glosso
         CFBundleShortVersionString: "$(MARKETING_VERSION)"
-        NSMicrophoneUsageDescription: "Glosso słucha mikrofonu tylko, gdy przytrzymujesz skrót mowy. / Glosso listens only while you hold the speech shortcut."
     entitlements:
       path: Generated/Glosso.entitlements
       properties:
         com.apple.security.app-sandbox: false
         com.apple.security.network.client: true
-        # Hardened runtime (Release) blocks the microphone without this, even with the TCC grant.
-        com.apple.security.device.audio-input: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.mirek.glosso

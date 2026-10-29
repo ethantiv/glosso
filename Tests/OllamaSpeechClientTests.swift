@@ -66,24 +66,6 @@ import Testing
         }
     }
 
-    @Test func transcribeSendsMultipartAndTrimsTheText() async throws {
-        let sent = Locked<Data>(Data())
-        http.handler = { request in
-            #expect(request.url?.path == "/v1/audio/transcriptions")
-            #expect(request.value(forHTTPHeaderField: "Content-Type")?.hasPrefix("multipart/form-data; boundary=") == true)
-            sent.set(Self.body(of: request))
-            return Self.respond(request, 200, #"{"text":" Dzień dobry. "}"#)
-        }
-        defer { http.handler = nil }
-
-        let text = try await makeClient().transcribe(wav: Data("WAVDATA".utf8))
-
-        #expect(text == "Dzień dobry.")
-        let body = String(decoding: sent.value, as: UTF8.self)
-        #expect(body.contains("name=\"model\"\r\n\r\nlfm3-audio"))
-        #expect(body.contains("Content-Type: audio/wav\r\n\r\nWAVDATA"))
-    }
-
     @Test func prepareRejectsAnOldEngine() async {
         http.handler = { request in Self.respond(request, 200, #"{"version":"0.40.11"}"#) }
         defer { http.handler = nil }

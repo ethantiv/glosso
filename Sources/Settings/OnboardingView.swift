@@ -223,8 +223,8 @@ struct OnboardingView: View {
             } header: {
                 Text(loc("Funkcje mowy (opcjonalnie)", "Speech features (optional)"))
             } footer: {
-                Text(loc("Odsłuch tłumaczenia, czytanie artykułów na głos i tłumaczenie mowy działają na osobnym modelu (około 2 GB), zawsze na Twoim komputerze. Pobierz go teraz albo dopiero przy pierwszym użyciu.",
-                         "Listening to translations, reading articles aloud and speech translation run on a separate model (about 2 GB), always on your Mac. Download it now or on first use."))
+                Text(loc("Odsłuch tłumaczenia i czytanie artykułów na głos działają na osobnym modelu (około 2 GB), zawsze na Twoim komputerze. Pobierz go teraz albo dopiero przy pierwszym użyciu.",
+                         "Listening to translations and reading articles aloud run on a separate model (about 2 GB), always on your Mac. Download it now or on first use."))
             }
         }
         .formStyle(.grouped)

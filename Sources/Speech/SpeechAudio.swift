@@ -13,7 +13,7 @@ enum SpeechVoice: String, CaseIterable, Sendable {
     }
 }
 
-/// Pure helpers around the speech model: text chunking, voice names, WAV checks and PCM conversion.
+/// Pure helpers around the speech model: text chunking, voice names, number spelling and PCM conversion.
 enum SpeechAudio {
     static let speechModel = "lfm3-audio"
     /// `/v1/audio/speech` with `response_format: pcm` streams 16-bit LE mono at this rate.
@@ -27,10 +27,6 @@ enum SpeechAudio {
 
     /// Short enough that the first chunk starts playing quickly and the next one generates while it plays.
     static let maxChunkLength = 400
-    static let minimumSpeechSeconds = 0.5
-    /// RMS of the loudest 50 ms window; room noise sits well below it, speech well above. The model transcribes
-    /// pure silence as "Okay.", so a silent take must never reach it.
-    static let silenceRMS: Float = 0.01
 
     /// The model's voices are `<gender>-<language>`; NaturalLanguage names map onto its language list.
     private static let voiceLanguages: [NLLanguage: String] = [
@@ -112,22 +108,6 @@ enum SpeechAudio {
         return !numbers.lexicographicallyPrecedes(minimumEngineVersion)
     }
 
-    /// At least `minimumSpeechSeconds` long and with one 50 ms window at or above `silenceRMS`.
-    static func containsSpeech(wav: Data) -> Bool {
-        guard let decoded = pcm16Samples(wav: wav),
-              Double(decoded.samples.count) / Double(decoded.perSecond) >= minimumSpeechSeconds else { return false }
-        let samples = decoded.samples, perSecond = decoded.perSecond
-        let window = max(perSecond / 20, 1)
-        var start = 0
-        while start < samples.count {
-            let slice = samples[start..<min(start + window, samples.count)]
-            let meanSquare = slice.reduce(Float(0)) { $0 + $1 * $1 } / Float(slice.count)
-            if meanSquare.squareRoot() >= silenceRMS { return true }
-            start += window
-        }
-        return false
-    }
-
     /// 16-bit LE samples scaled to −1…1.
     static func floatSamples(_ pcm: Data) -> [Float] {
         pcm.withUnsafeBytes { raw in
@@ -135,31 +115,5 @@ enum SpeechAudio {
                 Float(Int16(littleEndian: raw.loadUnaligned(fromByteOffset: index * 2, as: Int16.self))) / 32768
             }
         }
-    }
-
-    /// Walks the RIFF chunks rather than assuming a 44-byte header: AVAudioRecorder writes extra chunks (`FLLR`)
-    /// before `data`. `perSecond` is rate × channels, so the duration holds for stereo too.
-    private static func pcm16Samples(wav: Data) -> (samples: [Float], perSecond: Int)? {
-        let bytes = [UInt8](wav)
-        func u16(_ i: Int) -> Int { Int(bytes[i]) | Int(bytes[i + 1]) << 8 }
-        func u32(_ i: Int) -> Int { u16(i) | u16(i + 2) << 16 }
-        guard bytes.count >= 12,
-              bytes[0..<4].elementsEqual("RIFF".utf8),
-              bytes[8..<12].elementsEqual("WAVE".utf8) else { return nil }
-        var offset = 12
-        var perSecond: Int?
-        while offset + 8 <= bytes.count {
-            let id = bytes[offset..<offset + 4]
-            let size = u32(offset + 4)
-            let body = offset + 8
-            if id.elementsEqual("fmt ".utf8), body + 16 <= bytes.count {
-                guard u16(body + 14) == 16 else { return nil }
-                perSecond = u32(body + 4) * u16(body + 2)
-            } else if id.elementsEqual("data".utf8), let perSecond, perSecond > 0 {
-                return (floatSamples(Data(bytes[body..<min(body + size, bytes.count)])), perSecond)
-            }
-            offset = body + size + (size & 1)
-        }
-        return nil
     }
 }
