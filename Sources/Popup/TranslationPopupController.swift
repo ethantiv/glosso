@@ -93,9 +93,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             fetchAlternatives: { [weak self] word, translation in
                 await self?.onFetchAlternatives?(word, translation) ?? []
             },
-            fetchFixReason: { [weak self] before, after, corrected in
-                await self?.onFetchFixReason?(before, after, corrected) ?? ""
-            },
+            loadFixReason: { [weak self] in self?.loadFixReason() },
             fetchToneNote: { [weak self] previous, current, from, to in
                 await self?.onFetchToneNote?(previous, current, from, to) ?? ""
             },
@@ -188,6 +186,9 @@ final class TranslationPopupController: TranslationPopupPresenting {
         model.direction = direction
         model.sourceText = sourceText
         model.capturedSource = sourceText
+        // The undo snapshot belongs to the result of one action; restoring it under another would put a translation
+        // in the correction pane (or vice versa) and drop the wrong action's cache.
+        if model.action != action { model.clearUndo() }
         model.action = action
         panel?.title = action == .translate
             ? "\(loc("Tłumaczenie", "Translation")) · \(direction.label)"
@@ -267,14 +268,19 @@ final class TranslationPopupController: TranslationPopupPresenting {
         AlternativesDropdown(
             model: model,
             onPick: { [weak self] chosen in
-                guard let self, let id = model.selectedWordID else { return }
-                let original = self.model.segments.first { $0.id == id }?.text ?? ""
+                guard let self, model.dropdownVisible else { return }
+                let original = self.model.selectedWord
                 self.model.snapshotForUndo()
                 self.onPickAlternative?(original, chosen, self.model.text)
             },
             onExplain: { [weak self] in
                 guard let self, let id = model.selectedWordID else { return }
-                self.explain(wordID: id)
+                if self.model.selectedFixChange != nil {
+                    self.model.showFixReason()
+                    self.loadFixReason()
+                } else {
+                    self.explain(wordID: id)
+                }
             },
             onBack: { [weak self] in self?.model.closeExplanation() }
         )
@@ -287,7 +293,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
     }
 
     private func explain(wordID: Int) {
-        let word = model.segments.first { $0.id == wordID }?.text ?? ""
+        let word = model.selectedWord
         let translation = model.text
         model.openExplanation()
         if let cached = model.explanationCache[wordID] {
@@ -303,6 +309,28 @@ final class TranslationPopupController: TranslationPopupPresenting {
             self.model.explanationText = explanation
             self.model.explanationLoading = false
             if !explanation.isEmpty { self.model.explanationCache[wordID] = explanation }
+        }
+    }
+
+    /// Fills the open reason view for `model.selectedFixChange`, from the cache when the same correction was asked before.
+    private func loadFixReason() {
+        guard let id = model.selectedWordID, let change = model.selectedFixChange else { return }
+        if let cached = model.fixReasonCache[id] {
+            model.explanationText = cached
+            model.explanationLoading = false
+            return
+        }
+        let token = model.explanationRequestToken
+        let corrected = model.text
+        Task { @MainActor in
+            let reason = await self.onFetchFixReason?(change.before, change.after, corrected) ?? ""
+            // Cached even when the user stepped back meanwhile — reopening must not spend a second (metered) call —
+            // but only while the result it explains is still the one on screen.
+            if !reason.isEmpty, self.model.text == corrected { self.model.fixReasonCache[id] = reason }
+            guard self.model.explanationRequestToken == token,
+                  self.model.dropdownVisible, self.model.fixReasonMode else { return }
+            self.model.explanationText = reason
+            self.model.explanationLoading = false
         }
     }
 
@@ -498,7 +526,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             modifiers: NSEvent.ModifierFlags(rawValue: modifiersRawValue),
             dropdownVisible: model.dropdownVisible,
             explanationVisible: model.showingExplanation,
-            fixReasonMode: model.fixReasonMode
+            fixReasonMode: model.escClosesFixReason
         ) {
         case .passThrough:
             return false
@@ -542,7 +570,7 @@ final class TranslationPopupController: TranslationPopupPresenting {
             modifiers: event.modifierFlags,
             dropdownVisible: model.dropdownVisible,
             explanationVisible: model.showingExplanation,
-            fixReasonMode: model.fixReasonMode
+            fixReasonMode: model.escClosesFixReason
         ) {
         case .passThrough: return false
         case .closeExplanation: model.closeExplanation(); return true

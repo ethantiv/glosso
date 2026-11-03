@@ -31,6 +31,10 @@ final class PopupModel {
     var speech: SpeechPlaybackState = .idle
 
     var selectedWordID: Int? = nil
+    /// The clicked word's (or correction's) text — diff ids don't index `segments`, so the text travels with the selection.
+    var selectedWord: String = ""
+    /// The clicked correction, nil for a plain word.
+    var selectedFixChange: (before: String, after: String)? = nil
     var alternatives: [String] = []
     var altsLoading: Bool = false
 
@@ -46,6 +50,14 @@ final class PopupModel {
     var explanationRequestToken: Int = 0
 
     var fixReasonMode: Bool = false
+    /// The reason sits behind the synonym list's header row only when the correction added a word to look up.
+    var fixReasonHasBack: Bool { selectedFixChange.map { Self.hasWord($0.after) } ?? false }
+    /// Esc closes a reason opened straight from a correction; one opened from the synonym list steps back to it instead.
+    var escClosesFixReason: Bool { fixReasonMode && !fixReasonHasBack }
+
+    static func hasWord(_ text: String) -> Bool {
+        text.contains { $0.isLetter || $0.isNumber }
+    }
     var fixReasonContentHeight: CGFloat = 0
 
     var toneChange: (from: Formality, to: Formality, previous: String)? = nil
@@ -96,9 +108,16 @@ final class PopupModel {
             return cache.value
         }
         var runs: [Int: [FlowRun]] = [:]
+        // Negative word ids, unique across the whole diff: the tokenizer restarts at 0 per span, and change ids are
+        // the non-negative part ids — a collision would cross selection, dropdown anchors and the per-id caches.
+        var next = 0
         for part in diffParts {
             if case .same(let id, let sameText) = part {
-                runs[id] = FlowComposer.runs(Tokenizer.segments(sameText))
+                let segments = Tokenizer.segments(sameText).map {
+                    TextSegment(id: -1 - next - $0.id, text: $0.text, isWord: $0.isWord, isWhitespace: $0.isWhitespace)
+                }
+                next += segments.count
+                runs[id] = FlowComposer.runs(segments)
             }
         }
         sameRunsCache = (capturedSource, text, runs)
@@ -114,12 +133,16 @@ final class PopupModel {
     var diffHidden: Bool = false
 
     func toggleDiffHidden() {
-        if !diffHidden { closeDropdown() }
+        closeDropdown()
+        // The hidden-diff view keys words by token id, which overlaps the diff's change ids.
+        altsCache.removeAll()
         diffHidden.toggle()
     }
 
-    func openDropdown(for id: Int) {
+    func openDropdown(for id: Int, word: String = "", fixChange: (before: String, after: String)? = nil) {
         selectedWordID = id
+        selectedWord = word
+        selectedFixChange = fixChange
         alternatives = []
         altsLoading = true
         altsRequestToken &+= 1
@@ -128,15 +151,21 @@ final class PopupModel {
 
     func closeDropdown() {
         selectedWordID = nil
+        selectedWord = ""
+        selectedFixChange = nil
         altsLoading = false
         alternatives = []
-        fixReasonMode = false
-        fixReasonContentHeight = 0
         closeExplanation()
     }
 
+    /// A correction with no word to look up opens straight onto its reason.
     func openFixReason(id: Int, before: String, after: String) {
-        selectedWordID = id
+        openDropdown(for: id, fixChange: (before, after))
+        altsLoading = false
+        showFixReason()
+    }
+
+    func showFixReason() {
         fixReasonMode = true
         showingExplanation = true
         explanationText = ""
@@ -153,6 +182,8 @@ final class PopupModel {
     }
 
     func closeExplanation() {
+        fixReasonMode = false
+        fixReasonContentHeight = 0
         showingExplanation = false
         explanationText = ""
         explanationLoading = false

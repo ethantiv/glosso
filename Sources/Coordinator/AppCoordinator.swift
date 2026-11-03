@@ -486,9 +486,14 @@ final class AppCoordinator {
         return result
     }
 
+    /// `translation` is the current result: a translation, or for `.fixGrammar` the corrected text, whose words get
+    /// same-language synonyms instead.
     func fetchAlternatives(word: String, translation: String) async -> [String] {
         await pausingPrefetch([]) { capture in
-            try await llm.alternatives(
+            if capture.action == .fixGrammar {
+                return try await llm.synonyms(for: word, in: translation, model: settings.activeModel)
+            }
+            return try await llm.alternatives(
                 for: word, in: translation, source: capture.text,
                 primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
                 model: settings.activeModel)
@@ -536,7 +541,7 @@ final class AppCoordinator {
     }
 
     func handleUndo() {
-        actionCache.removeValue(forKey: .translate)
+        actionCache.removeValue(forKey: lastCapture?.action ?? .translate)
     }
 
     private func route(_ text: String, at point: CGPoint) async {
@@ -583,12 +588,14 @@ final class AppCoordinator {
     private func streamReword(original: String, chosen: String, translation: String) async {
         guard let capture = lastCapture else { return }
         stopPopupSpeech()
-        await consume(llm.reword(
-            original: original, to: chosen, in: translation,
-            source: capture.text,
-            primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
-            formality: isManual ? manualFormality : settings.formality, model: settings.activeModel),
-            bucket: .translate)
+        let stream = capture.action == .fixGrammar
+            ? llm.swapSynonym(original: original, to: chosen, in: translation, model: settings.activeModel)
+            : llm.reword(
+                original: original, to: chosen, in: translation,
+                source: capture.text,
+                primary: settings.primaryLanguage, second: resolvedSecond(for: capture.direction),
+                formality: isManual ? manualFormality : settings.formality, model: settings.activeModel)
+        await consume(stream, bucket: capture.action)
         if !Task.isCancelled { schedulePrefetch() }
     }
 

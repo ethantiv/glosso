@@ -1057,6 +1057,113 @@ import Testing
         #expect(result == [])
     }
 
+    // MARK: Synonyms in a correction
+
+    @Test func fetchAlternativesUnderFixGrammarAsksForSynonymsOfTheCorrectedText() async {
+        let llm = FakeLLMClient(events: [.token("Pobiegł szybko."), .finished(doneReason: "stop")], alternatives: ["prędko"])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Pobiegl szybko."
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        coordinator.handleActionChange(.fixGrammar)
+        await coordinator.captureTask?.value
+
+        let result = await popup.onFetchAlternatives?("szybko", "Pobiegł szybko.")
+        #expect(result == ["prędko"])
+        #expect(llm.recorder.synWord == "szybko")
+        #expect(llm.recorder.synText == "Pobiegł szybko.")
+        #expect(llm.recorder.synModel != nil)
+        #expect(llm.recorder.altWord == nil)   // not the translation prompt
+    }
+
+    @Test func fetchAlternativesUnderTranslateStillAsksForAlternatives() async {
+        let llm = FakeLLMClient(alternatives: ["x"])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "great"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        _ = await popup.onFetchAlternatives?("wspaniały", "wspaniały")
+
+        #expect(llm.recorder.altWord == "wspaniały")
+        #expect(llm.recorder.synWord == nil)
+    }
+
+    @Test func fetchSynonymsSwallowsErrorsIntoEmptyList() async {
+        let llm = FakeLLMClient(alternatives: [], alternativesError: .ollamaUnreachable)
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Pobiegl szybko."
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        coordinator.handleActionChange(.fixGrammar)
+        await coordinator.captureTask?.value
+
+        let result = await popup.onFetchAlternatives?("szybko", "Pobiegł szybko.")
+        #expect(result == [])
+        #expect(llm.recorder.synWord == "szybko")
+    }
+
+    @Test func pickUnderFixGrammarSwapsTheSynonymInTheCorrectedText() async {
+        let llm = FakeLLMClient(events: [.token("Kupiłem nowe mieszkanie."), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Kupilem nowy dom."
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
+
+        coordinator.start()
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)
+        coordinator.handleActionChange(.fixGrammar)
+        await coordinator.captureTask?.value
+
+        popup.onPickAlternative?("dom", "mieszkanie", "Kupiłem nowy dom.")
+        await coordinator.captureTask?.value
+
+        #expect(llm.recorder.swapOriginal == "dom")
+        #expect(llm.recorder.swapChosen == "mieszkanie")
+        #expect(llm.recorder.swapText == "Kupiłem nowy dom.")
+        #expect(llm.recorder.rewordOriginal == nil)   // not the translation reword
+    }
+
+    @Test func undoAfterASynonymSwapDropsTheFixGrammarCache() async {
+        let llm = FakeLLMClient(events: [.token("X"), .finished(doneReason: "stop")])
+        let reader = FakePasteboardReader()
+        reader.readyAfterAttempts = 0
+        reader.text = "Cześć"
+        let popup = FakePopup()
+        let coordinator = makeCoordinator(llm: llm, reader: reader, popup: popup, prefetchLingerMs: 600_000)
+        defer { coordinator.stop() }
+
+        await coordinator.captureAndTranslate(baseline: 0, at: .zero)   // translate, runCount 1
+        coordinator.handleActionChange(.fixGrammar)                     // fix, runCount 2
+        await coordinator.captureTask?.value
+        coordinator.handlePickAlternative(original: "a", chosen: "b", translation: "X") // swap overwrites .fixGrammar
+        await coordinator.captureTask?.value
+        #expect(llm.recorder.runCount == 2)
+
+        coordinator.handleUndo()                                        // must drop the swapped .fixGrammar entry
+        coordinator.handleActionChange(.translate)                      // cached → no run
+        await coordinator.captureTask?.value
+        coordinator.handleActionChange(.fixGrammar)                     // cache gone → must re-run → 3
+        await coordinator.captureTask?.value
+        #expect(llm.recorder.runCount == 3)
+    }
+
     // MARK: Per-word explanation — "Dlaczego tak?" (issue #39)
 
     @Test func fetchExplanationThreadsSourceAndSecondLanguage() async {

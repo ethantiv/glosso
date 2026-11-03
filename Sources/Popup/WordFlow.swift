@@ -203,16 +203,14 @@ struct AlternativesDropdown: View {
 
     @ViewBuilder
     private var fixReasonContent: some View {
-        HStack(spacing: 6) {
-            Image(systemName: "checkmark.circle")
-                .font(.system(size: 11.5, weight: .semibold))
-            Text(loc("Dlaczego poprawiono?", "Why was this corrected?"))
-                .font(PopupTheme.fontControl)
-            Spacer(minLength: 0)
+        if model.fixReasonHasBack {
+            Button(action: onBack) {
+                headerRow(icon: "chevron.left", title: Self.fixReasonTitle)
+            }
+            .buttonStyle(.plain)
+        } else {
+            headerRow(icon: "checkmark.circle", title: Self.fixReasonTitle)
         }
-        .foregroundStyle(.tint)
-        .padding(.horizontal, 12)
-        .padding(.vertical, 8)
         Divider()
         if model.explanationLoading {
             HStack(spacing: 8) {
@@ -275,34 +273,50 @@ struct AlternativesDropdown: View {
         }
     }
 
+    private static var fixReasonTitle: String { loc("Dlaczego poprawiono?", "Why was this corrected?") }
+
+    private func headerRow(icon: String, title: String) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11.5, weight: .semibold))
+            Text(title)
+                .font(PopupTheme.fontControl)
+            Spacer(minLength: 0)
+        }
+        .foregroundStyle(.tint)
+        .padding(.horizontal, 12)
+        .padding(.vertical, 8)
+        .contentShape(Rectangle())
+    }
+
+    /// Translation words explain the rendering, corrections their reason; an unchanged word in a correction has neither.
+    private var listHeader: (icon: String, title: String)? {
+        if model.action == .translate { return ("lightbulb", loc("Dlaczego tak?", "Why this?")) }
+        if model.selectedFixChange != nil { return ("checkmark.circle", Self.fixReasonTitle) }
+        return nil
+    }
+
     @ViewBuilder
     private var alternativesContent: some View {
-        Button(action: onExplain) {
-            HStack(spacing: 6) {
-                Image(systemName: "lightbulb")
-                    .font(.system(size: 11.5, weight: .semibold))
-                Text(loc("Dlaczego tak?", "Why this?"))
-                    .font(PopupTheme.fontControl)
-                Spacer(minLength: 0)
+        let synonyms = model.action == .fixGrammar
+        if let header = listHeader {
+            Button(action: onExplain) {
+                headerRow(icon: header.icon, title: header.title)
             }
-            .foregroundStyle(.tint)
-            .padding(.horizontal, 12)
-            .padding(.vertical, 8)
-            .contentShape(Rectangle())
+            .buttonStyle(.plain)
+            Divider()
         }
-        .buttonStyle(.plain)
-        Divider()
         if model.altsLoading {
             HStack(spacing: 8) {
                 ProgressView().controlSize(.small)
-                Text(loc("Szukam alternatyw…", "Finding alternatives…"))
+                Text(synonyms ? loc("Szukam synonimów…", "Finding synonyms…") : loc("Szukam alternatyw…", "Finding alternatives…"))
                     .font(PopupTheme.fontMeta)
                     .foregroundStyle(.secondary)
             }
             .padding(.horizontal, 12)
             .padding(.vertical, 9)
         } else if model.alternatives.isEmpty {
-            Text(loc("Brak alternatyw", "No alternatives"))
+            Text(synonyms ? loc("Brak synonimów", "No synonyms") : loc("Brak alternatyw", "No alternatives"))
                 .font(PopupTheme.fontMeta)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
