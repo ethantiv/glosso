@@ -18,6 +18,14 @@ extension LLMClient where Self: GenerationBackend {
         return AlternativesParser.parse(try await generate(prompt: prompt, model: model, timeout: nil, numPredict: nil), original: word)
     }
 
+    func synonyms(for word: String, in text: String, model: String) async throws -> [String] {
+        AlternativesParser.parse(try await generate(prompt: PromptBuilder.buildSynonyms(word: word, text: text), model: model, timeout: nil, numPredict: nil), original: word)
+    }
+
+    func swapSynonym(original: String, to chosen: String, in text: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+        streamGeneration(prompt: PromptBuilder.buildSwapSynonym(original: original, chosen: chosen, text: text), model: model)
+    }
+
     // The reader-facing methods unwrap here, once — Flash Lite echoes the prompt's own wrapper, and a call
     // site that forgets to peel it renders a literal `<block>` and persists it into the cache.
     func translateBlock(html: String, into primary: PrimaryLanguage, model: String) async throws -> String {

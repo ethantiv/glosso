@@ -224,6 +224,10 @@ protocol LLMClient: Sendable {
     func prewarm(model: String) async throws
     func alternatives(for word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> [String]
     func reword(original: String, to chosen: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, formality: Formality, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
+    /// Up to 6 same-language synonyms of `word` as it is used in `text` (a corrected text, not a translation); never `word` itself.
+    func synonyms(for word: String, in text: String, model: String) async throws -> [String]
+    /// `text` with `original` replaced by `chosen`, only the surrounding words adjusted for agreement.
+    func swapSynonym(original: String, to chosen: String, in text: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error>
     func explain(word: String, in translation: String, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String
     func explainFix(error: String, correction: String, original: String, corrected: String, primary: PrimaryLanguage, second: SecondLanguage, englishRules: Bool, style: Bool, model: String) async throws -> String
     func explainRegister(previous: String, current: String, from: Formality, to: Formality, source: String, primary: PrimaryLanguage, second: SecondLanguage, model: String) async throws -> String

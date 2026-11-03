@@ -18,11 +18,27 @@ struct PopupLayoutTests {
     func dropdownIdealSizeIsStable() {
         // Its own window sizes itself from this measurement, per content state — a state that measures to zero would
         // open an invisible window.
-        for state in ["alternatives", "loading", "explanation"] {
+        for state in ["alternatives", "loading", "explanation", "fixSynonyms", "fixPlainWord", "fixReasonBack", "fixReasonOnly"] {
             let model = PopupModel()
             model.text = "Nauka języka to kwestia uporu."
             model.openDropdown(for: 0)
             switch state {
+            case "fixSynonyms", "fixPlainWord", "fixReasonBack":
+                model.action = .fixGrammar
+                let change: (before: String, after: String)? = state == "fixPlainWord" ? nil : (before: "upor", after: "uporu")
+                model.openDropdown(for: 0, word: "uporu", fixChange: change)
+                model.alternatives = ["wytrwałości", "determinacji"]
+                model.altsLoading = false
+                if state == "fixReasonBack" {
+                    model.showFixReason()
+                    model.explanationLoading = false
+                    model.explanationText = "Dopełniacz po rzeczowniku „kwestia”."
+                }
+            case "fixReasonOnly":
+                model.action = .fixGrammar
+                model.openFixReason(id: 0, before: ";", after: ".")
+                model.explanationLoading = false
+                model.explanationText = "Średnik zastąpiono kropką."
             case "alternatives":
                 model.alternatives = (0..<3).map { "alternatywa \($0)" }
                 model.altsLoading = false
@@ -62,7 +78,7 @@ struct PopupLayoutTests {
             model: model,
             close: {}, selectFormality: { _ in }, selectAction: { _ in },
             fetchAlternatives: { _, _ in [] },
-            fetchFixReason: { _, _, _ in "" }, fetchToneNote: { _, _, _, _ in "" },
+            loadFixReason: {}, fetchToneNote: { _, _, _, _ in "" },
             replace: { _ in }, retranslate: { _ in },
             undo: {}, resizeBy: { _, _ in }, reportSize: { _ in }, reportDropdownAnchor: { _ in }
         ))

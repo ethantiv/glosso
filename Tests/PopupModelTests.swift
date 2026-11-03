@@ -175,6 +175,90 @@ import Testing
         #expect(model.text == "bieżąca")
     }
 
+    // MARK: Synonyms in a correction
+
+    @Test func openDropdownCarriesWordAndFixChangeUntilClosed() {
+        let model = PopupModel()
+        model.openDropdown(for: 4, word: "szybciej", fixChange: (before: "szybko", after: "szybciej"))
+
+        #expect(model.selectedWord == "szybciej")
+        #expect(model.selectedFixChange?.before == "szybko")
+        #expect(model.selectedFixChange?.after == "szybciej")
+        #expect(model.altsLoading == true)
+
+        model.closeDropdown()
+
+        #expect(model.selectedWord.isEmpty)
+        #expect(model.selectedFixChange == nil)
+    }
+
+    @Test func fixReasonHasBackOnlyWhenTheCorrectionAddedAWord() {
+        let model = PopupModel()
+        model.openDropdown(for: 1, word: "ogóle", fixChange: (before: "wogóle", after: "w ogóle"))
+        #expect(model.fixReasonHasBack == true)
+
+        model.openFixReason(id: 2, before: "zbędne ", after: "")
+        #expect(model.fixReasonHasBack == false)
+
+        model.openFixReason(id: 3, before: ";", after: ".")
+        #expect(model.fixReasonHasBack == false)
+
+        model.openDropdown(for: -1, word: "dom")
+        #expect(model.fixReasonHasBack == false)
+    }
+
+    @Test func showFixReasonThenCloseExplanationReturnsToSynonyms() {
+        let model = PopupModel()
+        model.openDropdown(for: 1, word: "szybciej", fixChange: (before: "szybko", after: "szybciej"))
+        model.alternatives = ["prędzej"]
+        model.altsLoading = false
+        let before = model.explanationRequestToken
+
+        model.showFixReason()
+        #expect(model.fixReasonMode == true)
+        #expect(model.showingExplanation == true)
+        #expect(model.explanationLoading == true)
+        #expect(model.explanationRequestToken == before + 1)
+
+        model.closeExplanation()
+        #expect(model.fixReasonMode == false)
+        #expect(model.showingExplanation == false)
+        #expect(model.dropdownVisible == true)
+        #expect(model.alternatives == ["prędzej"])   // back without refetching
+    }
+
+    @Test func openFixReasonWithoutAWordOpensStraightOntoTheReason() {
+        let model = PopupModel()
+        model.openFixReason(id: 2, before: "zbędne ", after: "")
+
+        #expect(model.dropdownVisible == true)
+        #expect(model.fixReasonMode == true)
+        #expect(model.altsLoading == false)
+        #expect(model.selectedFixChange?.before == "zbędne ")
+    }
+
+    @Test func diffSameRunWordIdsAreNegativeAndUniqueAcrossTheDiff() {
+        let model = PopupModel()
+        model.capturedSource = "Ala ma kota i psa, ale nie ma ryby."
+        model.text = "Ala ma kota oraz psa, ale nie ma ryby."
+
+        let ids = model.diffSameRuns.values.flatMap { $0 }.compactMap { run -> Int? in
+            if case .chunk(_, _, let word, _) = run { return word.id } else { return nil }
+        }
+        #expect(ids.count > 4)
+        #expect(ids.allSatisfy { $0 < 0 })
+        #expect(Set(ids).count == ids.count)
+    }
+
+    @Test func toggleDiffHiddenDropsTheSynonymCache() {
+        let model = PopupModel()
+        model.altsCache[2] = ["prędzej"]
+
+        model.toggleDiffHidden()
+
+        #expect(model.altsCache.isEmpty)
+    }
+
     // MARK: Explanation sub-state — "Dlaczego tak?" (issue #39)
 
     @Test func openExplanationArmsLoadingAndBumpsToken() {

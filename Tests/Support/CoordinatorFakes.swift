@@ -87,6 +87,37 @@ struct FakeLLMClient: LLMClient {
             var rewordSecond: SecondLanguage?
             var rewordFormality: Formality?
             var rewordModel: String?
+            // synonyms(...) / swapSynonym(...)
+            var synWord: String?
+            var synText: String?
+            var synModel: String?
+            var swapOriginal: String?
+            var swapChosen: String?
+            var swapText: String?
+        }
+        var synWord: String? {
+            get { lock.withLock { storage.synWord } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.synWord }
+        }
+        var synText: String? {
+            get { lock.withLock { storage.synText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.synText }
+        }
+        var synModel: String? {
+            get { lock.withLock { storage.synModel } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.synModel }
+        }
+        var swapOriginal: String? {
+            get { lock.withLock { storage.swapOriginal } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.swapOriginal }
+        }
+        var swapChosen: String? {
+            get { lock.withLock { storage.swapChosen } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.swapChosen }
+        }
+        var swapText: String? {
+            get { lock.withLock { storage.swapText } }
+            _modify { lock.lock(); defer { lock.unlock() }; yield &storage.swapText }
         }
         private var storage = State()
         var receivedText: String? {
@@ -404,6 +435,21 @@ struct FakeLLMClient: LLMClient {
         recorder.rewordSecond = second
         recorder.rewordFormality = formality
         recorder.rewordModel = model
+        return makeStream()
+    }
+
+    func synonyms(for word: String, in text: String, model: String) async throws -> [String] {
+        recorder.synWord = word
+        recorder.synText = text
+        recorder.synModel = model
+        if let alternativesError { throw alternativesError }
+        return alternativesResult
+    }
+
+    func swapSynonym(original: String, to chosen: String, in text: String, model: String) -> AsyncThrowingStream<TranslationEvent, Error> {
+        recorder.swapOriginal = original
+        recorder.swapChosen = chosen
+        recorder.swapText = text
         return makeStream()
     }
 

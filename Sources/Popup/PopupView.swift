@@ -7,7 +7,8 @@ struct PopupView: View {
     let selectFormality: (Formality) -> Void
     let selectAction: (Action) -> Void
     let fetchAlternatives: (_ word: String, _ translation: String) async -> [String]
-    let fetchFixReason: (_ before: String, _ after: String, _ corrected: String) async -> String
+    /// Loads the reason for `model.selectedFixChange`; the dropdown's header row triggers it too, so it lives in the controller.
+    let loadFixReason: () -> Void
     let fetchToneNote: (_ previous: String, _ current: String, _ from: Formality, _ to: Formality) async -> String
     let replace: (String) -> Void
     let retranslate: (_ source: String) -> Void
@@ -571,18 +572,22 @@ struct PopupView: View {
             ForEach(FlowComposer.runs(model.segments)) { run in
                 switch run {
                 case .chunk(_, let leading, let word, let trailing):
-                    HStack(spacing: 0) {
-                        if !leading.isEmpty { punctuation(leading) }
-                        wordView(word)
-                        if !trailing.isEmpty { punctuation(trailing) }
-                    }
-                    .layoutValue(key: FlowItemKindKey.self, value: .word)
+                    wordChunk(leading: leading, word: word, trailing: trailing)
                 case .gap(_, let text, let isWhitespace):
                     gapView(text, isWhitespace: isWhitespace)
                 }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func wordChunk(leading: String, word: TextSegment, trailing: String) -> some View {
+        HStack(spacing: 0) {
+            if !leading.isEmpty { punctuation(leading) }
+            wordView(word)
+            if !trailing.isEmpty { punctuation(trailing) }
+        }
+        .layoutValue(key: FlowItemKindKey.self, value: .word)
     }
 
     /// A newline-bearing gap becomes a layout line break — collapsing it to " " glued paragraphs into one flow,
@@ -626,21 +631,25 @@ struct PopupView: View {
     }
 
     private func onTapWord(_ segment: TextSegment) {
-        model.openDropdown(for: segment.id)
-        if let cached = model.altsCache[segment.id] {
+        model.openDropdown(for: segment.id, word: segment.text)
+        loadAlternatives(id: segment.id, word: segment.text)
+    }
+
+    /// Alternatives in a translation, synonyms in a correction — the coordinator picks the prompt by action.
+    private func loadAlternatives(id: Int, word: String) {
+        if let cached = model.altsCache[id] {
             model.alternatives = cached
             model.altsLoading = false
             return
         }
         let token = model.altsRequestToken
-        let word = segment.text
-        let translation = model.text
+        let text = model.text
         Task { @MainActor in
-            let alternatives = await fetchAlternatives(word, translation)
+            let alternatives = await fetchAlternatives(word, text)
             guard model.altsRequestToken == token, model.dropdownVisible else { return }
             model.alternatives = alternatives
             model.altsLoading = false
-            if !alternatives.isEmpty { model.altsCache[segment.id] = alternatives }
+            if !alternatives.isEmpty { model.altsCache[id] = alternatives }
         }
     }
 
@@ -655,8 +664,11 @@ struct PopupView: View {
                 grammarDiffFlow
                 Divider()
                 label(loc("Poprawiona wersja", "Corrected version"))
+                plainResultText
+            } else {
+                // With the diff hidden this is the only copy of the result, so its words open synonyms.
+                wordFlow
             }
-            plainResultText
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -696,10 +708,7 @@ struct PopupView: View {
                     ForEach(model.diffSameRuns[id] ?? []) { run in
                         switch run {
                         case .chunk(_, let leading, let word, let trailing):
-                            Text(leading + word.text + trailing)
-                                .font(PopupTheme.fontLead)
-                                .foregroundStyle(.primary)
-                                .layoutValue(key: FlowItemKindKey.self, value: .word)
+                            wordChunk(leading: leading, word: word, trailing: trailing)
                         case .gap(_, let gapText, let isWhitespace):
                             gapView(gapText, isWhitespace: isWhitespace)
                         }
@@ -745,24 +754,18 @@ struct PopupView: View {
         .onTapGesture { onTapFixChange(id: id, before: removed, after: added) }
     }
 
+    /// A correction that added a word opens its synonyms, with the reason one row up; one that only removed text or
+    /// changed punctuation has nothing to look up and opens straight onto the reason.
     private func onTapFixChange(id: Int, before: String, after: String) {
         guard !model.diffHidden else { return }
-        model.openFixReason(id: id, before: before, after: after)
-        if let cached = model.fixReasonCache[id] {
-            model.explanationText = cached
-            model.explanationLoading = false
+        guard PopupModel.hasWord(after) else {
+            model.openFixReason(id: id, before: before, after: after)
+            loadFixReason()
             return
         }
-        let token = model.explanationRequestToken
-        let corrected = model.text
-        Task { @MainActor in
-            let reason = await fetchFixReason(before, after, corrected)
-            guard model.explanationRequestToken == token,
-                  model.dropdownVisible, model.fixReasonMode else { return }
-            model.explanationText = reason
-            model.explanationLoading = false
-            if !reason.isEmpty { model.fixReasonCache[id] = reason }
-        }
+        let word = after.trimmingCharacters(in: .whitespacesAndNewlines.union(.punctuationCharacters))
+        model.openDropdown(for: id, word: word, fixChange: (before, after))
+        loadAlternatives(id: id, word: word)
     }
 
     /// The dropdown lives in its own child window now, so this view's only job is to hand the controller the clicked
