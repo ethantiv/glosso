@@ -4,7 +4,7 @@
 
 Glosso is a macOS 26+ menu-bar agent (`LSUIElement`, no Dock icon, Swift 6 strict concurrency). On **double Cmd+C** it translates or grammar-fixes the selection with an LLM and streams the result into a floating panel near the cursor; a copied bare URL opens a translated reader window instead. `README.md` covers only install and build; `docs/DISTRIBUTION.md` owns signing and release details.
 
-Two load-bearing LLM decisions (`Tests/SanityTests.swift` pins `think: false`, temperature, model and `keepAlive`): `think: false` is mandatory (Gemma otherwise spends 10–26 s on reasoning tokens for the same translation), and the app uses Ollama's native `/api/generate`, not the OpenAI-compatible `/v1` layer, which doesn't expose `keep_alive`.
+Two load-bearing LLM decisions (`Tests/SanityTests.swift` pins `think: false`, temperature, model and `keepAlive`): `think: false` is mandatory (Gemma otherwise spends 10–26 s on reasoning tokens for the same translation), and the app uses Ollama's native `/api/generate`, not the OpenAI-compatible `/v1` layer, which doesn't expose `keep_alive`. Exception: speech (`OllamaSpeechClient`, model `lfm3-audio`) must use `/v1/audio/*`, because the native API has no audio fields.
 
 ## Commands
 
@@ -42,6 +42,7 @@ Environment notes:
 
 - The user verifies native Glosso UI manually. Don't drive the app with Computer Use, capture its windows or synthesize UI gestures. Rely on offline tests and tell the user what to check by hand (`docs/test-sentences.txt` has graded sentences for that). The `docs/` landing page can be checked in a browser.
 - Put larger changes on a feature branch, not directly on `main`.
+- Larger features go through Spec Kit (`/speckit-specify` → `plan` → `tasks` → `implement`): artifacts in `specs/NNN-name/`, branch named `NNN-name`.
 - User-facing changes bump `MARKETING_VERSION` in `project.yml` (must stay a quoted `"X.Y.Z"`; CI parses it): minor for features, patch for fixes. Merging a new version into `main` *is* the release: `.github/workflows/release.yml` builds, signs and publishes it, then a bot commit to `main` updates the download links in `docs/index.html` and `docs/en/index.html`, so pull before branching again.
 - `.github/workflows/claude-code-review.yml` reviews a non-draft PR only when it touches `Sources/`, `Tests/`, `TestsIntegration/`, `Vendor/`, `scripts/`, `.github/workflows/` or `project.yml`, so a docs-only PR without a review is expected. A new push cancels a running review; the next one covers everything since the last successful review. `claude.yml` responds to `@claude` mentions. No workflow builds or tests a PR, so run `scripts/test.sh` before merging.
 - Commit messages use `feat:`, `fix:`, `test:`, `refactor:`, `docs:` and `chore:` prefixes.
@@ -79,6 +80,7 @@ Storage goes through the `ReaderRepository` actor: `ReaderCache` (Caches directo
 - `Popup/` holds the floating `NSPanel` (`TranslationPopupController`, `FloatingPanel`) and the Translator… window.
 - `Engine/` finds or downloads the Ollama binary and pulls models.
 - `Settings/` contains `SettingsStore`, which is `@Observable` and UserDefaults-backed. API keys are stored in the Keychain through `APIKeyStore`, one account per provider. The module also holds onboarding.
+- `Speech/` reads text aloud: one shared `Narrator` (so the popup and the reader never overlap) streams PCM from `OllamaSpeechClient` into `PCMStreamPlayer`.
 - `Update/` checks GitHub `releases/latest`; `Notify/` posts user notifications.
 
 **Bundled JS**: any `.js` file must be listed in `project.yml` with `buildPhase: resources`, because XcodeGen otherwise tries to compile it. A `.js` under `Sources/` must also go in the `Sources` entry's `excludes` (see `ReaderSanitizer.js`). `Vendor/` holds Readability.js and DOMPurify.
